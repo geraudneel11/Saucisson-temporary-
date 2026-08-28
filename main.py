@@ -10,7 +10,7 @@ from animations import load_animation
 from animations import load_animation_row
 from animations import load_animation_column
 from settings import *
-from classes import Player, Enemy, Coin, NPC, Tree
+from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion
 import npc_system
 import waves
 import world
@@ -195,6 +195,24 @@ tree2 = load_animation_column(trees_sheet, 1, 3.5, 9, 13)   # même arbre, taill
 tree3 = load_animation_column(trees_sheet, 2, 3.5, 9, 13)   # même arbre, petit buisson
 tree4 = load_animation_column(trees_sheet, 3, 3.5, 9, 13)   # pommier
 tree5 = load_animation_column(trees_sheet, 6, 3.5, 9, 13)   # arbre feuillu foncé
+apple_sprite = pygame.Surface((32, 32), pygame.SRCALPHA)
+pygame.draw.circle(apple_sprite, (200, 30, 30), (16, 16), 14)
+pygame.draw.circle(apple_sprite, (120, 15, 15), (16, 16), 14, 2)
+
+golden_apple_sprite = pygame.Surface((32, 32), pygame.SRCALPHA)
+pygame.draw.circle(golden_apple_sprite, (255, 215, 0), (16, 16), 14)
+pygame.draw.circle(golden_apple_sprite, (180, 140, 0), (16, 16), 14, 2)
+rock_big_sprite = shop_exterior_sheet.subsurface(ROCK_BIG_RECT)
+rock_big_sprite = pygame.transform.scale(
+	rock_big_sprite,
+	(int(rock_big_sprite.get_width() * ROCK_BIG_SCALE), int(rock_big_sprite.get_height() * ROCK_BIG_SCALE))
+)
+
+rock_medium_sprite = shop_exterior_sheet.subsurface(ROCK_MEDIUM_RECT)
+rock_medium_sprite = pygame.transform.scale(
+	rock_medium_sprite,
+	(int(rock_medium_sprite.get_width() * ROCK_MEDIUM_SCALE), int(rock_medium_sprite.get_height() * ROCK_MEDIUM_SCALE))
+)
 
 healer_idle = load_animation_row(healer_idle_sheet, 0, NPC_SCALE, 12, 4)
 healer_walk_down = load_animation_row(healer_walk_sheet, 0, NPC_SCALE, 6, 4)
@@ -464,6 +482,84 @@ for positions, frames in tree_species:
 		))
 		tree_index += 1
 
+town_rocks = []
+rock_species = [
+	(ROCK_POSITIONS_BIG, rock_big_sprite, ROCK_BIG_HITBOX),
+	(ROCK_POSITIONS_MEDIUM, rock_medium_sprite, ROCK_MEDIUM_HITBOX),
+]
+
+rock_index = 0
+for positions, sprite, default_hitbox in rock_species:
+	for x, y in positions:
+		overrides = ROCK_HITBOX_OVERRIDES.get(rock_index, {})
+		town_rocks.append(Rock(
+			x, y, sprite,
+			index=rock_index,
+			hitbox_width=overrides.get("width", default_hitbox["width"]),
+			hitbox_height=overrides.get("height", default_hitbox["height"]),
+			hitbox_offset_x=overrides.get("offset_x", 0),
+			hitbox_offset_y=overrides.get("offset_y", ROCK_HITBOX_OFFSET_Y)
+		))
+		rock_index += 1
+
+house_bounds = (
+	house_x - 150,
+	house_y - 150,
+	house_x + house_width + 150,
+	house_y + house_height + 150
+)
+
+level_tree_placements = world.generate_level_trees(
+	[tree1, tree2, tree3],
+	(player.rect.centerx, player.rect.centery),
+	MAP_WIDTH, MAP_HEIGHT,
+	plaza_center, path_end, house_bounds,
+	count=LEVEL_TREE_COUNT,
+	min_spacing=LEVEL_TREE_MIN_SPACING,
+	avoid_radius=LEVEL_TREE_AVOID_RADIUS
+)
+
+level_trees = [
+	Tree(x, y, frames, index=i, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+	for i, (x, y, frames) in enumerate(level_tree_placements)
+]
+rock_variants = [
+	(rock_big_sprite, ROCK_BIG_HITBOX),
+	(rock_medium_sprite, ROCK_MEDIUM_HITBOX),
+]
+
+apple_tree_placements = world.generate_apple_trees(
+	tree4,
+	[(x, y) for x, y, _ in level_tree_placements],
+	(player.rect.centerx, player.rect.centery),
+	MAP_WIDTH, MAP_HEIGHT,
+	plaza_center, path_end, house_bounds,
+	max_count=APPLE_TREE_MAX_COUNT,
+	spawn_chance=APPLE_TREE_SPAWN_CHANCE
+)
+apple_trees = [
+	Tree(x, y, frames, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+	for x, y, frames in apple_tree_placements
+]
+for tree in apple_trees:
+	tree.dropped_apple = False
+	tree.dropped_golden_apple = False
+
+level_rock_placements = world.generate_level_rocks(
+	rock_variants,
+	[(x, y) for x, y, _ in level_tree_placements] + [(x, y) for x, y, _ in apple_tree_placements],
+	(player.rect.centerx, player.rect.centery),
+	MAP_WIDTH, MAP_HEIGHT,
+	plaza_center, path_end, house_bounds,
+	count=LEVEL_ROCK_COUNT,
+	min_spacing=LEVEL_ROCK_MIN_SPACING
+)
+level_rocks = [
+	Rock(x, y, sprite, hitbox_width=hitbox["width"], hitbox_height=hitbox["height"], hitbox_offset_y=ROCK_HITBOX_OFFSET_Y)
+	for x, y, sprite, hitbox in level_rock_placements
+]
+
+item_drops = []
 player.selected_slot = 0
 coins_to_collect = 0
 
@@ -557,12 +653,29 @@ while run == True :
 	if camera_y > MAP_HEIGHT - screen.get_height():
 		camera_y = MAP_HEIGHT - screen.get_height()
 
+	VIEWPORT_MARGIN = 300
+	visible_rect = pygame.Rect(
+		camera_x - VIEWPORT_MARGIN,
+		camera_y - VIEWPORT_MARGIN,
+		screen.get_width() + VIEWPORT_MARGIN * 2,
+		screen.get_height() + VIEWPORT_MARGIN * 2
+	)
 	if game_state != "house":
 		world.draw_ground(game_surface, ground_layer, camera_x, camera_y, screen.get_width(), screen.get_height())
-
+	if game_state == "shop":
+		visible_trees = [tree for tree in town_trees if visible_rect.colliderect(tree.rect)]
+		visible_rocks = [rock for rock in town_rocks if visible_rect.colliderect(rock.rect)]
+	else:
+		visible_trees = []
+		visible_rocks = []
 	if game_state == "shop":
 		colliders.append(house.hitbox)
-		colliders.extend(tree.hitbox for tree in town_trees)
+		colliders.extend(tree.hitbox for tree in visible_trees)
+		colliders.extend(rock.hitbox for rock in visible_rocks)
+	if game_state == "wave":
+		colliders.extend(tree.hitbox for tree in level_trees)
+		colliders.extend(tree.hitbox for tree in apple_trees)
+		colliders.extend(rock.hitbox for rock in level_rocks)
 
 	collision.resolve_player_collisions(player, colliders, old_pos)
 
@@ -588,7 +701,8 @@ while run == True :
 	SMOKE_ANIMATION_SPEED,
 	smoke_animation
 )
-	attack_done = fight.resolve_player_attack(
+	was_attack_done = attack_done
+	attack_done, killed_this_attack = fight.resolve_player_attack(
 		player,
 		enemies,
 		attacking,
@@ -596,12 +710,44 @@ while run == True :
 		attack_hitbox,
 		player.max_targets
 	)
+
+	if game_state == "wave" and not was_attack_done and attack_done:
+		for tree in apple_trees:
+			if not tree.dropped_apple and attack_hitbox and attack_hitbox.colliderect(tree.rect):
+				if random.random() < APPLE_DROP_CHANCE:
+					item_drops.append(ItemDrop(
+						tree.rect.centerx, tree.rect.bottom - 10, Apple(apple_sprite),
+						fall_height=ITEM_DROP_FALL_HEIGHT, fall_duration=ITEM_DROP_FALL_DURATION
+					))
+					tree.dropped_apple = True
+
+		if len(killed_this_attack) >= GOLDEN_APPLE_KILL_COUNT:
+			kill_x = sum(e.rect.centerx for e in killed_this_attack) / len(killed_this_attack)
+			kill_y = sum(e.rect.centery for e in killed_this_attack) / len(killed_this_attack)
+			for tree in apple_trees:
+				if tree.dropped_golden_apple:
+					continue
+				dist = math.hypot(tree.rect.centerx - kill_x, tree.rect.centery - kill_y)
+				if dist <= GOLDEN_APPLE_KILL_RADIUS:
+					if random.random() < GOLDEN_APPLE_DROP_CHANCE:
+						item_drops.append(ItemDrop(
+							tree.rect.centerx, tree.rect.bottom - 10, GoldenApple(golden_apple_sprite),
+							fall_height=ITEM_DROP_FALL_HEIGHT, fall_duration=ITEM_DROP_FALL_DURATION
+						))
+						tree.dropped_golden_apple = True
 	
 
 	for coin in coins[:]:
 		if player.hitbox.colliderect(coin.rect):
 			player.coins += coin.value
 			coins.remove(coin)
+
+	if game_state == "wave":
+		for drop in item_drops[:]:
+			drop.update(player)
+			if player.hitbox.colliderect(drop.rect):
+				if player.add_item_to_inventory(drop.item):
+					item_drops.remove(drop)
 
 	entities = []
 	entities.append(("player", player, player.hitbox.bottom + PLAYER_SORT_MARGIN))
@@ -612,8 +758,18 @@ while run == True :
 			entities.append(("npc", npc, npc.rect.bottom))
 
 	if game_state == "shop":
-		for tree in town_trees:
+		for tree in visible_trees:
 			entities.append(("tree", tree, tree.rect.bottom))
+		for rock in visible_rocks:
+			entities.append(("rock", rock, rock.rect.bottom))
+			
+	if game_state == "wave":
+		for tree in level_trees:
+			entities.append(("tree", tree, tree.rect.bottom))
+		for tree in apple_trees:
+			entities.append(("tree", tree, tree.rect.bottom))
+		for rock in level_rocks:
+			entities.append(("rock", rock, rock.rect.bottom))
 			
 	if game_state == "shop":
 		if player.hitbox.colliderect(portal_rect):
@@ -623,10 +779,65 @@ while run == True :
 			spawn_x, spawn_y = world.random_spawn_position(MAP_WIDTH, MAP_HEIGHT)
 			player.rect.center = (spawn_x, spawn_y)
 			player.update_hitbox()
+			level_tree_placements = world.generate_level_trees(
+				[tree1, tree2, tree3],
+				(spawn_x, spawn_y),
+				MAP_WIDTH, MAP_HEIGHT,
+				plaza_center, path_end, house_bounds,
+				count=LEVEL_TREE_COUNT,
+				min_spacing=LEVEL_TREE_MIN_SPACING,
+				avoid_radius=LEVEL_TREE_AVOID_RADIUS
+			)
+			level_trees = [
+				Tree(x, y, frames, index=i, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+				for i, (x, y, frames) in enumerate(level_tree_placements)
+			]
+
+			apple_tree_placements = world.generate_apple_trees(
+				tree4,
+				[(x, y) for x, y, _ in level_tree_placements],
+				(spawn_x, spawn_y),
+				MAP_WIDTH, MAP_HEIGHT,
+				plaza_center, path_end, house_bounds,
+				max_count=APPLE_TREE_MAX_COUNT,
+				spawn_chance=APPLE_TREE_SPAWN_CHANCE
+			)
+			apple_trees = [
+				Tree(x, y, frames, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+				for x, y, frames in apple_tree_placements
+			]
+			for tree in apple_trees:
+				tree.dropped_apple = False
+				tree.dropped_golden_apple = False
+
+			level_rock_placements = world.generate_level_rocks(
+				rock_variants,
+				[(x, y) for x, y, _ in level_tree_placements] + [(x, y) for x, y, _ in apple_tree_placements],
+				(spawn_x, spawn_y),
+				MAP_WIDTH, MAP_HEIGHT,
+				plaza_center, path_end, house_bounds,
+				count=LEVEL_ROCK_COUNT,
+				min_spacing=LEVEL_ROCK_MIN_SPACING
+			)
+			level_rocks = [
+				Rock(x, y, sprite, hitbox_width=hitbox["width"], hitbox_height=hitbox["height"], hitbox_offset_y=ROCK_HITBOX_OFFSET_Y)
+				for x, y, sprite, hitbox in level_rock_placements
+			]
+
+			item_drops.clear()
 	
+	if game_state == "wave":
+		level_obstacle_hitboxes = (
+			[tree.rect for tree in level_trees]
+			+ [tree.rect for tree in apple_trees]
+			+ [rock.rect for rock in level_rocks]
+		)
+	else:
+		level_obstacle_hitboxes = []
+
 	for enemy in enemies:
 		if transition == False:
-			enemy.update(player)
+			enemy.update(player, level_obstacle_hitboxes)
 
 	collision.resolve_entity_collisions(enemies)
 
@@ -835,7 +1046,7 @@ while run == True :
 
 											else:
 												merchant_1.set_click_text(
-   												"Votre inventaire est plein."
+												   "Votre inventaire est plein."
 											)
 				else:
 					# Only allow attacking if not in NPC interaction
@@ -856,15 +1067,24 @@ while run == True :
 					slot = player.inventory[player.selected_slot]
 					item = slot["item"]
 
-					if item is not None and potion_heal_timer == 0:
-						potion_heal_animation_start_hp = player.hp
-						potion_heal_animation_target_hp = min(player.max_hp, player.hp + item.heal)
-						potion_heal_timer = POTION_ANIMATION_DURATION
+					if item is not None:
+						if isinstance(item, Potion) and potion_heal_timer == 0:
+							potion_heal_animation_start_hp = player.hp
+							potion_heal_animation_target_hp = min(player.max_hp, player.hp + item.heal)
+							potion_heal_timer = POTION_ANIMATION_DURATION
 
-						slot["quantity"] -= 1
-						if slot["quantity"] <= 0:
-							slot["item"] = None
-							slot["quantity"] = 0
+							slot["quantity"] -= 1
+							if slot["quantity"] <= 0:
+								slot["item"] = None
+								slot["quantity"] = 0
+
+						elif isinstance(item, (Apple, GoldenApple)):
+							item.use(player)
+
+							slot["quantity"] -= 1
+							if slot["quantity"] <= 0:
+								slot["item"] = None
+								slot["quantity"] = 0
 		if event.type == pygame.KEYDOWN:
 
 			if event.key == pygame.K_e:
@@ -959,6 +1179,11 @@ while run == True :
 			entity.draw(house.interior_surface)
 		elif entity_type == "tree":
 			game_surface.blit(entity.image, entity.rect)
+		elif entity_type == "rock":
+			game_surface.blit(entity.image, entity.rect)
+		if game_state == "wave":
+			for drop in item_drops:
+				drop.draw(game_surface)
 
 	if game_state == "shop":
 		sprite = portal_animation[portal_frame]
@@ -974,7 +1199,7 @@ while run == True :
 	if game_state == "shop":
 		for tree in town_trees:
 			tree.update()
-			
+
 	if transition:
 		TRANSITION_TIMER -= 1
 		overlay_presence = True
@@ -984,6 +1209,8 @@ while run == True :
 
 	if player.invicible_timer > 0:
 		player.invicible_timer -= 1
+
+	player.update_buffs()
 
 	if heal_timer > 0:
 		heal_timer -= 1
@@ -1064,7 +1291,10 @@ while run == True :
 			pygame.draw.rect(game_surface, (255, 80, 80), tree.hitbox, 2)
 			label = tree_debug_font.render(f"arbre #{tree.index}", True, (255, 80, 80))
 			game_surface.blit(label, (tree.hitbox.x, tree.hitbox.y - 14))
-
+		for rock in town_rocks:
+			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
+			label = tree_debug_font.render(f"rocher #{rock.index}", True, (80, 160, 255))
+			game_surface.blit(label, (rock.hitbox.x, rock.hitbox.y - 14))
 			# Violet : hitbox réservée aux futures collisions NPC-meubles
 			pygame.draw.rect(house.interior_surface, (170, 0, 255), npc.hitbox, 2)
 		# Debug : rect complet du joueur (vert) + point utilisé pour le tri	
@@ -1080,6 +1310,13 @@ while run == True :
 		player_label = f"player rect: h={player.rect.height} bottom={player.rect.bottom}"
 		label_surface = debug_font.render(player_label, True, (0, 255, 0))
 		house.interior_surface.blit(label_surface, (player.rect.x, player.rect.y - 14))
+	if debug_hitboxes and game_state == "wave":
+		for tree in level_trees:
+			pygame.draw.rect(game_surface, (255, 80, 80), tree.hitbox, 2)
+		for tree in apple_trees:
+			pygame.draw.rect(game_surface, (255, 150, 0), tree.hitbox, 2)
+		for rock in level_rocks:
+			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
 
 	if game_state == "house":
 		overlay_presence = True

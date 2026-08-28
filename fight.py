@@ -17,7 +17,7 @@ def handle_attack_event(player, attacking, enemies, attack_done, attack_hitbox, 
 
 def resolve_player_attack(player, enemies, attacking, attack_done, attack_hitbox, max_targets):
     if not attacking or attack_done or not attack_hitbox:
-        return attack_done
+        return attack_done, []
 
     targets = []
 
@@ -34,10 +34,14 @@ def resolve_player_attack(player, enemies, attacking, attack_done, attack_hitbox
         )
     )
 
+    killed_this_attack = []
+
     for enemy in targets[:max_targets]:
         if enemy.dead:
             continue
-        enemy.take_damage(10, player)
+        enemy.take_damage(int(player.base_damage * player.damage_multiplier), player)
         enemy.hit_this_attack = True
+        if enemy.dead:
+            killed_this_attack.append(enemy)
 
-    return True
+    return True, killed_this_attack

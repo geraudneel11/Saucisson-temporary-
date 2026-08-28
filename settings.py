@@ -136,3 +136,71 @@ TREE_HITBOX_OFFSET_Y = -80
 TREE_SWAY_MIN_SECONDS = 5
 TREE_SWAY_MAX_SECONDS = 20
 TREE_SWAY_FRAME_SPEED = 6   # vitesse de l'animation elle-même (ticks entre deux frames)
+
+ROCK_BIG_RECT = (0, 656, 54, 63)
+ROCK_MEDIUM_RECT = (179, 672, 40, 47)
+
+ROCK_BIG_SCALE = 3
+ROCK_MEDIUM_SCALE = 3
+
+ROCK_BIG_HITBOX = {"width": 50, "height": 26}
+ROCK_MEDIUM_HITBOX = {"width": 38, "height": 20}
+ROCK_HITBOX_OFFSET_Y = -100   # même principe que pour les arbres
+
+ROCK_HITBOX_OVERRIDES = {
+	# Même logique que TREE_HITBOX_OVERRIDES : clé = index du rocher,
+	# valeur = dict avec "width"/"height"/"offset_x"/"offset_y".
+}
+
+ROCK_POSITIONS_BIG = [
+	(857, 4385), (1428, 6672), (4367, 1764), (850, 2615), (2212, 5524),
+	(4016, 2683), (6186, 1144), (7345, 1671), (2329, 2068), (347, 4780),
+	(7813, 4347), (7688, 602), (4998, 5627), (6524, 8400), (7116, 8823),
+	(6136, 8356), (521, 2973), (1353, 7977), (4290, 2787), (9080, 6409),
+]
+
+ROCK_POSITIONS_MEDIUM = [
+	(1200, 7483), (6351, 9390), (3097, 9604), (3754, 6647), (978, 4713),
+	(8106, 3823), (8788, 7282), (6202, 7557), (2207, 7476), (1779, 1025),
+	(8361, 5817), (8778, 6184), (6622, 477), (389, 2684), (2359, 6096),
+	(5016, 2394), (8764, 5533), (8472, 1958), (2732, 9655), (6328, 7080),
+]
+LEVEL_TREE_COUNT = 80
+LEVEL_TREE_MIN_SPACING = 280
+LEVEL_TREE_AVOID_RADIUS = 400   # distance minimum avec le point de spawn du joueur
+
+# --- IA des ennemis ---
+ENEMY_DETECTION_RADIUS = 7500
+ENEMY_PATROL_SPEED = 2
+ENEMY_PATROL_RADIUS = 300        # rayon de balade autour du point de spawn
+ENEMY_PATROL_PAUSE_MIN = 60      # pause entre deux déplacements de patrouille (frames)
+ENEMY_PATROL_PAUSE_MAX = 180
+
+MONSTER_COUNT_MULTIPLIER = 3   # augmente le nombre de monstres par vague
+
+# --- Pommiers ---
+APPLE_TREE_MAX_COUNT = 89
+APPLE_TREE_SPAWN_CHANCE = 1 / 3
+
+APPLE_DROP_CHANCE = 1 / 3
+GOLDEN_APPLE_DROP_CHANCE = 1 / 5
+GOLDEN_APPLE_KILL_COUNT = 3
+GOLDEN_APPLE_KILL_RADIUS = 350   # entre les 100 et 200px que tu as donnés
+
+APPLE_DAMAGE_BOOST_PERCENT = 0.20
+APPLE_REGEN_RATE = 2             # pv/sec
+APPLE_REGEN_DURATION = 10        # secondes
+
+GOLDEN_APPLE_DAMAGE_BOOST_PERCENT = 0.40
+GOLDEN_APPLE_REGEN_RATE = 5
+GOLDEN_APPLE_REGEN_DURATION = 30
+GOLDEN_APPLE_MAX_HP_BONUS_PERCENT = 0.20
+
+# --- Rochers de niveau ---
+LEVEL_ROCK_COUNT = 20
+LEVEL_ROCK_MIN_SPACING = 220
+
+ITEM_DROP_ATTRACT_RADIUS = 200
+ITEM_DROP_ATTRACT_SPEED = 8
+ITEM_DROP_FALL_HEIGHT = 60
+ITEM_DROP_FALL_DURATION = 18

@@ -466,3 +466,123 @@ def random_spawn_position(map_width, map_height, margin=250):
 	x = random.randint(margin, map_width - margin)
 	y = random.randint(margin, map_height - margin)
 	return x, y
+
+def _dist_point_segment(px, py, x1, y1, x2, y2):
+	dx, dy = x2 - x1, y2 - y1
+	length_sq = dx * dx + dy * dy
+	if length_sq == 0:
+		return math.hypot(px - x1, py - y1)
+	t = max(0, min(1, ((px - x1) * dx + (py - y1) * dy) / length_sq))
+	proj_x, proj_y = x1 + t * dx, y1 + t * dy
+	return math.hypot(px - proj_x, py - proj_y)
+
+
+def _valid_scatter_position(x, y, placed_positions, map_width, map_height,
+							 plaza_center, path_end, house_bounds, avoid_point,
+							 min_spacing, edge_margin, plaza_radius, path_margin, avoid_radius):
+	if x < edge_margin or x > map_width - edge_margin:
+		return False
+	if y < edge_margin or y > map_height - edge_margin:
+		return False
+	if avoid_point is not None and math.hypot(x - avoid_point[0], y - avoid_point[1]) < avoid_radius:
+		return False
+	if math.hypot(x - plaza_center[0], y - plaza_center[1]) < plaza_radius:
+		return False
+	if _dist_point_segment(x, y, plaza_center[0], plaza_center[1], path_end[0], path_end[1]) < path_margin:
+		return False
+	if house_bounds[0] <= x <= house_bounds[2] and house_bounds[1] <= y <= house_bounds[3]:
+		return False
+	for (px, py) in placed_positions:
+		if math.hypot(x - px, y - py) < min_spacing:
+			return False
+	return True
+
+
+def generate_level_trees(species_frames, avoid_point, map_width, map_height,
+						  plaza_center, path_end, house_bounds,
+						  count=80, min_spacing=280, edge_margin=300,
+						  plaza_radius=380, path_margin=190, avoid_radius=400):
+	placed_positions = []
+	results = []
+	attempts = 0
+	max_attempts = count * 250
+
+	while len(results) < count and attempts < max_attempts:
+		attempts += 1
+		x = random.randint(edge_margin, map_width - edge_margin)
+		y = random.randint(edge_margin, map_height - edge_margin)
+
+		if not _valid_scatter_position(x, y, placed_positions, map_width, map_height,
+										plaza_center, path_end, house_bounds, avoid_point,
+										min_spacing, edge_margin, plaza_radius, path_margin, avoid_radius):
+			continue
+
+		frames = random.choice(species_frames)
+		placed_positions.append((x, y))
+		results.append((x, y, frames))
+
+	return results
+
+
+def generate_apple_trees(apple_frames, existing_tree_positions, avoid_point,
+						  map_width, map_height, plaza_center, path_end, house_bounds,
+						  max_count=3, spawn_chance=1 / 3, min_spacing=280,
+						  edge_margin=300, plaza_radius=380, path_margin=190, avoid_radius=400):
+	"""
+	Jusqu'à 'max_count' pommiers, chacun avec 'spawn_chance' de chance
+	INDÉPENDANTE d'apparaître (donc parfois 0, parfois 3, en moyenne
+	max_count * spawn_chance). Évite les autres arbres déjà placés.
+	"""
+	placed = list(existing_tree_positions)
+	apple_positions = []
+
+	for _ in range(max_count):
+		if random.random() >= spawn_chance:
+			continue
+
+		attempts = 0
+		while attempts < 300:
+			attempts += 1
+			x = random.randint(edge_margin, map_width - edge_margin)
+			y = random.randint(edge_margin, map_height - edge_margin)
+
+			if not _valid_scatter_position(x, y, placed, map_width, map_height,
+											plaza_center, path_end, house_bounds, avoid_point,
+											min_spacing, edge_margin, plaza_radius, path_margin, avoid_radius):
+				continue
+
+			placed.append((x, y))
+			apple_positions.append((x, y, apple_frames))
+			break
+
+	return apple_positions
+
+
+def generate_level_rocks(rock_variants, existing_positions, avoid_point,
+						  map_width, map_height, plaza_center, path_end, house_bounds,
+						  count=20, min_spacing=220, edge_margin=300,
+						  plaza_radius=380, path_margin=190, avoid_radius=400):
+	"""
+	rock_variants : liste de tuples (sprite, hitbox_dict) parmi
+	lesquels piocher aléatoirement pour chaque rocher.
+	"""
+	placed = list(existing_positions)
+	rocks = []
+	attempts = 0
+	max_attempts = count * 250
+
+	while len(rocks) < count and attempts < max_attempts:
+		attempts += 1
+		x = random.randint(edge_margin, map_width - edge_margin)
+		y = random.randint(edge_margin, map_height - edge_margin)
+
+		if not _valid_scatter_position(x, y, placed, map_width, map_height,
+										plaza_center, path_end, house_bounds, avoid_point,
+										min_spacing, edge_margin, plaza_radius, path_margin, avoid_radius):
+			continue
+
+		placed.append((x, y))
+		sprite, hitbox = random.choice(rock_variants)
+		rocks.append((x, y, sprite, hitbox))
+
+	return rocks

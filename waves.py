@@ -5,8 +5,9 @@ from classes import Enemy
 from settings import *
 
 def monsters_for_wave(level, wave):
-	monsters = 4 + (level - 1) * 6 + (wave - 1) * 3
-	return min(monsters, 250)
+	base = 4 + (level - 1) * 6 + (wave - 1) * 3
+	monsters = int(base * MONSTER_COUNT_MULTIPLIER)
+	return min(monsters, 300)
 
 def spawn_enemy(orc_data):
 

@@ -31,6 +31,17 @@ class Player:
 		self.knockback_x = 0
 		self.knockback_y = 0
 
+		self.base_damage = 10
+		self.damage_multiplier = 1.0
+		self.damage_boost_timer = 0
+
+		self.base_max_hp = 100
+		self.bonus_hp = 0
+
+		self.regen_rate = 0
+		self.regen_timer = 0
+		self.regen_accumulator = 0.0
+
 		self.inventory = [
     	{"item": None, "quantity": 0},
     	{"item": None, "quantity": 0},
@@ -62,6 +73,13 @@ class Player:
 		if self.invicible_timer <= 0:
 			self.hp -= damage
 
+			if self.bonus_hp > 0:
+				reduction = min(self.bonus_hp, damage)
+				self.bonus_hp -= reduction
+				self.max_hp = self.base_max_hp + self.bonus_hp
+				if self.hp > self.max_hp:
+					self.hp = self.max_hp
+
 			self.state = "hurt"
 			self.current_frame = 0
 			self.frame_timer = 0
@@ -80,6 +98,24 @@ class Player:
 				self.hp = 0
 
 			self.invicible_timer = 40
+
+	def update_buffs(self):
+		if self.damage_boost_timer > 0:
+			self.damage_boost_timer -= 1
+			if self.damage_boost_timer == 0:
+				self.damage_multiplier = 1.0
+
+		if self.regen_timer > 0:
+			self.regen_timer -= 1
+			self.regen_accumulator += self.regen_rate / FPS_MAX
+			if self.regen_accumulator >= 1:
+				heal = int(self.regen_accumulator)
+				self.hp = min(self.max_hp, self.hp + heal)
+				self.regen_accumulator -= heal
+			if self.regen_timer == 0:
+				self.regen_rate = 0
+				self.regen_accumulator = 0.0
+
 	def add_item_to_inventory(self, item):
 
 	# Chercher une pile existante
@@ -156,6 +192,13 @@ class Enemy:
 		self.dead_finished = False
 		self.dead_timer = 0
 
+		self.spawn_point = (x, y)
+		self.detection_radius = ENEMY_DETECTION_RADIUS
+
+		self.patrol_target = None
+		self.patrol_timer = 0
+		self.patrol_moving = False
+
 	def take_damage(self, damage, player):
 		if self.dead:
 			return
@@ -189,21 +232,25 @@ class Enemy:
 		pygame.draw.rect(surface, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
 		pygame.draw.rect(surface, (0, 220, 0), (bar_x, bar_y, bar_width * health_ratio, bar_height))
 
-	def update(self, player):
+	def update(self, player, obstacles=None):
 		self._apply_knockback()
 
 		if self.dead:
 			self._update_dead()
 			return
 
-		self._update_direction(player)
+		# En patrouille, l'orientation est gérée par le déplacement
+		# lui-même (_apply_move) — pas besoin de faire face au joueur
+		# tant qu'il n'est pas détecté.
+		if self.state != "patrol":
+			self._update_direction(player)
 
 		if self.state == "hurt":
 			self._update_hurt()
 		elif self.state == "attack":
 			self._update_attack(player)
 		else:
-			self._update_movement(player)
+			self._update_movement(player, obstacles or [])
 
 		self._advance_frame()
 		self._update_cooldowns()
@@ -260,12 +307,16 @@ class Enemy:
 				player.take_damage(self.damage, self)
 				self.attack_hit_done = True
 
-	def _update_movement(self, player):
+	def _update_movement(self, player, obstacles):
 		dx = player.rect.centerx - self.rect.centerx
 		dy = player.rect.centery - self.rect.centery
 		distance = math.hypot(dx, dy)
 
-		if distance <= self.attack_range and self.attack_cooldown <= 0:
+		detected = distance <= self.detection_radius
+
+		if not detected:
+			self.state = "patrol"
+		elif distance <= self.attack_range and self.attack_cooldown <= 0:
 			self.state = "attack"
 			self.current_frame = 0
 			self.frame_timer = 0
@@ -277,9 +328,13 @@ class Enemy:
 
 		if self.state == "walk":
 			self._set_animation(self.animations[self.direction])
-			self._move_towards(player, speed=math.hypot(self.speedx, self.speedy))
+			speed = math.hypot(self.speedx, self.speedy)
+			move_x, move_y = self._find_open_direction(dx, dy, obstacles, speed)
+			self._apply_move(move_x, move_y)
 		elif self.state == "idle":
 			self._set_animation(self.idle_animations[self.direction])
+		elif self.state == "patrol":
+			self._update_patrol(obstacles)
 
 		self.hitbox.center = self.rect.center
 
@@ -294,6 +349,95 @@ class Enemy:
 			self.rect.y -= self.speedy
 
 		self.hitbox.center = self.rect.center
+
+	def _apply_move(self, move_x, move_y):
+		self.rect.x += move_x
+		self.rect.y += move_y
+
+		if abs(move_x) > abs(move_y):
+			self.direction = "right" if move_x > 0 else "left"
+		elif move_y != 0:
+			self.direction = "down" if move_y > 0 else "up"
+
+		self.hitbox.center = self.rect.center
+
+	def _find_open_direction(self, target_dx, target_dy, obstacles, speed):
+		"""
+		Renvoie un vecteur de déplacement (dx, dy) à la vitesse
+		'speed'. Essaie d'abord la direction directe vers la cible ;
+		si un obstacle bloque, essaie des angles de plus en plus
+		déviés de chaque côté jusqu'à trouver un passage libre —
+		l'ennemi contourne alors naturellement l'obstacle.
+		"""
+		if target_dx == 0 and target_dy == 0:
+			return 0, 0
+
+		base_angle = math.atan2(target_dy, target_dx)
+		offsets = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100]
+
+		for offset_deg in offsets:
+			angle = base_angle + math.radians(offset_deg)
+			step_x = math.cos(angle) * speed
+			step_y = math.sin(angle) * speed
+
+			test_rect = self.hitbox.copy()
+			test_rect.x += step_x
+			test_rect.y += step_y
+
+			if not any(test_rect.colliderect(o) for o in obstacles):
+				return step_x, step_y
+
+		# Aucune direction libre trouvée : l'ennemi est probablement
+		# déjà À L'INTÉRIEUR d'un obstacle (poussé par un coup, par un
+		# autre ennemi, spawn malchanceux...). Dans ce cas précis, on
+		# s'échappe directement à l'opposé du centre de l'obstacle,
+		# sans revérifier de collision cette fois — pour garantir la
+		# sortie plutôt que de rester figé indéfiniment.
+		stuck_in = None
+		for o in obstacles:
+			if self.hitbox.colliderect(o):
+				stuck_in = o
+				break
+
+		if stuck_in is not None:
+			escape_dx = self.hitbox.centerx - stuck_in.centerx
+			escape_dy = self.hitbox.centery - stuck_in.centery
+			distance = max(1, math.hypot(escape_dx, escape_dy))
+			return escape_dx / distance * speed, escape_dy / distance * speed
+
+		return 0, 0
+
+	def _update_patrol(self, obstacles):
+		if self.patrol_timer > 0:
+			self.patrol_timer -= 1
+			self.patrol_moving = False
+			self._set_animation(self.idle_animations[self.direction])
+			return
+
+		if self.patrol_target is None:
+			angle = random.uniform(0, 2 * math.pi)
+			dist = random.uniform(50, ENEMY_PATROL_RADIUS)
+			self.patrol_target = (
+				self.spawn_point[0] + math.cos(angle) * dist,
+				self.spawn_point[1] + math.sin(angle) * dist
+			)
+
+		tx, ty = self.patrol_target
+		dx = tx - self.rect.centerx
+		dy = ty - self.rect.centery
+		distance = math.hypot(dx, dy)
+
+		if distance <= 6:
+			self.patrol_target = None
+			self.patrol_timer = random.randint(ENEMY_PATROL_PAUSE_MIN, ENEMY_PATROL_PAUSE_MAX)
+			self.patrol_moving = False
+			self._set_animation(self.idle_animations[self.direction])
+			return
+
+		self.patrol_moving = True
+		self._set_animation(self.animations[self.direction])
+		move_x, move_y = self._find_open_direction(dx, dy, obstacles, ENEMY_PATROL_SPEED)
+		self._apply_move(move_x, move_y)
 
 	def _create_attack_hitbox(self):
 		if self.direction == "right":
@@ -657,6 +801,101 @@ class Potion:
 	def use(self, player):
 		player.hp = min(player.max_hp, player.hp + self.heal)
 
+class Apple:
+
+    def __init__(self, sprite):
+        self.name = "Pomme"
+        self.sprite = sprite
+        self.rect = None
+
+        self.damage_boost_percent = APPLE_DAMAGE_BOOST_PERCENT
+        self.regen_rate = APPLE_REGEN_RATE
+        self.regen_duration = APPLE_REGEN_DURATION
+
+    def copy(self):
+        return Apple(self.sprite)
+
+    def use(self, player):
+        player.damage_multiplier = 1 + self.damage_boost_percent
+        player.damage_boost_timer = int(self.regen_duration * FPS_MAX)
+
+        player.regen_rate = self.regen_rate
+        player.regen_timer = int(self.regen_duration * FPS_MAX)
+        player.regen_accumulator = 0.0
+
+
+class GoldenApple:
+
+    def __init__(self, sprite):
+        self.name = "Pomme doree"
+        self.sprite = sprite
+        self.rect = None
+
+        self.damage_boost_percent = GOLDEN_APPLE_DAMAGE_BOOST_PERCENT
+        self.regen_rate = GOLDEN_APPLE_REGEN_RATE
+        self.regen_duration = GOLDEN_APPLE_REGEN_DURATION
+        self.max_hp_bonus_percent = GOLDEN_APPLE_MAX_HP_BONUS_PERCENT
+
+    def copy(self):
+        return GoldenApple(self.sprite)
+
+    def use(self, player):
+        player.damage_multiplier = 1 + self.damage_boost_percent
+        player.damage_boost_timer = int(self.regen_duration * FPS_MAX)
+
+        player.regen_rate = self.regen_rate
+        player.regen_timer = int(self.regen_duration * FPS_MAX)
+        player.regen_accumulator = 0.0
+
+        bonus = int(player.base_max_hp * self.max_hp_bonus_percent)
+        player.bonus_hp = bonus
+        player.max_hp = player.base_max_hp + player.bonus_hp
+        player.hp = min(player.max_hp, player.hp + bonus)
+
+
+class ItemDrop:
+    """
+    Objet qui tombe depuis le pommier jusqu'au sol (petit effet de
+    chute visuel), puis se comporte comme les pièces une fois posé :
+    attiré vers le joueur à courte distance. Le rect (utilisé pour la
+    collision/le ramassage) reste dès le départ à sa position finale
+    au sol — seul l'affichage est décalé pendant la chute, donc rien
+    ne bouge côté détection.
+    """
+
+    def __init__(self, x, y, item, fall_height=60, fall_duration=18):
+        self.item = item
+        self.rect = pygame.Rect(0, 0, 28, 28)
+        self.rect.center = (x, y)
+
+        self.fall_height = fall_height
+        self.fall_duration = fall_duration
+        self.fall_timer = 0
+        self.fall_offset = -fall_height
+        self.landed = False
+
+    def update(self, player):
+        if not self.landed:
+            self.fall_timer += 1
+            t = min(1, self.fall_timer / self.fall_duration)
+            eased = 1 - (1 - t) ** 2   # ralentit en approchant du sol
+            self.fall_offset = -self.fall_height * (1 - eased)
+            if t >= 1:
+                self.landed = True
+                self.fall_offset = 0
+        else:
+            dx = player.rect.centerx - self.rect.centerx
+            dy = player.rect.centery - self.rect.centery
+            distance = math.hypot(dx, dy)
+            if distance < ITEM_DROP_ATTRACT_RADIUS and distance > 1:
+                speed = ITEM_DROP_ATTRACT_SPEED
+                self.rect.x += dx / distance * speed
+                self.rect.y += dy / distance * speed
+
+    def draw(self, surface):
+        sprite_rect = self.item.sprite.get_rect(center=self.rect.center)
+        sprite_rect.y += int(self.fall_offset)
+        surface.blit(self.item.sprite, sprite_rect)
 class Tree:
 
     def __init__(self, x, y, frames, index=None,
@@ -710,3 +949,22 @@ class Tree:
                 self.playing = True
                 self.frame = 0
                 self.frame_timer = 0
+
+class Rock:
+
+    def __init__(self, x, y, image, index=None,
+                 hitbox_width=40, hitbox_height=24,
+                 hitbox_offset_x=0, hitbox_offset_y=0):
+
+        self.image = image
+        self.rect = self.image.get_rect(midbottom=(x, y))
+
+        self.index = index
+
+        self.hitbox = pygame.Rect(0, 0, hitbox_width, hitbox_height)
+        self.hitbox_offset_x = hitbox_offset_x
+        self.hitbox_offset_y = hitbox_offset_y
+
+        self.hitbox.midbottom = self.rect.midbottom
+        self.hitbox.x += self.hitbox_offset_x
+        self.hitbox.y += self.hitbox_offset_y
