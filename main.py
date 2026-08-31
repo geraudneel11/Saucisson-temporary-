@@ -9,6 +9,8 @@ from pygame import key
 from animations import load_animation
 from animations import load_animation_row
 from animations import load_animation_column
+from animations import load_animation_grid
+from animations import split_frames_by_regions
 from settings import *
 from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion
 import npc_system
@@ -47,6 +49,8 @@ debug_hitboxes = DEBUG_HITBOXES
 portal_timer = 0
 smoke_timer = 0
 smoke_frame = 0
+dragon_timer = 0
+dragon_frame = 0
 current_npc = None
 awaiting_npc_arrival = None
 healer_state = "main"
@@ -130,6 +134,12 @@ healer_walk_sheet = pygame.image.load("Citizen1_Walk.png").convert_alpha()
 merchant1_idle_sheet = pygame.image.load("Citizen2_Idle.png").convert_alpha()
 merchant1_walk_sheet = pygame.image.load("Citizen2_Walk.png").convert_alpha()
 
+priest_idle_sheet = pygame.image.load("priest_idle.png").convert_alpha()
+priest_walk_sheet = pygame.image.load("priest_walk.png").convert_alpha()
+
+chapel_dragon_sheet = pygame.image.load("chapel_dragon.png").convert_alpha()
+chapel_dragon_body_sheet = pygame.image.load("chapel_dragon_body.png").convert_alpha()
+
 plaza = pygame.image.load("plaza.png").convert_alpha()
 plaza = pygame.transform.scale(
 	plaza,
@@ -138,7 +148,6 @@ plaza = pygame.transform.scale(
 		int(plaza.get_height() * 0.5)
 	)
 )
-
 
 walk_down = load_animation_row(player1_run_sheet, 0, PLAYER_SCALE, 8, 4)
 walk_left = load_animation_row(player1_run_sheet, 1, PLAYER_SCALE, 8, 4)
@@ -219,11 +228,31 @@ healer_walk_down = load_animation_row(healer_walk_sheet, 0, NPC_SCALE, 6, 4)
 healer_walk_left = load_animation_row(healer_walk_sheet, 1, NPC_SCALE, 6, 4)
 healer_walk_right = load_animation_row(healer_walk_sheet, 2, NPC_SCALE, 6, 4)
 healer_walk_up = load_animation_row(healer_walk_sheet, 3, NPC_SCALE, 6, 4)
+
 merchant1_idle = load_animation_row(merchant1_idle_sheet, 0, NPC_SCALE, 12, 4)
 merchant1_walk_down = load_animation_row(merchant1_walk_sheet, 0, NPC_SCALE, 6, 4)
 merchant1_walk_left = load_animation_row(merchant1_walk_sheet, 1, NPC_SCALE, 6, 4)
 merchant1_walk_right = load_animation_row(merchant1_walk_sheet, 2, NPC_SCALE, 6, 4)
 merchant1_walk_up = load_animation_row(merchant1_walk_sheet, 3, NPC_SCALE, 6, 4)
+
+priest_idle = load_animation_row(priest_idle_sheet, 0, NPC_SCALE, 12, 4)
+priest_walk_down = load_animation_row(priest_walk_sheet, 0, NPC_SCALE, 6, 4)
+priest_walk_left = load_animation_row(priest_walk_sheet, 1, NPC_SCALE, 6, 4)
+priest_walk_right = load_animation_row(priest_walk_sheet, 2, NPC_SCALE, 6, 4)
+priest_walk_up = load_animation_row(priest_walk_sheet, 3, NPC_SCALE, 6, 4)
+
+chapel = world.Chapel(CHAPEL_X, CHAPEL_Y)
+
+chapel_dragon_animation = load_animation_grid(
+	chapel_dragon_sheet, DRAGON_SCALE, 5, 5, frame_count=24
+)
+chapel_dragon_body_sprite = pygame.transform.scale(
+	chapel_dragon_body_sheet,
+	(
+		int(chapel_dragon_body_sheet.get_width() * DRAGON_SCALE),
+		int(chapel_dragon_body_sheet.get_height() * DRAGON_SCALE)
+	)
+)
 
 orc_animations = {
 	"down": orc1_walk_down,
@@ -273,6 +302,12 @@ merchant1_walk_animations = {
 	"left": merchant1_walk_left,
 	"right": merchant1_walk_right,
 	"up": merchant1_walk_up,
+}
+priest_walk_animations = {
+	"down": priest_walk_down,
+	"left": priest_walk_left,
+	"right": priest_walk_right,
+	"up": priest_walk_up,
 }
 
 house_sprite = pygame.transform.scale(house_sprite, (int(house_sprite.get_width() * HOUSE_SCALE), int(house_sprite.get_height() * HOUSE_SCALE)))
@@ -367,6 +402,25 @@ merchant1_npc = NPC(
 
 npcs = [healer_npc, merchant1_npc]
 house = world.House()
+
+priest_npc = NPC(
+	CHAPEL_X + 180, CHAPEL_Y + 700,
+	priest_idle,
+	priest_walk_animations,
+	"priest_ambient",
+	hitbox_offset_y=-60,
+	movement_points=[
+		(CHAPEL_X + 180, CHAPEL_Y + 700),   # 0 - ARRÊT
+		(CHAPEL_X + 330, CHAPEL_Y + 740),   # 1 - passage
+		(CHAPEL_X + 330, CHAPEL_Y + 820),   # 2 - ARRÊT
+		(CHAPEL_X + 180, CHAPEL_Y + 800),   # 3 - passage
+	],
+	stop_point_indices=[0, 2],
+	speed=1.5,
+	stop_duration_min_seconds=3,
+	stop_duration_max_seconds=8
+)
+outdoor_npcs = [priest_npc]
 # Pré-simulation : fait "vivre" les NPC avant même que le joueur ait
 # ouvert la porte de la maison, pour qu'ils soient déjà en mouvement,
 # désynchronisés, à des points différents de leur circuit dès la
@@ -383,6 +437,14 @@ _startup_colliders.extend(house.furniture_hitboxes.values())
 for _ in range(3000):  # ~50 secondes de circuit simulées instantanément
 	for npc in npcs:
 		npc.update(_startup_colliders, None)
+
+# Désactivé pour l'instant : le prêtre n'apparaît nulle part tant que
+# l'intérieur de la chapelle n'existe pas. Décommenter avec la Partie 5.3
+# et la Partie 5.4 quand ce sera le cas.
+# _chapel_startup_colliders = [chapel.hitbox, house.hitbox]
+# for _ in range(3000):
+# 	for npc in outdoor_npcs:
+# 		npc.update(_chapel_startup_colliders, None)
 
 ground_details = decor.load_ground_details(splat_scale=SPLAT_SCALE, tuft_scale=TUFT_SCALE)
 
@@ -418,7 +480,10 @@ shop_decor_layer, shop_decor_pos = decor.build_shop_decor_layer(
 	fill_chance=PLAZA_FILL_CHANCE,
 	rock_chance=PATH_ROCK_CHANCE
 )
-
+chapel_path_layer, chapel_path_pos = decor.build_path_layer(
+	ground_details, plaza_center, chapel.entrance_point,
+	half_width=PATH_HALF_WIDTH, rock_chance=PATH_ROCK_CHANCE
+)
 # Ordre important : les cailloux (plaza_rocks) sont ajoutés en DERNIER,
 # donc dessinés en dernier dans la boucle plus bas -> toujours au-dessus
 # des taches de terre et du chemin.
@@ -670,8 +735,13 @@ while run == True :
 		visible_rocks = []
 	if game_state == "shop":
 		colliders.append(house.hitbox)
+		colliders.append(chapel.hitbox)
 		colliders.extend(tree.hitbox for tree in visible_trees)
 		colliders.extend(rock.hitbox for rock in visible_rocks)
+
+		# for npc in outdoor_npcs:
+		# 	npc.update(colliders, None)
+
 	if game_state == "wave":
 		colliders.extend(tree.hitbox for tree in level_trees)
 		colliders.extend(tree.hitbox for tree in apple_trees)
@@ -700,6 +770,13 @@ while run == True :
 	smoke_frame,
 	SMOKE_ANIMATION_SPEED,
 	smoke_animation
+)
+		dragon_timer, dragon_frame = world.update_dragon(
+	game_state,
+	dragon_timer,
+	dragon_frame,
+	DRAGON_ANIMATION_SPEED,
+	chapel_dragon_animation
 )
 	was_attack_done = attack_done
 	attack_done, killed_this_attack = fight.resolve_player_attack(
@@ -762,6 +839,8 @@ while run == True :
 			entities.append(("tree", tree, tree.rect.bottom))
 		for rock in visible_rocks:
 			entities.append(("rock", rock, rock.rect.bottom))
+		# for npc in outdoor_npcs:
+		# 	entities.append(("outdoor_npc", npc, npc.rect.bottom))
 			
 	if game_state == "wave":
 		for tree in level_trees:
@@ -895,8 +974,20 @@ while run == True :
 				mx, my = pygame.mouse.get_pos()
 				world_x = mx + camera_x
 				world_y = my + camera_y
-				print(f"HOUSE_SMOKE_OFFSET_X = {world_x - house_x}")
-				print(f"HOUSE_SMOKE_OFFSET_Y = {world_y - house_y}")
+				print(f"OFFSET_X = {world_x - house_x}")
+				print(f"OFFSET_Y = {world_y - house_y}")
+			elif event.key == pygame.K_F3:
+				mx, my = pygame.mouse.get_pos()
+				world_x = mx + camera_x
+				world_y = my + camera_y
+				print(f"DRAGON_OFFSET_X = {world_x - chapel.rect.centerx}")
+				print(f"DRAGON_OFFSET_Y = {world_y - chapel.rect.top}")
+			elif event.key == pygame.K_F4:
+				mx, my = pygame.mouse.get_pos()
+				world_x = mx + camera_x
+				world_y = my + camera_y
+				print(f"DRAGON_BODY_OFFSET_X = {world_x - chapel.rect.centerx}")
+				print(f"DRAGON_BODY_OFFSET_Y = {world_y - chapel.rect.top}")
 
 		if event.type == pygame.MOUSEWHEEL:
 
@@ -1134,9 +1225,11 @@ while run == True :
 		entities.append(("enemy", enemy, enemy.rect.bottom + 105))
 
 	if game_state == "shop":
+		game_surface.blit(chapel_path_layer, chapel_path_pos)
 		game_surface.blit(shop_decor_layer, shop_decor_pos)
 
 		game_surface.blit(house_base, (house_x, house_y + roof_height))
+		game_surface.blit(chapel.base, (chapel.rect.x, chapel.rect.y + chapel.roof_height))
 		if player.hitbox.colliderect(house.door_hitbox):
 			door_text = ui.font.render("E entrer", True, (255, 255, 255))
 			game_surface.blit(door_text, (house.door_hitbox.centerx - door_text.get_width() // 2, house.door_hitbox.top - 30))
@@ -1181,6 +1274,8 @@ while run == True :
 			game_surface.blit(entity.image, entity.rect)
 		elif entity_type == "rock":
 			game_surface.blit(entity.image, entity.rect)
+		# elif entity_type == "outdoor_npc":
+		# 	entity.draw(game_surface)
 		if game_state == "wave":
 			for drop in item_drops:
 				drop.draw(game_surface)
@@ -1195,6 +1290,18 @@ while run == True :
 			midbottom=(house_x + HOUSE_SMOKE_OFFSET_X, house_y + HOUSE_SMOKE_OFFSET_Y)
 		)
 		game_surface.blit(smoke_sprite, smoke_rect)
+
+		dragon_sprite = chapel_dragon_animation[dragon_frame]
+		dragon_rect = dragon_sprite.get_rect(
+			midtop=(chapel.rect.centerx + DRAGON_OFFSET_X, chapel.rect.top + DRAGON_OFFSET_Y)
+		)
+		game_surface.blit(dragon_sprite, dragon_rect)
+		game_surface.blit(chapel.roof, (chapel.rect.x, chapel.rect.y))
+
+		dragon_body_rect = chapel_dragon_body_sprite.get_rect(
+			midtop=(chapel.rect.centerx + DRAGON_BODY_OFFSET_X, chapel.rect.top + DRAGON_BODY_OFFSET_Y)
+		)
+		game_surface.blit(chapel_dragon_body_sprite, dragon_body_rect)
 
 	if game_state == "shop":
 		for tree in town_trees:
@@ -1295,8 +1402,13 @@ while run == True :
 			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
 			label = tree_debug_font.render(f"rocher #{rock.index}", True, (80, 160, 255))
 			game_surface.blit(label, (rock.hitbox.x, rock.hitbox.y - 14))
+		pygame.draw.rect(game_surface, (255, 80, 80), chapel.hitbox, 2)
+		chapel_label = tree_debug_font.render("chapelle", True, (255, 80, 80))
+		game_surface.blit(chapel_label, (chapel.hitbox.x, chapel.hitbox.y - 14))
+		for npc in outdoor_npcs:
+			pygame.draw.rect(game_surface, (0, 200, 255), npc.hitbox_for_players, 2)
 			# Violet : hitbox réservée aux futures collisions NPC-meubles
-			pygame.draw.rect(house.interior_surface, (170, 0, 255), npc.hitbox, 2)
+		pygame.draw.rect(house.interior_surface, (170, 0, 255), npc.hitbox, 2)
 		# Debug : rect complet du joueur (vert) + point utilisé pour le tri	
 		pygame.draw.rect(house.interior_surface, (0, 255, 0), player.rect, 2)
 		pygame.draw.line(

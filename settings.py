@@ -179,8 +179,8 @@ ENEMY_PATROL_PAUSE_MAX = 180
 MONSTER_COUNT_MULTIPLIER = 3   # augmente le nombre de monstres par vague
 
 # --- Pommiers ---
-APPLE_TREE_MAX_COUNT = 89
-APPLE_TREE_SPAWN_CHANCE = 1 / 3
+APPLE_TREE_MAX_COUNT = 5
+APPLE_TREE_SPAWN_CHANCE = 2 / 3
 
 APPLE_DROP_CHANCE = 1 / 3
 GOLDEN_APPLE_DROP_CHANCE = 1 / 5
@@ -204,3 +204,51 @@ ITEM_DROP_ATTRACT_RADIUS = 200
 ITEM_DROP_ATTRACT_SPEED = 8
 ITEM_DROP_FALL_HEIGHT = 60
 ITEM_DROP_FALL_DURATION = 18
+
+CHAPEL_SCALE = 4                 # même échelle que la maison (HOUSE_SCALE)
+CHAPEL_ROOF_HEIGHT = 80          # ligne de coupe toit/base, en pixels SOURCE (avant mise à l'échelle)
+CHAPEL_USE_CROSS_VARIANT = True  # True = variante avec la croix, False = sans
+
+# Position absolue sur la carte : symétrique de la maison par rapport
+# au centre de la carte (la maison est à MAP_WIDTH//2 - 3000, la
+# chapelle à MAP_WIDTH//2 + 3000 -> les deux encadrent la plaza).
+CHAPEL_X = MAP_WIDTH // 2 + 3000
+CHAPEL_Y = MAP_HEIGHT // 2 - 500
+
+# Hitbox de collision (bloque le pied du bâtiment), même principe que
+# ROCK_BIG_HITBOX/TREE_HITBOX_OVERRIDES : ajuste ces valeurs en jouant,
+# avec le F1 debug overlay, jusqu'à ce que le contour rouge colle au
+# bas visible du bâtiment.
+CHAPEL_HITBOX = {
+	"width": 480,
+	"height": 280,
+	"offset_x": 15,
+	"offset_y": 260,
+}
+
+# --- Dragon gardien (décor animé perché sur le toit) ---
+DRAGON_SCALE = 4
+DRAGON_ANIMATION_SPEED = 10   # ticks entre deux frames (plus haut = plus lent/majestueux)
+
+# Décalage de l'ancrage du dragon par rapport au centre-haut de la
+# chapelle. Utilise la touche F3 en jeu (comme F2 pour la fumée de la
+# maison) pour trouver les bonnes valeurs : clique à l'endroit voulu,
+# la console affiche les constantes à recopier ici.
+DRAGON_OFFSET_X = -64
+DRAGON_OFFSET_Y = -256
+
+# Deux rectangles (en pixels SOURCE de chapel_dragon.png, avant mise à
+# l'échelle) qui délimitent l'aile gauche SANS la petite patte avant
+# repliée dessous (elle doit rester devant, comme l'autre patte) :
+#   - le premier couvre le haut de l'aile (au-dessus de la patte)
+#   - le second couvre le bas de l'aile, mais seulement à GAUCHE de la
+#     patte, pour lui laisser un creux
+# Utilise le F1 debug overlay (voir Chapitre 4) pour ajuster précisément.
+# Pattes avant du dragon (chapel_dragon_body.png), posées TOUJOURS
+# au-dessus de tout (toit compris), pour qu'elles restent visibles même
+# quand le reste du dragon (ailes/tête/queue) passe derrière le toit.
+# Décalage par rapport au même point d'ancrage que le reste du dragon
+# (chapel.rect.centerx + DRAGON_OFFSET_X, chapel.rect.top + DRAGON_OFFSET_Y).
+# Utilise la touche F4 en jeu pour caler ces valeurs (comme F2/F3).
+DRAGON_BODY_OFFSET_X = 0
+DRAGON_BODY_OFFSET_Y = 0

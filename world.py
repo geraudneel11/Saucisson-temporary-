@@ -586,3 +586,73 @@ def generate_level_rocks(rock_variants, existing_positions, avoid_point,
 		rocks.append((x, y, sprite, hitbox))
 
 	return rocks
+
+class Chapel:
+	"""
+	Bâtiment extérieur de la chapelle. Pas d'intérieur pour l'instant
+	(ce sera géré plus tard si besoin) : c'est un décor traversable
+	uniquement au pourtour, avec le même découpage toit/base que House
+	pour un rendu correct en profondeur -> la base est dessinée AVANT
+	le tri des entités (le joueur passe toujours devant), le toit est
+	dessiné APRÈS (toujours devant le joueur, comme le toit de la
+	maison), voir main.py pour l'ordre exact des blits.
+	"""
+
+	def __init__(self, x, y, scale=None, roof_height=None, use_cross_variant=None):
+		scale = scale if scale is not None else CHAPEL_SCALE
+		roof_height = roof_height if roof_height is not None else CHAPEL_ROOF_HEIGHT
+		use_cross_variant = (
+			CHAPEL_USE_CROSS_VARIANT if use_cross_variant is None else use_cross_variant
+		)
+
+		self.sheet = pygame.image.load("chapel_exterior.png").convert_alpha()
+
+		variant_x = 0 if use_cross_variant else 128
+		building = self.sheet.subsurface((variant_x, 0, 128, 159))
+
+		scaled_w = int(128 * scale)
+		scaled_h = int(159 * scale)
+		building = pygame.transform.scale(building, (scaled_w, scaled_h))
+
+		roof_h_scaled = int(roof_height * scale)
+
+		self.roof = building.subsurface((0, 0, scaled_w, roof_h_scaled))
+		self.base = building.subsurface(
+			(0, roof_h_scaled, scaled_w, scaled_h - roof_h_scaled)
+		)
+
+		self.rect = pygame.Rect(x, y, scaled_w, scaled_h)
+		self.roof_height = roof_h_scaled
+
+		# Point bas-centre du bâtiment : sert d'ancrage pour tracer le
+		# chemin de la place vers la chapelle (voir main.py, decor.build_path_layer).
+		self.entrance_point = (self.rect.centerx, self.rect.bottom - 20)
+
+		hb = CHAPEL_HITBOX
+		self.hitbox = pygame.Rect(
+			self.rect.x + hb["offset_x"],
+			self.rect.y + hb["offset_y"],
+			hb["width"],
+			hb["height"]
+		)
+
+
+def update_dragon(game_state, dragon_timer, dragon_frame,
+				   dragon_animation_speed, dragon_animation):
+	"""
+	Même principe que update_smoke/update_portal : l'animation
+	n'avance que si on est en mode "shop" (là où la chapelle est
+	visible).
+	"""
+
+	if game_state == "shop":
+		dragon_timer += 1
+
+		if dragon_timer >= dragon_animation_speed:
+			dragon_timer = 0
+			dragon_frame += 1
+
+			if dragon_frame >= len(dragon_animation):
+				dragon_frame = 0
+
+	return dragon_timer, dragon_frame
