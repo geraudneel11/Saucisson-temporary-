@@ -1,6 +1,24 @@
 import pygame
 
 
+def resolve_tree_bounce(player, tree_collider, old_pos):
+    dx = player.rect.centerx - tree_collider.centerx
+    dy = player.rect.centery - tree_collider.centery
+    
+    if dx == 0 and dy == 0:
+        dx = 1
+    
+    distance = max(1, (dx ** 2 + dy ** 2) ** 0.5)
+    bounce_strength = 5
+    
+    bounce_x = dx / distance * bounce_strength
+    bounce_y = dy / distance * bounce_strength
+    
+    player.rect.x += int(bounce_x)
+    player.rect.y += int(bounce_y)
+    player.hitbox.center = player.rect.center
+
+
 def resolve_player_collisions(player, colliders, old_pos):
     for collider in colliders:
         if player.hitbox.colliderect(collider):

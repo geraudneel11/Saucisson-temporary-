@@ -12,7 +12,7 @@ from animations import load_animation_column
 from animations import load_animation_grid
 from animations import split_frames_by_regions
 from settings import *
-from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion
+from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile
 import npc_system
 import waves
 import world
@@ -51,6 +51,8 @@ smoke_timer = 0
 smoke_frame = 0
 dragon_timer = 0
 dragon_frame = 0
+dragon_waiting = False
+dragon_waiting_timer = 0
 current_npc = None
 awaiting_npc_arrival = None
 healer_state = "main"
@@ -139,6 +141,8 @@ priest_walk_sheet = pygame.image.load("priest_walk.png").convert_alpha()
 
 chapel_dragon_sheet = pygame.image.load("chapel_dragon.png").convert_alpha()
 chapel_dragon_body_sheet = pygame.image.load("chapel_dragon_body.png").convert_alpha()
+
+dynamite_sheet = pygame.image.load("Dynamite.png").convert_alpha()
 
 plaza = pygame.image.load("plaza.png").convert_alpha()
 plaza = pygame.transform.scale(
@@ -241,7 +245,9 @@ priest_walk_left = load_animation_row(priest_walk_sheet, 1, NPC_SCALE, 6, 4)
 priest_walk_right = load_animation_row(priest_walk_sheet, 2, NPC_SCALE, 6, 4)
 priest_walk_up = load_animation_row(priest_walk_sheet, 3, NPC_SCALE, 6, 4)
 
+house = world.House()
 chapel = world.Chapel(CHAPEL_X, CHAPEL_Y)
+chapel_interior = world.ChapelInterior()
 
 chapel_dragon_animation = load_animation_grid(
 	chapel_dragon_sheet, DRAGON_SCALE, 5, 5, frame_count=24
@@ -251,6 +257,15 @@ chapel_dragon_body_sprite = pygame.transform.scale(
 	(
 		int(chapel_dragon_body_sheet.get_width() * DRAGON_SCALE),
 		int(chapel_dragon_body_sheet.get_height() * DRAGON_SCALE)
+	)
+)
+
+dynamite_sprite = dynamite_sheet.subsurface(0, 0, 16, 16)
+scaled_dynamite = pygame.transform.scale(
+	dynamite_sprite,
+	(
+		int(dynamite_sprite.get_width() * DYNAMITE_SCALE),
+		int(dynamite_sprite.get_height() * DYNAMITE_SCALE)
 	)
 )
 
@@ -401,8 +416,6 @@ merchant1_npc = NPC(
 
 
 npcs = [healer_npc, merchant1_npc]
-house = world.House()
-
 priest_npc = NPC(
 	CHAPEL_X + 180, CHAPEL_Y + 700,
 	priest_idle,
@@ -625,6 +638,7 @@ level_rocks = [
 ]
 
 item_drops = []
+projectiles = []
 player.selected_slot = 0
 coins_to_collect = 0
 
@@ -634,6 +648,9 @@ while run == True :
 	if game_state == "house":
 		screen.fill((0, 0, 0))
 		house.interior_surface = house.draw_interior()
+	elif game_state == "chapel":
+		screen.fill((0, 0, 0))
+		chapel_interior.interior_surface.blit(chapel_interior.static_surface, (0, 0))
 	
 		
 	player.apply_knockback()
@@ -698,25 +715,23 @@ while run == True :
 				else:
 					merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["normal"])
 					dialogues.start_dialogue(merchant_1_text)
+	elif game_state == "chapel":
+		player.clamp_to_map(chapel_interior.width, chapel_interior.height)
 	else:
 		player.clamp_to_map(MAP_WIDTH, MAP_HEIGHT)
 
-	if game_state != "house":
-
-		camera_x = player.rect.centerx - screen.get_width() // 2
-		camera_y = player.rect.centery - screen.get_height() // 2
-	else:
+	if game_state == "house":
 		camera_x = 0
 		camera_y = 0
-
-	if camera_x < 0:
-		camera_x = 0 
-	if camera_y < 0:
-		camera_y = 0
-	if camera_x > MAP_WIDTH - screen.get_width():
-		camera_x = MAP_WIDTH - screen.get_width()
-	if camera_y > MAP_HEIGHT - screen.get_height():
-		camera_y = MAP_HEIGHT - screen.get_height()
+	elif game_state == "chapel":
+		camera_x, camera_y = world.compute_camera(
+			player, chapel_interior.width, chapel_interior.height,
+			screen.get_width(), screen.get_height()
+		)
+	else:
+		camera_x, camera_y = world.compute_camera(
+			player, MAP_WIDTH, MAP_HEIGHT, screen.get_width(), screen.get_height()
+		)
 
 	VIEWPORT_MARGIN = 300
 	visible_rect = pygame.Rect(
@@ -771,12 +786,14 @@ while run == True :
 	SMOKE_ANIMATION_SPEED,
 	smoke_animation
 )
-		dragon_timer, dragon_frame = world.update_dragon(
+		dragon_timer, dragon_frame, dragon_waiting, dragon_waiting_timer = world.update_dragon(
 	game_state,
 	dragon_timer,
 	dragon_frame,
 	DRAGON_ANIMATION_SPEED,
-	chapel_dragon_animation
+	chapel_dragon_animation,
+	dragon_waiting,
+	dragon_waiting_timer
 )
 	was_attack_done = attack_done
 	attack_done, killed_this_attack = fight.resolve_player_attack(
@@ -813,6 +830,51 @@ while run == True :
 						))
 						tree.dropped_golden_apple = True
 	
+	# Mise à jour des projectiles (dynamites)
+	for projectile in projectiles[:]:
+		still_active = projectile.update(town_trees, colliders)
+		if not still_active:
+			# L'explosion s'est produite
+			explosion_data = projectile.get_explosion_data()
+			
+			# Dégâts aux ennemis
+			for enemy in enemies[:]:
+				dx = enemy.rect.centerx - explosion_data["x"]
+				dy = enemy.rect.centery - explosion_data["y"]
+				distance = math.hypot(dx, dy)
+				if distance <= explosion_data["radius"]:
+					enemy.take_damage(explosion_data["damage"], player)
+			
+			# Dégâts au joueur (si en jeu)
+			if game_state == "world" or game_state == "shop":
+				dx = player.rect.centerx - explosion_data["x"]
+				dy = player.rect.centery - explosion_data["y"]
+				distance = math.hypot(dx, dy)
+				if distance <= explosion_data["radius"] and player.invicible_timer <= 0:
+					player.take_damage(explosion_data["damage"] // 2, None)
+			
+			# Vérifier les arbres pour les pommes
+			for i, tree in enumerate(town_trees):
+				dx = tree.rect.centerx - explosion_data["x"]
+				dy = tree.rect.centery - explosion_data["y"]
+				distance = math.hypot(dx, dy)
+				if distance <= explosion_data["radius"]:
+					# Augmenter les chances de drop de pomme
+					if random.random() < (0.15 + DYNAMITE_TREE_HIT_APPLE_BOOST):
+						if random.random() < GOLDEN_APPLE_DROP_CHANCE:
+							item_drops.append(ItemDrop(
+								tree.rect.centerx,
+								tree.rect.centery,
+								GoldenApple(golden_apple_sprite)
+							))
+						else:
+							item_drops.append(ItemDrop(
+								tree.rect.centerx,
+								tree.rect.centery,
+								Apple(apple_sprite)
+							))
+			
+			projectiles.remove(projectile)
 
 	for coin in coins[:]:
 		if player.hitbox.colliderect(coin.rect):
@@ -1154,11 +1216,14 @@ while run == True :
 						player_system
 					)
 			elif event.button == 3:
+				print(f"Clic droit détecté ! game_state={game_state}, attacking={attacking}, player.state={player.state}, current_npc={current_npc}")
 				if not attacking and player.state != "hurt" and current_npc is None:
 					slot = player.inventory[player.selected_slot]
 					item = slot["item"]
+					print(f"Slot sélectionné: {player.selected_slot}, item: {item}, quantity: {slot['quantity']}")
 
 					if item is not None:
+						print(f"Item type: {type(item).__name__}, isinstance(Dynamite): {isinstance(item, Dynamite)}")
 						if isinstance(item, Potion) and potion_heal_timer == 0:
 							potion_heal_animation_start_hp = player.hp
 							potion_heal_animation_target_hp = min(player.max_hp, player.hp + item.heal)
@@ -1176,6 +1241,24 @@ while run == True :
 							if slot["quantity"] <= 0:
 								slot["item"] = None
 								slot["quantity"] = 0
+						
+						elif isinstance(item, Dynamite):
+							# Lancer la dynamite vers la souris
+							if game_state in ["wave", "world"]:
+								mx, my = pygame.mouse.get_pos()
+								# Convertir les coordonnées écran en coordonnées monde
+								world_mx = mx + camera_x
+								world_my = my + camera_y
+								
+								item.use(player, world_mx, world_my, projectiles, scaled_dynamite)
+								
+								slot["quantity"] -= 1
+								if slot["quantity"] <= 0:
+									slot["item"] = None
+									slot["quantity"] = 0
+							else:
+								merchant_1.set_click_text("Vous ne pouvez lancer la dynamite que dans le monde.")
+
 		if event.type == pygame.KEYDOWN:
 
 			if event.key == pygame.K_e:
@@ -1209,6 +1292,13 @@ while run == True :
 							player.hitbox.center = player.rect.center
 							player.direction = "up"
 
+						elif player.hitbox.colliderect(chapel.door_hitbox):
+
+							game_state = "chapel"
+							player.rect.center = chapel_interior.entrance_point
+							player.hitbox.center = player.rect.center
+							player.direction = "up"
+
 					elif game_state == "house":
 
 						if player.hitbox.colliderect(house.door_rect):
@@ -1217,6 +1307,18 @@ while run == True :
 							player.rect.center = (
 							house.door_hitbox.centerx,
 							house.door_hitbox.bottom + 40
+					)
+							player.hitbox.center = player.rect.center
+							player.direction = "down"
+
+					elif game_state == "chapel":
+
+						if player.hitbox.colliderect(chapel_interior.exit_rect):
+
+							game_state = "shop"
+							player.rect.center = (
+							chapel.door_hitbox.centerx,
+							chapel.door_hitbox.bottom + 40
 					)
 							player.hitbox.center = player.rect.center
 							player.direction = "down"
@@ -1233,6 +1335,9 @@ while run == True :
 		if player.hitbox.colliderect(house.door_hitbox):
 			door_text = ui.font.render("E entrer", True, (255, 255, 255))
 			game_surface.blit(door_text, (house.door_hitbox.centerx - door_text.get_width() // 2, house.door_hitbox.top - 30))
+		if player.hitbox.colliderect(chapel.door_hitbox):
+			chapel_door_text = ui.font.render("E entrer", True, (255, 255, 255))
+			game_surface.blit(chapel_door_text, (chapel.door_hitbox.centerx - chapel_door_text.get_width() // 2, chapel.door_hitbox.top - 30))
 
 	for coin in coins[:]:
 
@@ -1249,6 +1354,22 @@ while run == True :
 				coins.remove(coin)
 
 		coin.draw(game_surface)
+	
+	# Dessiner les projectiles (dynamites)
+	if projectiles:
+		print(f"Dessin de {len(projectiles)} projectiles")
+	for projectile in projectiles:
+		projectile.draw(game_surface, camera_x, camera_y)
+		
+		# Dessiner le rayon d'explosion avant l'explosion
+		if projectile.state == "stopped":
+			pygame.draw.circle(
+				game_surface,
+				(255, 100, 0) if projectile.blink_frame == 1 else (200, 80, 0),
+				(int(projectile.x - camera_x), int(projectile.y - camera_y)),
+				DYNAMITE_EXPLOSION_RADIUS,
+				2
+			)
 
 
 	entities.sort(key=lambda entity: entity[2])
@@ -1257,6 +1378,8 @@ while run == True :
 		if entity_type == "player":
 			if game_state == "house":
 				player_system.draw_player(house.interior_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
+			elif game_state == "chapel":
+				player_system.draw_player(chapel_interior.interior_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 			else:
 				player_system.draw_player(game_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 
@@ -1365,6 +1488,12 @@ while run == True :
 				exit_text = ui.font.render("E sortir", True, (255, 255, 255))
 
 				screen.blit(exit_text, (screen.get_width() // 2 - exit_text.get_width() // 2, screen.get_height() - 60))
+	if game_state == "chapel":
+			if player.hitbox.colliderect(chapel_interior.exit_rect):
+
+				exit_text = ui.font.render("E sortir", True, (255, 255, 255))
+
+				screen.blit(exit_text, (screen.get_width() // 2 - exit_text.get_width() // 2, screen.get_height() - 60))
 	
 	if near_npc:
 
@@ -1435,6 +1564,10 @@ while run == True :
 		inside_x = (screen.get_width() - HOUSE_INSIDE_WIDTH) // 2
 		inside_y = (screen.get_height() - HOUSE_INSIDE_HEIGHT) // 2
 		screen.blit(house.interior_surface, (inside_x, inside_y))
+	elif game_state == "chapel":
+		overlay_presence = True
+		screen.blit(chapel_interior.interior_surface, (-camera_x, -camera_y))
+
 	else:
 		overlay_presence = False
 		screen.blit(game_surface, (-camera_x, -camera_y))

@@ -782,6 +782,143 @@ class NPC:
 		)
 
 		surface.blit(sprite, sprite_rect)
+class DynamiteProjectile:
+	"""
+	Gère une dynamite lancée : physique, rotation, clignotement, collision, explosion
+	"""
+	def __init__(self, x, y, vx, vy, sprite):
+		self.x = float(x)
+		self.y = float(y)
+		self.vx = float(vx)  # vélocité x
+		self.vy = float(vy)  # vélocité y (affectée par la gravité)
+		
+		self.sprite = sprite
+		self.rotation = 0  # angle de rotation en degrés
+		self.current_frame = 0  # pour le clignotement
+		self.frame_timer = 0
+		
+		self.hitbox = pygame.Rect(x - DYNAMITE_SIZE // 2, y - DYNAMITE_SIZE // 2, DYNAMITE_SIZE, DYNAMITE_SIZE)
+		
+		self.state = "moving"  # "moving", "stopped", "exploding"
+		self.stopped_timer = 0  # frames depuis l'arrêt
+		self.blink_frame = 0  # pour l'animation de clignotement
+		
+		self.has_bounced_trees = set()  # set of tree indices pour éviter les rebonds multiples
+		
+	def update(self, trees, colliders):
+		"""
+		Met à jour la position, la rotation, gère les collisions et l'explosion
+		"""
+		if self.state == "exploding":
+			return False  # Indique que le projectile est explosion (à supprimer)
+		
+		# Appliquer la gravité
+		self.vy += DYNAMITE_GRAVITY
+		
+		# Appliquer la friction
+		self.vx *= DYNAMITE_FRICTION
+		self.vy *= DYNAMITE_FRICTION
+		
+		# Vérifier si elle a arrêté de bouger
+		velocity = math.hypot(self.vx, self.vy)
+		
+		if self.state == "moving" and velocity < DYNAMITE_MIN_VELOCITY:
+			self.state = "stopped"
+			self.stopped_timer = 0
+			self.has_bounced_trees.clear()
+		
+		# Mettre à jour la position
+		self.x += self.vx
+		self.y += self.vy
+		
+		# Mettre à jour la hitbox
+		self.hitbox.centerx = int(self.x)
+		self.hitbox.centery = int(self.y)
+		
+		# Rotation
+		self.rotation = (self.rotation + DYNAMITE_ROTATION_SPEED) % 360
+		
+		# Collision avec les colliders statiques (murs, obstacles)
+		for collider in colliders:
+			if self.hitbox.colliderect(collider):
+				# Rebondir
+				self._bounce_off(collider)
+				self.state = "moving"  # Relancer le timer d'arrêt
+		
+		# Collision avec les arbres (rebond)
+		for i, tree in enumerate(trees):
+			if i not in self.has_bounced_trees and self.hitbox.colliderect(tree.hitbox):
+				if self.state == "moving" or velocity > DYNAMITE_MIN_VELOCITY:
+					# Rebond aléatoire
+					self._bounce_random()
+					self.has_bounced_trees.add(i)
+		
+		# Gestion du clignotement avant explosion
+		if self.state == "stopped":
+			self.stopped_timer += 1
+			self.frame_timer += 1
+			
+			if self.frame_timer >= DYNAMITE_BLINK_SPEED:
+				self.frame_timer = 0
+				self.blink_frame = (self.blink_frame + 1) % 2
+			
+			if self.stopped_timer >= DYNAMITE_EXPLOSION_DELAY:
+				self.state = "exploding"
+				return False  # Signal pour l'explosion
+		
+		return True  # Projectile toujours actif
+	
+	def _bounce_off(self, collider):
+		"""Rebondir contre un collider"""
+		# Trouver le point le plus proche du collider
+		closest_x = max(collider.left, min(self.x, collider.right))
+		closest_y = max(collider.top, min(self.y, collider.bottom))
+		
+		dx = self.x - closest_x
+		dy = self.y - closest_y
+		
+		distance = math.hypot(dx, dy)
+		if distance > 0:
+			dx /= distance
+			dy /= distance
+		else:
+			dx, dy = 1, 0
+		
+		# Rebond aléatoire
+		bounce_dist = random.uniform(DYNAMITE_BOUNCE_MIN, DYNAMITE_BOUNCE_MAX)
+		self.vx = dx * bounce_dist * 0.3
+		self.vy = dy * bounce_dist * 0.3 - 2  # Ajouter un peu d'élévation
+	
+	def _bounce_random(self):
+		"""Rebond aléatoire après une collision avec un arbre"""
+		bounce_angle = random.uniform(0, 360)
+		bounce_dist = random.uniform(DYNAMITE_BOUNCE_MIN, DYNAMITE_BOUNCE_MAX)
+		self.vx = math.cos(math.radians(bounce_angle)) * bounce_dist * 0.3
+		self.vy = math.sin(math.radians(bounce_angle)) * bounce_dist * 0.3 - 2
+	
+	def draw(self, surface, camera_x, camera_y):
+		"""Dessiner la dynamite avec rotation et clignotement"""
+		screen_x = int(self.x - camera_x)
+		screen_y = int(self.y - camera_y)
+		
+		# Clignotement avant explosion
+		if self.state == "stopped" and self.blink_frame == 0:
+			return  # Ne pas afficher pendant le clignotement
+		
+		# Rotation du sprite
+		rotated = pygame.transform.rotate(self.sprite, self.rotation)
+		rotated_rect = rotated.get_rect(center=(screen_x, screen_y))
+		surface.blit(rotated, rotated_rect)
+	
+	def get_explosion_data(self):
+		"""Retourner les données pour l'explosion"""
+		return {
+			"x": self.x,
+			"y": self.y,
+			"radius": DYNAMITE_EXPLOSION_RADIUS,
+			"damage": DYNAMITE_DAMAGE
+		}
+
 		
 class Potion:
 
@@ -800,6 +937,66 @@ class Potion:
 
 	def use(self, player):
 		player.hp = min(player.max_hp, player.hp + self.heal)
+
+class Dynamite:
+
+	def __init__(self, sprite):
+		self.name = "Dynamite"
+		self.price = DYNAMITE_PRICE
+		self.damage = DYNAMITE_DAMAGE
+		self.explosion_radius = DYNAMITE_EXPLOSION_RADIUS
+		self.throw_range = DYNAMITE_THROW_RANGE
+		self.throw_speed = DYNAMITE_THROW_SPEED
+		self.size = DYNAMITE_SIZE
+		self.scale = DYNAMITE_SCALE
+		self.explosion_delay = DYNAMITE_EXPLOSION_DELAY
+		self.bounce_min = DYNAMITE_BOUNCE_MIN
+		self.bounce_max = DYNAMITE_BOUNCE_MAX
+		self.tree_hit_apple_boost = DYNAMITE_TREE_HIT_APPLE_BOOST
+
+		self.stock = DYNAMITE_QUANTITY          # quantité chez le marchand
+		self.max_stock = DYNAMITE_MAX_QUANTITY
+
+		self.sprite = sprite     # chargé plus tard
+		self.rect = None         # utilisé pour le clic
+
+	def copy(self):
+		return Dynamite(self.sprite)
+
+	def use(self, player, target_x, target_y, projectiles, scaled_dynamite_sprite):
+		"""
+		Lance la dynamite vers la position target (souris)
+		"""
+		# Calculer la direction vers la souris
+		dx = target_x - player.rect.centerx
+		dy = target_y - player.rect.centery
+		distance = math.hypot(dx, dy)
+		
+		print(f"Dynamite.use() appelé ! Distance: {distance}, dX: {dx}, dY: {dy}")
+		
+		if distance > 0:
+			# Normaliser et appliquer la vitesse
+			vx = (dx / distance) * DYNAMITE_THROW_SPEED
+			vy = (dy / distance) * DYNAMITE_THROW_SPEED
+			
+			print(f"Création du projectile ! vX: {vx}, vY: {vy}")
+			
+			# Créer le projectile
+			projectile = DynamiteProjectile(
+				player.rect.centerx,
+				player.rect.centery,
+				vx,
+				vy,
+				scaled_dynamite_sprite
+			)
+			projectiles.append(projectile)
+			print(f"Projectile ajouté ! Total projectiles: {len(projectiles)}")
+		else:
+			print("Distance = 0, pas de projectile créé")
+
+
+
+
 
 class Apple:
 

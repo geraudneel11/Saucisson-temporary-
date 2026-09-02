@@ -4,7 +4,7 @@ import fonts
 import dialogues
 import random
 from settings import * 
-from classes import Potion
+from classes import Potion, Dynamite
 
 def load_merchant_ui():
     global shop_window
@@ -20,12 +20,15 @@ def load_merchant_ui():
     global merchant1_max_page
     global little_potion_sprite
     global scaled_little_potion
+    global dynamite_sprite
+    global scaled_dynamite
     global merchant_inventory 
 
     shop_window = pygame.image.load("Shop.png").convert_alpha()
     button_window = pygame.image.load("Buttons.png").convert_alpha()
 
     little_potion_sheet = pygame.image.load("Fiole_de_soin.png").convert_alpha()
+    dynamite_sheet = pygame.image.load("Dynamite.png").convert_alpha()
 
     close_button_sheet = pygame.image.load("shop_exit_button.png").convert_alpha()
 
@@ -45,7 +48,18 @@ def load_merchant_ui():
             int(little_potion_sprite.get_height() * UI_SCALE)
         )
     )
-    merchant_inventory = [Potion(scaled_little_potion)]
+    dynamite_sprite = dynamite_sheet.subsurface(0, 0, 16, 16)
+    scaled_dynamite = pygame.transform.scale(
+        dynamite_sprite,
+        (
+            int(dynamite_sprite.get_width() * UI_SCALE),
+            int(dynamite_sprite.get_height() * UI_SCALE)
+        )
+    )
+    merchant_inventory = [
+        Potion(scaled_little_potion),
+        Dynamite(scaled_dynamite)
+    ]
     merchant1_page = 1
     merchant1_max_page = max(1, math.ceil(len(merchant_inventory) / 6))
 merchant_hover_text = ""
@@ -57,10 +71,12 @@ merchant_message_timer = 0
 MERCHANT_MESSAGE_DURATION = 120  
 previous_merchant_state = None
 merchant_items = [
-    "little heal potion"
+    "little heal potion",
+    "dynamite"
 ]
 possible_items = [
     Potion,
+    Dynamite,
 ]
 merchant_hover_text = ""
 merchant_message = ""
@@ -80,15 +96,24 @@ def refresh_shop():
     for item_class in possible_items:
 
         if random.random() < 0.7:
+            if item_class == Potion:
+                potion = Potion(scaled_little_potion)
 
-            potion = Potion(scaled_little_potion)
+                potion.stock = random.randint(
+                    potion.max_stock // 2,
+                    potion.max_stock
+                )
 
-            potion.stock = random.randint(
-                potion.max_stock // 2,
-                potion.max_stock
-            )
-
-            merchant_inventory.append(potion)
+                merchant_inventory.append(potion)
+            elif item_class == Dynamite:
+                dynamite = Dynamite(scaled_dynamite)
+                
+                dynamite.stock = random.randint(
+                    dynamite.max_stock // 2,
+                    dynamite.max_stock
+                )
+                
+                merchant_inventory.append(dynamite)
 merchant_1_dialogues = {
     "first_meeting": [
         "Salut, moi c'est Languillan. Je suis marchand et apprenti alchimiste.",

@@ -636,9 +636,12 @@ class Chapel:
 			hb["height"]
 		)
 
+		self.door_hitbox = pygame.Rect(0, 0, 100, 100)
+		self.door_hitbox.center = (self.entrance_point[0], self.entrance_point[1] - 20)
+
 
 def update_dragon(game_state, dragon_timer, dragon_frame,
-				   dragon_animation_speed, dragon_animation):
+				   dragon_animation_speed, dragon_animation, dragon_waiting, dragon_waiting_timer):
 	"""
 	Même principe que update_smoke/update_portal : l'animation
 	n'avance que si on est en mode "shop" (là où la chapelle est
@@ -646,13 +649,229 @@ def update_dragon(game_state, dragon_timer, dragon_frame,
 	"""
 
 	if game_state == "shop":
-		dragon_timer += 1
-
-		if dragon_timer >= dragon_animation_speed:
-			dragon_timer = 0
-			dragon_frame += 1
-
-			if dragon_frame >= len(dragon_animation):
+		if dragon_waiting:
+			dragon_waiting_timer += 1
+			if dragon_waiting_timer >= random.randint(60, 300):
+				dragon_waiting = False
+				dragon_timer = 0
 				dragon_frame = 0
+		else:
+			dragon_timer += 1
 
-	return dragon_timer, dragon_frame
+			if dragon_timer >= dragon_animation_speed:
+				dragon_timer = 0
+				dragon_frame += 1
+
+				if dragon_frame >= len(dragon_animation):
+					dragon_frame = 0
+
+	return dragon_timer, dragon_frame, dragon_waiting, dragon_waiting_timer
+
+def compute_camera(player, area_width, area_height, screen_width, screen_height):
+	"""
+	Calcule un décalage de caméra centré sur le joueur, contraint pour
+	ne jamais montrer au-delà des bords d'une zone de area_width x
+	area_height. Générique : utilisable pour n'importe quel intérieur
+	ou donjon plus grand que l'écran, exactement comme pour la carte
+	extérieure.
+	"""
+
+	camera_x = player.rect.centerx - screen_width // 2
+	camera_y = player.rect.centery - screen_height // 2
+
+	if area_width < screen_width:
+		camera_x = -(screen_width - area_width) // 2
+	else:
+		camera_x = max(0, min(camera_x, area_width - screen_width))
+
+	if area_height < screen_height:
+		camera_y = -(screen_height - area_height) // 2
+	else:
+		camera_y = max(0, min(camera_y, area_height - screen_height))
+
+	return camera_x, camera_y
+
+class ChapelInterior:
+	"""
+	Intérieur de la chapelle, construit étape par étape :
+	  1. Murs (cette étape)
+	  2. Décorations sur les murs
+	  3. Sols et décorations au sol
+	  4. Meubles
+	  5. Meubles animés
+	  6. Hitbox de tout ce qui précède
+
+	Forme en 3 paliers de largeur sur l'axe Y (large / étroit / large)
+	qui donne l'effet d'alcôves près de l'autel et d'une niche près de
+	l'entrée, avec un couloir de bancs allongé au milieu. La
+	bibliothèque est accolée à gauche, sur toute la longueur de ce
+	couloir. Plus grand que l'écran -> utilise world.compute_camera,
+	comme les zones extérieures.
+	"""
+
+	def __init__(self):
+		self.sheet = pygame.image.load("chapel_interior_walls.png").convert_alpha()
+
+		scale = CHAPEL_WALL_SCALE
+
+		def cut(rect):
+			x, y, w, h = rect
+			piece = self.sheet.subsurface((x, y, w, h))
+			return pygame.transform.scale(piece, (int(w * scale), int(h * scale)))
+		
+		self.wall_panel = cut((51, 0, 26, 64))
+		self.wall_corner = cut((133, 128, 21, 63))
+		self.wall_side = cut((77,0,3,64))
+		self.big_wall_side = cut((125, 0, 6, 12))
+		self.wall_panel2 = cut((51, 0, 26, 60))
+
+		self.wall_back = cut((96, 0, 64, 64))          # mur plein, pour les segments horizontaux (haut/paliers)
+		self.wall_left = cut((133, 128, 21, 63))        # pilier fin, pour les murs latéraux
+		self.wall_right = pygame.transform.flip(self.wall_left, True, False)
+		self.wall_gothic_arch = cut((0, 256, 144, 80))
+
+		# --- Géométrie : 3 paliers de largeur ---
+		narrow_w = CHAPEL_NAVE_NARROW_WIDTH
+		wide_extra = CHAPEL_NAVE_WIDE_EXTRA
+		wide_w = narrow_w + wide_extra * 2
+
+		alcove_h = CHAPEL_ALCOVE_HEIGHT
+		pew_hall_h = CHAPEL_PEW_HALL_HEIGHT
+		vase_nook_h = CHAPEL_VASE_NOOK_HEIGHT
+		entrance_h = CHAPEL_ENTRANCE_HEIGHT
+
+		lib_w = CHAPEL_LIBRARY_WIDTH
+
+		narrow_left = lib_w
+		wide_left = narrow_left - wide_extra
+
+		self.width = wide_left + wide_w
+		self.height = alcove_h + pew_hall_h + vase_nook_h + entrance_h
+
+		y = 0
+		self.alcove_rect = pygame.Rect(wide_left, y, wide_w, alcove_h)
+		y += alcove_h
+		self.pew_hall_rect = pygame.Rect(narrow_left, y, narrow_w, pew_hall_h)
+		y += pew_hall_h
+		self.vase_nook_rect = pygame.Rect(wide_left, y, wide_w, vase_nook_h)
+		y += vase_nook_h
+		self.entrance_rect = pygame.Rect(narrow_left, y, narrow_w, entrance_h)
+
+		self.library_rect = pygame.Rect(0, self.pew_hall_rect.top, lib_w, pew_hall_h)
+
+		# Point d'entrée (venant de l'extérieur) et zone de sortie -
+		# ce sont de simples repères, pas des hitbox de collision (qui
+		# viendront à la toute dernière étape).
+		self.entrance_point = (self.entrance_rect.centerx, self.entrance_rect.bottom - 30)
+		self.exit_rect = pygame.Rect(0, 0, 160, 100)
+		self.exit_rect.center = (self.entrance_rect.centerx, self.entrance_rect.bottom - 20)
+
+		self._build_walls()
+
+	def _tile_horizontal(self, surface, tile, x0, x1, y):
+		tw = tile.get_width()
+		for x in range(x0, x1, tw):
+			surface.blit(tile, (x, y))
+
+	def _tile_vertical(self, surface, tile, y0, y1, x):
+		th = tile.get_height()
+		for y in range(y0, y1, th):
+			surface.blit(tile, (x, y))
+
+	def _build_walls(self):
+		self.static_surface = pygame.Surface((self.width, self.height))
+		self.static_surface.fill((10, 10, 15))
+		floor_color = (120, 118, 130)
+		for rect in (self.alcove_rect, self.pew_hall_rect, self.vase_nook_rect,
+					 self.entrance_rect, self.library_rect):
+			pygame.draw.rect(self.static_surface, floor_color, rect)
+
+		# --- Mur du bas (couloir d'entrée), avec un espace pour la porte de sortie --
+
+		tw = self.wall_back.get_width()
+		th = self.wall_back.get_height()
+		sw = self.wall_left.get_width()
+
+		# --- Alcôve (haut) ---
+
+		# --- Couloir d'entrée (bas) : pas de mur en bas, la porte
+		# extérieure viendra plus tard ---
+		wall_h = self.wall_panel.get_height()
+		y = self.entrance_rect.bottom - wall_h // 1.4
+		col_y = self.entrance_rect.bottom - wall_h // 1.1
+		y2 = 380
+		door_w = CHAPEL_EXIT_DOOR_WIDTH
+		door_left = self.entrance_rect.centerx - door_w // 2
+		door_right = self.entrance_rect.centerx + door_w // 2
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			self.vase_nook_rect.left, self.entrance_rect.left-25, 885)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			self.entrance_rect.right, self.vase_nook_rect.right, 885)
+		self._tile_horizontal(self.static_surface, self.wall_panel,
+			self.entrance_rect.left, door_left, y)
+		self._tile_horizontal(self.static_surface, self.wall_panel,
+			door_right, self.entrance_rect.right, y)
+		sidewall_length = CHAPEL_ENTRANCE_SIDEWALL1_LENGTH
+		self.tile_vertical_symmetric(
+			self.static_surface, self.big_wall_side,
+			self.entrance_rect.bottom - sidewall_length, self.entrance_rect.bottom,
+			offset_x=self.entrance_rect.width // 2,
+			centerx=self.entrance_rect.centerx
+		)
+		# Coins, aux deux extrémités du mur du bas
+		corner_rect_left = self.wall_corner.get_rect(midtop=(self.entrance_rect.left, col_y))
+		self.static_surface.blit(self.wall_corner, corner_rect_left)
+		corner_rect_right = self.wall_corner.get_rect(midtop=(self.entrance_rect.right, col_y))
+		self.static_surface.blit(self.wall_corner, corner_rect_right)
+
+
+		self.interior_surface = self.static_surface.copy()
+
+	def add_symmetric(self, surface, sprite, offset_x, y, centerx=None, anchor="midtop"):
+		"""
+		Pose 'sprite' à gauche ET à droite en une seule fois, symétrique
+		par rapport à l'axe vertical centerx (par défaut le centre de la
+		nef) :
+		  - à gauche : tel quel, à 'offset_x' pixels du centre
+		  - à droite : retourné horizontalement (flip), à la même distance
+		'anchor' est n'importe quel attribut de pygame.Rect ('midtop',
+		'midbottom', 'center', 'topleft'...) qui précise à quel point de
+		'y' le sprite s'accroche.
+		"""
+		centerx = self.nave_rect.centerx if centerx is None else centerx
+		flipped = pygame.transform.flip(sprite, True, False)
+
+		left_rect = sprite.get_rect()
+		setattr(left_rect, anchor, (centerx - offset_x, y))
+		surface.blit(sprite, left_rect)
+
+		right_rect = flipped.get_rect()
+		setattr(right_rect, anchor, (centerx + offset_x, y))
+		surface.blit(flipped, right_rect)
+
+	def tile_vertical_symmetric(self, surface, sprite, y0, y1, offset_x, centerx=None):
+		"""
+		Carrelle 'sprite' verticalement (comme _tile_vertical) mais des
+		deux côtés à la fois, symétriquement par rapport à centerx : la
+		colonne de gauche reçoit le sprite tel quel, la colonne de droite
+		reçoit sa version retournée horizontalement.
+		"""
+		centerx = self.nave_rect.centerx if centerx is None else centerx
+		flipped = pygame.transform.flip(sprite, True, False)
+		th = sprite.get_height()
+
+		for y in range(y0, y1, th):
+			left_rect = sprite.get_rect(midtop=(centerx - offset_x, y))
+			surface.blit(sprite, left_rect)
+			right_rect = flipped.get_rect(midtop=(centerx + offset_x, y))
+			surface.blit(flipped, right_rect)
+
+	def _tile_horizontal(self, surface, tile, x0, x1, y):
+		tw = tile.get_width()
+		for x in range(x0, x1, tw):
+			surface.blit(tile, (x, y))
+
+	def _tile_vertical(self, surface, tile, y0, y1, x):
+		th = tile.get_height()
+		for y in range(y0, y1, th):
+			surface.blit(tile, (x, y))

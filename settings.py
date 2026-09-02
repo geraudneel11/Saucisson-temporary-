@@ -252,3 +252,42 @@ DRAGON_OFFSET_Y = -256
 # Utilise la touche F4 en jeu pour caler ces valeurs (comme F2/F3).
 DRAGON_BODY_OFFSET_X = 0
 DRAGON_BODY_OFFSET_Y = 0
+
+# --- Intérieur de la chapelle : géométrie en 3 paliers de largeur ---
+# (étroit / large / large), qui s'élargit aux alcôves à statues (haut)
+# et à la niche à vases (bas), avec un couloir de bancs allongé au
+# milieu. La bibliothèque fait la longueur de ce couloir allongé.
+CHAPEL_NAVE_NARROW_WIDTH = 950      # largeur du couloir de bancs et de l'entrée
+CHAPEL_NAVE_WIDE_EXTRA = 180        # débordement de chaque côté aux paliers larges
+
+CHAPEL_ALCOVE_HEIGHT = 220          # palier large du haut (autel + statues) - pas allongé
+CHAPEL_PEW_HALL_HEIGHT = 750        # palier étroit du milieu -> la partie allongée (réduite de moitié)    
+CHAPEL_VASE_NOOK_HEIGHT = 160       # palier large du bas (niche à vases) - pas allongé
+CHAPEL_ENTRANCE_HEIGHT = 130        # palier étroit tout en bas (couloir d'entrée)
+
+CHAPEL_LIBRARY_WIDTH = 350          # fait la longueur de CHAPEL_PEW_HALL_HEIGHT
+CHAPEL_LIBRARY_DOOR_WIDTH = 110     # largeur du passage ouvert entre bibliothèque et nef
+
+CHAPEL_INSIDE_SCALE = 4             # échelle par défaut de l'intérieur (meubles, à venir)
+CHAPEL_WALL_SCALE = 3               # échelle des pièces de mur (chapel_interior_walls.png)
+CHAPEL_EXIT_DOOR_WIDTH = 180        # largeur de l'espace laissé pour la porte de sortie, dans le mur du bas
+
+DYNAMITE_EXPLOSION_RADIUS = 200
+DYNAMITE_DAMAGE = 50
+DYNAMITE_QUANTITY = random.randint(1, 3)
+DYNAMITE_MAX_QUANTITY = 3
+DYNAMITE_THROW_RANGE = 300
+DYNAMITE_THROW_SPEED = 20
+DYNAMITE_SIZE = 12                  # taille du carré (en pixels)
+DYNAMITE_SCALE = 4                  # échelle de la dynamite
+DYNAMITE_EXPLOSION_DELAY = 60       # frames avant l'explosion après l'arrêt
+DYNAMITE_BOUNCE_MIN = 50            # rebond minimum en pixels
+DYNAMITE_BOUNCE_MAX = 100           # rebond maximum en pixels
+DYNAMITE_TREE_HIT_APPLE_BOOST = 0.15  # augmente les chances de drop de pommes de 15%
+DYNAMITE_ROTATION_SPEED = 12        # degrés par frame pendant le lancer
+DYNAMITE_BLINK_SPEED = 15           # frames entre chaque clignotement avant explosion
+DYNAMITE_FRICTION = 0.94            # ralentissement par frame (proche de 1 = peu de frottement)
+DYNAMITE_GRAVITY = 0.5              # accélération vers le bas
+DYNAMITE_MIN_VELOCITY = 1.5         # vitesse minimale avant d'être considérée comme arrêtée
+DYNAMITE_PRICE = 15                 # prix chez le marchand
+CHAPEL_ENTRANCE_SIDEWALL1_LENGTH = 375   # longueur (en Y) sur laquelle wall_side se répète, part du bas d'entrance_rect vers le haut
