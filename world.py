@@ -723,12 +723,17 @@ class ChapelInterior:
 		self.wall_corner = cut((133, 128, 21, 63))
 		self.wall_side = cut((77,0,3,64))
 		self.big_wall_side = cut((125, 0, 6, 12))
-		self.wall_panel2 = cut((51, 0, 26, 60))
+		self.big_wall_side_flipped = pygame.transform.flip(self.big_wall_side, True, False)
+		self.wall_panel2 = cut((51, 0, 5, 60))
+		self.arch_round = cut((0, 176, 112, 71))
+		self.vitrail = cut((69, 400, 11, 45))
+		self.vitrail_L = cut((10, 345, 12, 55))
+		self.vitrail_R = cut((72, 345, 12, 55))
 
 		self.wall_back = cut((96, 0, 64, 64))          # mur plein, pour les segments horizontaux (haut/paliers)
 		self.wall_left = cut((133, 128, 21, 63))        # pilier fin, pour les murs latéraux
 		self.wall_right = pygame.transform.flip(self.wall_left, True, False)
-		self.wall_gothic_arch = cut((0, 256, 144, 80))
+		self.wall_gothic_arch = cut((0, 168, 112, 80))
 
 		# --- Géométrie : 3 paliers de largeur ---
 		narrow_w = CHAPEL_NAVE_NARROW_WIDTH
@@ -796,6 +801,7 @@ class ChapelInterior:
 
 		# --- Couloir d'entrée (bas) : pas de mur en bas, la porte
 		# extérieure viendra plus tard ---
+		arch_x = self.alcove_rect.centerx - self.wall_gothic_arch.get_width() // 2
 		wall_h = self.wall_panel.get_height()
 		y = self.entrance_rect.bottom - wall_h // 1.4
 		col_y = self.entrance_rect.bottom - wall_h // 1.1
@@ -804,14 +810,49 @@ class ChapelInterior:
 		door_left = self.entrance_rect.centerx - door_w // 2
 		door_right = self.entrance_rect.centerx + door_w // 2
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
-			self.vase_nook_rect.left, self.entrance_rect.left-25, 885)
+			645, 1000, 122)
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
-			self.entrance_rect.right, self.vase_nook_rect.right, 885)
+			arch_x+self.wall_gothic_arch.get_width(), arch_x+self.wall_gothic_arch.get_width()+305, 122)
+		corner_rect_7 = self.wall_corner.get_rect(midtop=(645, 84))
+		self.static_surface.blit(self.wall_corner, corner_rect_7)
+		corner_rect_7b = self.wall_corner.get_rect(
+			midtop=(2 * self.entrance_rect.centerx - 645, 84))
+		self.static_surface.blit(self.wall_corner, corner_rect_7b)
+		self.tile_vertical_symmetric(
+			self.static_surface, self.big_wall_side,
+			122, 565,
+			offset_x=self.entrance_rect.width // 2,
+			centerx=self.entrance_rect.centerx
+		)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			470, 645, 565)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			0, 470, 565)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			self.entrance_rect.right, self.vase_nook_rect.right, 565)
+		corner_rect_5 = self.wall_corner.get_rect(midtop=(475, 527))
+		corner_rect_4 = self.wall_corner.get_rect(midtop=(0, 527))
+		self.static_surface.blit(self.wall_corner, corner_rect_4)
+		self.static_surface.blit(self.wall_corner, corner_rect_5)
+		self._tile_vertical(self.static_surface, self.big_wall_side,565, 1265, 470)
+		self._tile_vertical(self.static_surface, self.big_wall_side,565, 1265, 0)
+		self._tile_vertical(self.static_surface, self.big_wall_side_flipped,565, 1265, self.entrance_rect.right+162)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			470, 645, 1265)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			0, 470, 1265)
+		self._tile_horizontal(self.static_surface, self.wall_panel2,
+			self.entrance_rect.right, self.vase_nook_rect.right, 1265)
 		self._tile_horizontal(self.static_surface, self.wall_panel,
 			self.entrance_rect.left, door_left, y)
 		self._tile_horizontal(self.static_surface, self.wall_panel,
 			door_right, self.entrance_rect.right, y)
 		sidewall_length = CHAPEL_ENTRANCE_SIDEWALL1_LENGTH
+		corner_rect_3 = self.wall_corner.get_rect(midtop=(645, 1227))
+		self.static_surface.blit(self.wall_corner, corner_rect_3)
+		corner_rect_3b = self.wall_corner.get_rect(
+			midtop=(2 * self.entrance_rect.centerx - 645, 1227))
+		self.static_surface.blit(self.wall_corner, corner_rect_3b)
 		self.tile_vertical_symmetric(
 			self.static_surface, self.big_wall_side,
 			self.entrance_rect.bottom - sidewall_length, self.entrance_rect.bottom,
@@ -823,7 +864,40 @@ class ChapelInterior:
 		self.static_surface.blit(self.wall_corner, corner_rect_left)
 		corner_rect_right = self.wall_corner.get_rect(midtop=(self.entrance_rect.right, col_y))
 		self.static_surface.blit(self.wall_corner, corner_rect_right)
+		self.static_surface.blit(self.wall_gothic_arch, (arch_x, 50))
 
+				# Coins, un blit séparé par colonne pour contrôler l'ordre
+		# individuellement (devant/derrière tel ou tel mur)
+	
+		corner_rect_1 = self.wall_corner.get_rect(midtop=(0, 1227))
+		self.static_surface.blit(self.wall_corner, corner_rect_1)
+		
+		corner_rect_2 = self.wall_corner.get_rect(midtop=(475, 1227))
+		self.static_surface.blit(self.wall_corner, corner_rect_2)
+
+		corner_rect_4 = self.wall_corner.get_rect(midtop=(0, 527))
+		self.static_surface.blit(self.wall_corner, corner_rect_4)
+
+		corner_rect_6 = self.wall_corner.get_rect(midtop=(645, 527))
+		self.static_surface.blit(self.wall_corner, corner_rect_6)
+		corner_rect_6b = self.wall_corner.get_rect(
+			midtop=(2 * self.entrance_rect.centerx - 645, 527))
+		self.static_surface.blit(self.wall_corner, corner_rect_6b)
+
+		corner_rect_8 = self.wall_corner.get_rect(
+			midtop=(door_left, col_y))
+		self.static_surface.blit(self.wall_corner, corner_rect_8)
+
+		corner_rect_9 = self.wall_corner.get_rect(
+			midtop=(door_right, col_y))
+		self.static_surface.blit(self.wall_corner, corner_rect_9)
+
+		self.vitrail_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-2, 96))
+		self.vitrail_L_rect = self.vitrail_L.get_rect(midtop=(self.entrance_rect.centerx - 73, 97))
+		self.vitrail_R_rect = self.vitrail_R.get_rect(midtop=(self.entrance_rect.centerx + 67, 97))
+		self.static_surface.blit(self.vitrail, self.vitrail_rect)
+		self.static_surface.blit(self.vitrail_L, self.vitrail_L_rect)
+		self.static_surface.blit(self.vitrail_R, self.vitrail_R_rect)
 
 		self.interior_surface = self.static_surface.copy()
 

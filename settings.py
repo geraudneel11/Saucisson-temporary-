@@ -260,12 +260,12 @@ DRAGON_BODY_OFFSET_Y = 0
 CHAPEL_NAVE_NARROW_WIDTH = 950      # largeur du couloir de bancs et de l'entrée
 CHAPEL_NAVE_WIDE_EXTRA = 180        # débordement de chaque côté aux paliers larges
 
-CHAPEL_ALCOVE_HEIGHT = 220          # palier large du haut (autel + statues) - pas allongé
+CHAPEL_ALCOVE_HEIGHT = 600          # palier large du haut (autel + statues) - pas allongé
 CHAPEL_PEW_HALL_HEIGHT = 750        # palier étroit du milieu -> la partie allongée (réduite de moitié)    
 CHAPEL_VASE_NOOK_HEIGHT = 160       # palier large du bas (niche à vases) - pas allongé
 CHAPEL_ENTRANCE_HEIGHT = 130        # palier étroit tout en bas (couloir d'entrée)
 
-CHAPEL_LIBRARY_WIDTH = 350          # fait la longueur de CHAPEL_PEW_HALL_HEIGHT
+CHAPEL_LIBRARY_WIDTH = 650          # fait la longueur de CHAPEL_PEW_HALL_HEIGHT
 CHAPEL_LIBRARY_DOOR_WIDTH = 110     # largeur du passage ouvert entre bibliothèque et nef
 
 CHAPEL_INSIDE_SCALE = 4             # échelle par défaut de l'intérieur (meubles, à venir)
