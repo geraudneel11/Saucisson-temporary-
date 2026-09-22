@@ -268,9 +268,11 @@ CHAPEL_ENTRANCE_HEIGHT = 130        # palier étroit tout en bas (couloir d'entr
 CHAPEL_LIBRARY_WIDTH = 650          # fait la longueur de CHAPEL_PEW_HALL_HEIGHT
 CHAPEL_LIBRARY_DOOR_WIDTH = 110     # largeur du passage ouvert entre bibliothèque et nef
 
-CHAPEL_INSIDE_SCALE = 4             # échelle par défaut de l'intérieur (meubles, à venir)
+CHAPEL_INSIDE_SCALE = 4            
 CHAPEL_WALL_SCALE = 3               # échelle des pièces de mur (chapel_interior_walls.png)
 CHAPEL_EXIT_DOOR_WIDTH = 180        # largeur de l'espace laissé pour la porte de sortie, dans le mur du bas
+CHAPEL_DECOR_SCALE = 3  # échelle des décorations d'intérieur (tapis, à ajuster si trop petit/grand)
+ALTAR_SCALE = 3.5                     # échelle de l'animation de l'autel (chapel_altar.png)
 
 DYNAMITE_EXPLOSION_RADIUS = 200
 DYNAMITE_DAMAGE = 50

@@ -94,6 +94,8 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
+DEV_START_GAME_STATE = "chapel"
+game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
 
@@ -388,6 +390,11 @@ healer_npc = NPC(
 	stop_duration_min_seconds=2,
 	stop_duration_max_seconds=10
 )
+if DEV_START_GAME_STATE == "chapel":
+	player.rect.center = chapel_interior.entrance_point
+	player.hitbox.center = player.rect.center
+	player.direction = "up"
+
 merchant1_npc = NPC(
 	700,
 	250,
@@ -523,7 +530,6 @@ attacking = False
 attack_done = False
 next_attack = 1
 attack_hitbox = None
-game_state = "wave"
 
 current_level = 1
 current_wave = 1
@@ -651,6 +657,34 @@ while run == True :
 	elif game_state == "chapel":
 		screen.fill((0, 0, 0))
 		chapel_interior.interior_surface.blit(chapel_interior.static_surface, (0, 0))
+		chapel_interior.interior_surface.blit(
+			chapel_interior.altar_frames[chapel_interior.altar_frame],
+			chapel_interior.altar_rect
+		)
+		chapel_interior.interior_surface.blit(
+			chapel_interior.candelabra_frames[chapel_interior.candelabra_frame],
+			chapel_interior.candelabra_rect1
+		)
+		chapel_interior.interior_surface.blit(
+			chapel_interior.candelabra_frames[chapel_interior.candelabra_frame],
+			chapel_interior.candelabra_rect2	
+		)
+		angel_sprite = chapel_interior.angel_frames[chapel_interior.statue_frame]
+		for x, y in chapel_interior.statue_positions:
+			angel_rect = angel_sprite.get_rect(midbottom=(x, y))
+			chapel_interior.interior_surface.blit(angel_sprite, angel_rect)
+
+		dragon_sprite = chapel_interior.dragon_frames[chapel_interior.statue_frame]
+		for x, y in chapel_interior.dragon_positions:
+			dragon_rect = dragon_sprite.get_rect(midbottom=(x, y))
+			chapel_interior.interior_surface.blit(dragon_sprite, dragon_rect)
+		for x, y, occupant in chapel_interior.pew_seats:
+			if occupant is None:
+				continue
+			sprite = chapel_interior.parishioner_frames[occupant][chapel_interior.parishioner_frame]
+			hair_offset = chapel_interior.parishioner_hair_offset.get(occupant, 0) * CHAPEL_DECOR_SCALE
+			rect = sprite.get_rect(midbottom=(x, y - hair_offset))
+			chapel_interior.interior_surface.blit(sprite, rect)
 	
 		
 	player.apply_knockback()
@@ -717,6 +751,10 @@ while run == True :
 					dialogues.start_dialogue(merchant_1_text)
 	elif game_state == "chapel":
 		player.clamp_to_map(chapel_interior.width, chapel_interior.height)
+		chapel_interior.update_altar()
+		chapel_interior.update_statues()
+		chapel_interior.update_parishioners()
+		chapel_interior.update_candelabra()
 	else:
 		player.clamp_to_map(MAP_WIDTH, MAP_HEIGHT)
 
@@ -760,7 +798,7 @@ while run == True :
 	if game_state == "wave":
 		colliders.extend(tree.hitbox for tree in level_trees)
 		colliders.extend(tree.hitbox for tree in apple_trees)
-		colliders.extend(rock.hitbox for rock in level_rocks)
+		colliders.extend(rock.hitbox for rock in level_rocks) 
 
 	collision.resolve_player_collisions(player, colliders, old_pos)
 
@@ -911,6 +949,8 @@ while run == True :
 			entities.append(("tree", tree, tree.rect.bottom))
 		for rock in level_rocks:
 			entities.append(("rock", rock, rock.rect.bottom))
+
+	
 			
 	if game_state == "shop":
 		if player.hitbox.colliderect(portal_rect):
@@ -1298,6 +1338,7 @@ while run == True :
 							player.rect.center = chapel_interior.entrance_point
 							player.hitbox.center = player.rect.center
 							player.direction = "up"
+							chapel_interior.reset_seating()
 
 					elif game_state == "house":
 
@@ -1402,6 +1443,10 @@ while run == True :
 		if game_state == "wave":
 			for drop in item_drops:
 				drop.draw(game_surface)
+
+	if game_state == "chapel":
+		for sprite, rect in chapel_interior.vase_nook_wall_tiles:
+			chapel_interior.interior_surface.blit(sprite, rect)
 
 	if game_state == "shop":
 		sprite = portal_animation[portal_frame]
@@ -1558,6 +1603,8 @@ while run == True :
 			pygame.draw.rect(game_surface, (255, 150, 0), tree.hitbox, 2)
 		for rock in level_rocks:
 			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
+	if debug_hitboxes and game_state == "chapel":
+		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
 
 	if game_state == "house":
 		overlay_presence = True
@@ -1650,4 +1697,4 @@ while run == True :
 	pygame.display.update()
 	clock.tick(FPS_MAX)
 
-pygame.quit()
+pygame.quit() 

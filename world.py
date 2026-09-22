@@ -3,6 +3,7 @@ import waves
 from classes import *
 from settings import *
 import random
+from animations import load_animation, load_animation_row
 
 _debug_font = None
 
@@ -342,7 +343,7 @@ class House:
 		self.blue_rug = pygame.transform.scale(self.blue_rug, (int(self.blue_rug.get_width() * 4), int(self.blue_rug.get_height() * 4)))
 		self.chest1 = pygame.transform.scale(self.chest1, (int(self.chest1.get_width() * 4), int(self.chest1.get_height() * 4)))
 		self.plant1 = pygame.transform.scale(self.plant1, (int(self.plant1.get_width() * 4), int(self.plant1.get_height() * 4)))
-		self.deck1 = pygame.transform.scale(self.deck1, (int(self.deck1.get_width() * 4), int(self.deck1.get_height() * 4)))
+		self.deck1 = pygame.transform.scale(self.deck1, (int(self.deck1.get_width() * 3.5), int(self.deck1.get_height() * 3.5)))
 		self.bookshelf1 = pygame.transform.scale(self.bookshelf1, (int(self.bookshelf1.get_width() * 4), int(self.bookshelf1.get_height() * 4)))
 		self.bookshelf2 = pygame.transform.scale(self.bookshelf2, (int(self.bookshelf2.get_width() * 4), int(self.bookshelf2.get_height() * 4)))
 		self.sofa1 = pygame.transform.scale(self.sofa1, (int(self.sofa1.get_width() * 4), int(self.sofa1.get_height() * 4))) 
@@ -708,9 +709,31 @@ class ChapelInterior:
 	couloir. Plus grand que l'écran -> utilise world.compute_camera,
 	comme les zones extérieures.
 	"""
-
+	def reset_seating(self):
+		"""
+		Tire au sort l'occupation de chaque place (1/3 de chance d'être
+		vide, sinon un des 11 fidèles au hasard). Appelée une fois à la
+		création, puis à chaque entrée dans la chapelle.
+		"""
+		self.pew_seats = []
+		for row_index, y in enumerate(self.pew_row_ys):
+			for side, pew_x in (("left", self.pew_left_x), ("right", self.pew_right_x)):
+				if side == "left" and row_index == self.library_gap_row_index:
+					continue
+				for offset in self.seat_offsets:
+					if random.random() < 1 / 3:
+						occupant = None
+					else:
+						occupant = random.randint(0, 10)
+					# Remonté par rapport au bas du banc : le fidèle est
+					# assis DANS le banc, son buste dépasse au-dessus du
+					# dossier plutôt que d'être posé devant.
+					seat_y = y - self.pew_double.get_height() // 3 + 5
+					self.pew_seats.append((pew_x + offset, seat_y, occupant))
 	def __init__(self):
 		self.sheet = pygame.image.load("chapel_interior_walls.png").convert_alpha()
+		self.sheet2 = pygame.image.load("chapel_interior_objects.png").convert_alpha()
+		self.sheet3 = pygame.image.load("interior_objects.png").convert_alpha()
 
 		scale = CHAPEL_WALL_SCALE
 
@@ -718,6 +741,16 @@ class ChapelInterior:
 			x, y, w, h = rect
 			piece = self.sheet.subsurface((x, y, w, h))
 			return pygame.transform.scale(piece, (int(w * scale), int(h * scale)))
+
+		def cut2(rect):
+			x, y, w, h = rect
+			piece = self.sheet2.subsurface((x, y, w, h))
+			return pygame.transform.scale(piece, (int(w * scale), int(h * scale)))
+
+		def cut3(rect):
+			x, y, w, h = rect
+			piece = self.sheet3.subsurface((x, y, w, h))
+			return pygame.transform.scale(piece, (int(w * scale), int(h * scale)))	
 		
 		self.wall_panel = cut((51, 0, 26, 64))
 		self.wall_corner = cut((133, 128, 21, 63))
@@ -729,11 +762,20 @@ class ChapelInterior:
 		self.vitrail = cut((69, 400, 11, 45))
 		self.vitrail_L = cut((10, 345, 12, 55))
 		self.vitrail_R = cut((72, 345, 12, 55))
+		self.tableau1 = cut2((10, 130, 20, 30))
+		self.floor_tile = cut((32, 496, 32, 32))
 
 		self.wall_back = cut((96, 0, 64, 64))          # mur plein, pour les segments horizontaux (haut/paliers)
 		self.wall_left = cut((133, 128, 21, 63))        # pilier fin, pour les murs latéraux
 		self.wall_right = pygame.transform.flip(self.wall_left, True, False)
 		self.wall_gothic_arch = cut((0, 168, 112, 80))
+		self.angel_statue = cut2((34, 4, 29, 72))
+		self.dragon_statue = cut2((79, 5, 42, 72))
+		self.deck2 = cut3((218, 225, 60, 37))
+		self.bookshelf1 = cut3((330, 98, 50, 62))
+		self.chest1 = cut3((243, 355, 27, 24))
+		self.rug1 = cut3((0, 225, 80, 80))
+		self.sofa1 = cut3((115, 300, 60, 50))
 
 		# --- Géométrie : 3 paliers de largeur ---
 		narrow_w = CHAPEL_NAVE_NARROW_WIDTH
@@ -746,6 +788,62 @@ class ChapelInterior:
 		entrance_h = CHAPEL_ENTRANCE_HEIGHT
 
 		lib_w = CHAPEL_LIBRARY_WIDTH
+
+				# Chaque feuille Parishioner fait 4 colonnes x 12 rangées, mais la
+		# TAILLE DE CELLULE varie d'un fichier à l'autre (36x48, 40x32,
+		# 36x32, 40x48) -> on la calcule à partir des dimensions de la
+		# feuille au lieu de la coder en dur.
+		#
+		# L'animation se lit EN COLONNE (les 12 rangées) et non en ligne :
+		# les 4 colonnes d'une même rangée sont des copies identiques
+		# simplement décalées horizontalement (c'est ce qui faisait
+		# "glisser" le fidèle en x). En descendant une colonne, le x reste
+		# constant et seul le contenu bouge -> vraie animation sur place.
+		#
+		# Enfin, chaque frame est recadrée sur la boîte réelle du contenu
+		# (commune aux 12 frames, pour ne pas écraser le petit mouvement
+		# vertical), sinon l'ancrage midbottom tombe dans le vide de la
+		# cellule et le fidèle flotte au-dessus du banc.
+		self.parishioner_frames = []
+		for i in range(1, 12):
+			sheet = pygame.image.load(f"Parishioner{i}.png").convert_alpha()
+			cell_w = sheet.get_width() // 4
+			cell_h = sheet.get_height() // 12
+
+			cells = [
+				sheet.subsurface((0, row * cell_h, cell_w, cell_h))
+				for row in range(12)
+			]
+
+			bounds = [cell.get_bounding_rect() for cell in cells]
+			left = min(b.left for b in bounds)
+			top = min(b.top for b in bounds)
+			right = max(b.right for b in bounds)
+			bottom = max(b.bottom for b in bounds)
+			crop = pygame.Rect(left, top, right - left, bottom - top)
+
+			frames = []
+			for cell in cells:
+				piece = cell.subsurface(crop)
+				frames.append(pygame.transform.scale(
+					piece,
+					(int(crop.width * CHAPEL_DECOR_SCALE),
+					 int(crop.height * CHAPEL_DECOR_SCALE))
+				))
+			self.parishioner_frames.append(frames)
+
+				# Certains fidèles ont des cheveux/une capuche qui dépassent sous
+		# le corps -> leur boîte de recadrage est plus haute qu'elle ne
+		# devrait "visuellement" l'être pour l'ancrage au banc. On les
+		# remonte d'autant lors du dessin (voir main.py). Valeurs de
+		# départ à ajuster : indices 0-based, donc 0 = Parishioner1.
+		self.parishioner_hair_offset = {
+			0: 9,    # Parishioner1 - cheveux longs
+			5: -4,    # Parishioner6 - capuche
+			10: -12,  # Parishioner11 - capuche + longue mèche
+		}
+		self.parishioner_frame = 0
+		self.parishioner_timer = 0
 
 		narrow_left = lib_w
 		wide_left = narrow_left - wide_extra
@@ -761,8 +859,9 @@ class ChapelInterior:
 		self.vase_nook_rect = pygame.Rect(wide_left, y, wide_w, vase_nook_h)
 		y += vase_nook_h
 		self.entrance_rect = pygame.Rect(narrow_left, y, narrow_w, entrance_h)
+		self.entrance2_rect = pygame.Rect(narrow_left, y-500, narrow_w, entrance_h+500)
 
-		self.library_rect = pygame.Rect(0, self.pew_hall_rect.top, lib_w, pew_hall_h)
+		self.library_rect = pygame.Rect(0, self.pew_hall_rect.top, lib_w, pew_hall_h-200)
 
 		# Point d'entrée (venant de l'extérieur) et zone de sortie -
 		# ce sont de simples repères, pas des hitbox de collision (qui
@@ -770,6 +869,107 @@ class ChapelInterior:
 		self.entrance_point = (self.entrance_rect.centerx, self.entrance_rect.bottom - 30)
 		self.exit_rect = pygame.Rect(0, 0, 160, 100)
 		self.exit_rect.center = (self.entrance_rect.centerx, self.entrance_rect.bottom - 20)
+		self.objects_sheet = pygame.image.load("chapel_interior_objects.png").convert_alpha()
+		self.house_deco_sheet = pygame.image.load("Interior.png").convert_alpha()
+
+		decor_scale = CHAPEL_DECOR_SCALE
+		altar_sheet = pygame.image.load("chapel_altar.png").convert_alpha()
+		self.altar_frames = load_animation(altar_sheet, ALTAR_SCALE, 3)
+		self.altar_frame = 0
+		self.altar_timer = 0
+
+		altar_w, altar_h = self.altar_frames[0].get_size()
+		self.altar_rect = pygame.Rect(0, 0, altar_w, altar_h)
+		self.altar_rect.midbottom = (self.entrance_rect.centerx, 550)
+
+		Candelabra_sheet = pygame.image.load("Candelabra.png").convert_alpha()
+		self.candelabra_frames = load_animation(Candelabra_sheet, decor_scale, 3)
+		self.candelabra_frame = 0
+		self.candelabra_timer = 0
+
+		candelabra_w, candelabra_h = self.candelabra_frames[0].get_size()
+		self.candelabra_rect1 = pygame.Rect(0, 0, candelabra_w, candelabra_h)
+		self.candelabra_rect1.midbottom = (self.entrance_rect.centerx-730, 735)
+		self.candelabra_rect2 = pygame.Rect(0, 0, candelabra_w, candelabra_h)
+		self.candelabra_rect2.midbottom = (self.entrance_rect.centerx - 800, 735)
+
+		def cut_obj(rect, s=None):
+			x, y, w, h = rect
+			piece = self.objects_sheet.subsurface((x, y, w, h))
+			s = decor_scale if s is None else s
+			return pygame.transform.scale(piece, (int(w * s), int(h * s)))
+
+		# Tapis de l'allée : le sprite source (0,0,32,128) a une bande
+		# "escalier" plus sombre vers y=27-35 -- on prend un morceau
+		# propre du motif plus bas (y=40-72) pour un carrelage sans
+		# cette marque répétée.
+		self.carpet_main = cut_obj((0, 40, 32, 32))
+
+		# Moitié du tapis rouge ovale de la maison (Interior.png), pour
+		# la porte de la bibliothèque : coupé en deux sur son axe
+		# vertical, on garde la moitié DROITE (bord plat à gauche,
+		# arrondi qui dépasse à droite -- vers la nef).
+		red_rug_full = self.house_deco_sheet.subsurface((124, 295, 56, 66))
+		red_rug_full = pygame.transform.scale(
+			red_rug_full,
+			(int(56 * decor_scale), int(66 * decor_scale))
+		)
+		half_w = red_rug_full.get_width() // 2
+		self.library_rug_half = red_rug_full.subsurface(
+			(half_w, 0, red_rug_full.get_width() - half_w, red_rug_full.get_height())
+		)
+		statues_sheet = pygame.image.load("Statues.png").convert_alpha()
+
+		self.angel_frames = []
+		self.dragon_frames = []
+		for f in range(3):
+			angel_piece = statues_sheet.subsurface((f * 112, 0, 56, 80))
+			dragon_piece = statues_sheet.subsurface((f * 112 + 56, 0, 56, 80))
+			self.angel_frames.append(pygame.transform.scale(
+				angel_piece,
+				(int(56 * CHAPEL_DECOR_SCALE), int(80 * CHAPEL_DECOR_SCALE))
+			))
+			self.dragon_frames.append(pygame.transform.scale(
+				dragon_piece,
+				(int(56 * CHAPEL_DECOR_SCALE), int(80 * CHAPEL_DECOR_SCALE))
+			))
+
+		self.statue_frame = 0
+		self.statue_timer = 0
+
+		statue_pairs = [
+			350,    # coins tout en haut
+			725,    # coins concaves (270°) vers y=565
+			1440,   # coins tout en bas
+		]
+		self.statue_positions = [(730, y) for y in statue_pairs]
+		self.dragon_positions = [(1520, y) for y in statue_pairs]
+
+		self.pew_double = cut_obj((139, 37, 49, 32))
+
+				# Bancs placés symétriquement de part et d'autre du tapis bleu,
+		# à distance égale de son bord.
+		carpet_half_w = self.carpet_main.get_width() // 2
+		carpet_center_x = self.entrance_rect.centerx
+		pew_gap = 40   # écart entre le bord du tapis et le bord du banc
+
+		pew_w = self.pew_double.get_width()
+		self.pew_left_x = carpet_center_x - carpet_half_w - pew_gap - pew_w // 2
+		self.pew_right_x = carpet_center_x + carpet_half_w + pew_gap + pew_w // 2
+
+		pew_h = self.pew_double.get_height()
+		pew_spacing = pew_h + 20
+		self.pew_row_ys = list(range(700, 1250, pew_spacing))
+
+		# Rangée la plus proche du tapis rouge -> banc de gauche retiré
+		self.library_gap_row_index = min(
+			range(len(self.pew_row_ys)),
+			key=lambda i: abs(self.pew_row_ys[i] - self.library_rect.centery)
+		)
+
+		self.seat_offsets = [-(pew_w // 4), pew_w // 4]
+
+		self.reset_seating()
 
 		self._build_walls()
 
@@ -783,25 +983,72 @@ class ChapelInterior:
 		for y in range(y0, y1, th):
 			surface.blit(tile, (x, y))
 
+	def _wall_column_tiles(self, sprite, y0, y1, x):
+		th = sprite.get_height()
+		tiles = []
+		for y in range(y0, y1, th):
+			rect = sprite.get_rect(midtop=(x, y))
+			tiles.append((sprite, rect))
+		return tiles
+
+	def _slice_vertical(self, sprite, rect, slice_height=18):
+		"""
+		Découpe un sprite vertical (pilier, colonne) en fines tranches
+		horizontales pour un tri en Y progressif : sans ça, un pilier de
+		190px de haut bascule d'un coup, entièrement, devant/derrière sur
+		UNE seule ligne, au lieu de se révéler progressivement comme le
+		fait déjà le mur carrelé (tuiles de 36px).
+		"""
+		slices = []
+		y = 0
+		height = sprite.get_height()
+		width = sprite.get_width()
+		while y < height:
+			h = min(slice_height, height - y)
+			piece = sprite.subsurface((0, y, width, h))
+			piece_rect = pygame.Rect(rect.x, rect.y + y, width, h)
+			slices.append((piece, piece_rect))
+			y += h
+		return slices
+
 	def _build_walls(self):
 		self.static_surface = pygame.Surface((self.width, self.height))
 		self.static_surface.fill((10, 10, 15))
 		floor_color = (120, 118, 130)
-		for rect in (self.alcove_rect, self.pew_hall_rect, self.vase_nook_rect,
-					 self.entrance_rect, self.library_rect):
-			pygame.draw.rect(self.static_surface, floor_color, rect)
+		arch_x = self.alcove_rect.centerx - self.wall_gothic_arch.get_width() // 2
 
-		# --- Mur du bas (couloir d'entrée), avec un espace pour la porte de sortie --
+		# Couloir de bancs (étroit) : x=470 -> entrance_rect.right, y=122 -> 565
+		pew_hall_floor = pygame.Rect(
+			470+188, 122, self.entrance_rect.right - 470-188, 565 - 122)
 
-		tw = self.wall_back.get_width()
-		th = self.wall_back.get_height()
-		sw = self.wall_left.get_width()
+		# Niche à vases (large) : x=0 -> entrance_rect.right+162, y=565 -> 1265
+		vase_nook_floor = pygame.Rect(
+			0, 565, (self.entrance_rect.right + 162), 1265 - 565)
+
+		# Alcôve (haut) : provisoire, calée sur l'arche + les segments de
+		# mur autour d'elle -- à ajuster si ça dépasse encore visuellement
+
+		# Gardés en mémoire pour le debug F1 (points aux coins)
+		
+		self.floor_rects = [
+			pew_hall_floor, vase_nook_floor,
+			self.entrance2_rect, self.library_rect
+		]
+
+		for rect in self.floor_rects:
+			self._tile_floor(self.static_surface, rect)
 
 		# --- Alcôve (haut) ---
 
 		# --- Couloir d'entrée (bas) : pas de mur en bas, la porte
 		# extérieure viendra plus tard ---
-		arch_x = self.alcove_rect.centerx - self.wall_gothic_arch.get_width() // 2
+		# rug1 était placé hors écran : x négatif + y très bas, donc il
+		# n'apparaissait jamais. On le remet dans le champ visible.
+		self.rug1_rect = self.rug1.get_rect(midtop=(self.entrance_rect.centerx-870, 920))
+		self.static_surface.blit(self.rug1, self.rug1_rect)
+		self.sofa1_rect = self.sofa1.get_rect(midtop=(self.entrance_rect.centerx-739, 1120))
+		self.static_surface.blit(self.sofa1, self.sofa1_rect)
+		
 		wall_h = self.wall_panel.get_height()
 		y = self.entrance_rect.bottom - wall_h // 1.4
 		col_y = self.entrance_rect.bottom - wall_h // 1.1
@@ -809,6 +1056,14 @@ class ChapelInterior:
 		door_w = CHAPEL_EXIT_DOOR_WIDTH
 		door_left = self.entrance_rect.centerx - door_w // 2
 		door_right = self.entrance_rect.centerx + door_w // 2
+				# Tapis central : de la porte du bas jusqu'à 200px sous le sommet
+		carpet_x = self.entrance_rect.centerx - self.carpet_main.get_width() // 2
+		self._tile_vertical(self.static_surface, self.carpet_main,
+			500, self.height, carpet_x)
+		# Tapis en demi-cercle devant la porte de la bibliothèque
+		rug_x = 470   # bord du couloir de bancs réel, côté bibliothèque
+		rug_y = self.library_rect.centery - self.library_rug_half.get_height() // 2
+		self.static_surface.blit(self.library_rug_half, (rug_x, rug_y))
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
 			645, 1000, 122)
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
@@ -824,17 +1079,21 @@ class ChapelInterior:
 			offset_x=self.entrance_rect.width // 2,
 			centerx=self.entrance_rect.centerx
 		)
+		
+		
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
 			470, 645, 565)
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
 			0, 470, 565)
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
 			self.entrance_rect.right, self.vase_nook_rect.right, 565)
+		
 		corner_rect_5 = self.wall_corner.get_rect(midtop=(475, 527))
+		self.static_surface.blit(self.wall_corner, corner_rect_5)
+
+		self.vase_nook_wall_tiles = self._wall_column_tiles(self.big_wall_side, 565, 1265, 470)
 		corner_rect_4 = self.wall_corner.get_rect(midtop=(0, 527))
 		self.static_surface.blit(self.wall_corner, corner_rect_4)
-		self.static_surface.blit(self.wall_corner, corner_rect_5)
-		self._tile_vertical(self.static_surface, self.big_wall_side,565, 1265, 470)
 		self._tile_vertical(self.static_surface, self.big_wall_side,565, 1265, 0)
 		self._tile_vertical(self.static_surface, self.big_wall_side_flipped,565, 1265, self.entrance_rect.right+162)
 		self._tile_horizontal(self.static_surface, self.wall_panel2,
@@ -864,7 +1123,21 @@ class ChapelInterior:
 		self.static_surface.blit(self.wall_corner, corner_rect_left)
 		corner_rect_right = self.wall_corner.get_rect(midtop=(self.entrance_rect.right, col_y))
 		self.static_surface.blit(self.wall_corner, corner_rect_right)
-		self.static_surface.blit(self.wall_gothic_arch, (arch_x, 50))
+		#self.static_surface.blit(self.wall_gothic_arch, (arch_x, 50))
+		arch_y = 50
+		wall_line_y = 122   # hauteur à partir de laquelle l'arche entre "dans" la pièce
+		arch_w, arch_h = self.wall_gothic_arch.get_size()
+		cutoff = max(0, min(arch_h, wall_line_y - arch_y))
+
+		if cutoff > 0:
+			top_part = self.wall_gothic_arch.subsurface((0, 0, arch_w, cutoff))
+			top_silhouette = pygame.mask.from_surface(top_part).to_surface(
+				setcolor=(10, 10, 15, 255), unsetcolor=(0, 0, 0, 0)
+			)
+			self.static_surface.blit(top_silhouette, (arch_x, arch_y))
+
+		bottom_part = self.wall_gothic_arch.subsurface((0, cutoff, arch_w, arch_h - cutoff))
+		self.static_surface.blit(bottom_part, (arch_x, arch_y + cutoff))
 
 				# Coins, un blit séparé par colonne pour contrôler l'ordre
 		# individuellement (devant/derrière tel ou tel mur)
@@ -873,16 +1146,25 @@ class ChapelInterior:
 		self.static_surface.blit(self.wall_corner, corner_rect_1)
 		
 		corner_rect_2 = self.wall_corner.get_rect(midtop=(475, 1227))
-		self.static_surface.blit(self.wall_corner, corner_rect_2)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_2))
 
-		corner_rect_4 = self.wall_corner.get_rect(midtop=(0, 527))
-		self.static_surface.blit(self.wall_corner, corner_rect_4)
+		
 
 		corner_rect_6 = self.wall_corner.get_rect(midtop=(645, 527))
+		tableau1_rect = self.tableau1.get_rect(midtop=(644, 550))
+		tableau1_rect2 = self.tableau1.get_rect(midtop=(2 * self.entrance_rect.centerx - 646, 550))
+		tableau1_rect3 = self.tableau1.get_rect(midtop=(self.entrance_rect.centerx-108, 150))
+		tableau1_rect4 = self.tableau1.get_rect(midtop=(self.entrance_rect.centerx+105, 150))
 		self.static_surface.blit(self.wall_corner, corner_rect_6)
 		corner_rect_6b = self.wall_corner.get_rect(
 			midtop=(2 * self.entrance_rect.centerx - 645, 527))
 		self.static_surface.blit(self.wall_corner, corner_rect_6b)
+		self.static_surface.blit(self.tableau1, tableau1_rect)
+		self.static_surface.blit(self.tableau1, tableau1_rect2)
+		self.static_surface.blit(self.tableau1, tableau1_rect3)
+		self.static_surface.blit(self.tableau1, tableau1_rect4)
+
+		
 
 		corner_rect_8 = self.wall_corner.get_rect(
 			midtop=(door_left, col_y))
@@ -898,8 +1180,143 @@ class ChapelInterior:
 		self.static_surface.blit(self.vitrail, self.vitrail_rect)
 		self.static_surface.blit(self.vitrail_L, self.vitrail_L_rect)
 		self.static_surface.blit(self.vitrail_R, self.vitrail_R_rect)
+		self.vitrail2_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-161, 120))
+		self.vitrail3_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+160, 120))
+		self.vitrail4_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-221, 120))
+		self.vitrail5_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+220, 120))
+		self.vitrail6_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-281, 120))
+		self.vitrail7_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+280, 120))
+		self.vitrail8_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-341, 120))
+		self.vitrail9_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+340, 120))
+		self.vitrail10_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-401, 120))
+		self.vitrail11_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+400, 120))
+		self.vitrail12_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-531, 563))
+		self.vitrail13_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+530, 563))
+		self.vitrail14_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-591, 563))
+		self.vitrail15_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+605, 563))
+		self.vitrail16_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-531, 1264))
+		self.vitrail17_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+530, 1264))
+		self.vitrail18_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-591, 1264))
+		self.vitrail19_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+605, 1264))
+		self.vitrail20_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-401, 1501))
+		self.vitrail21_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+400, 1501))
+		self.vitrail22_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-341, 1501))
+		self.vitrail23_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+340, 1501))
+		self.vitrail24_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-281, 1501))
+		self.vitrail25_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+280, 1501))
+		self.vitrail26_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-221, 1501))
+		self.vitrail27_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+220, 1501))
+		self.vitrail28_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-161, 1501))
+		self.vitrail29_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx+160, 1501))
+		self.vitrail30_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-700, 1264))
+		self.vitrail31_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-760, 1264))
+		self.vitrail32_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-820, 1264))
+		self.vitrail33_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-880, 1264))
+		self.vitrail34_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-940, 1264))
+		self.vitrail35_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-1000, 1264))
+		self.vitrail36_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-1060, 1264))
+		self.vitrail37_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-700, 563))
+		self.vitrail38_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-760, 563))
+		self.vitrail39_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-820, 563))		
+		self.vitrail40_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-880, 563))
+		self.vitrail41_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-940, 563))
+		self.vitrail42_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-1000, 563))
+		self.vitrail43_rect = self.vitrail.get_rect(midtop=(self.entrance_rect.centerx-1060, 563))
+
+
+		self.static_surface.blit(self.vitrail, self.vitrail2_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail3_rect)		
+		self.static_surface.blit(self.vitrail, self.vitrail4_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail5_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail6_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail7_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail8_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail9_rect)	
+		self.static_surface.blit(self.vitrail, self.vitrail10_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail11_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail12_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail13_rect)	
+		self.static_surface.blit(self.vitrail, self.vitrail14_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail15_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail16_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail17_rect)	
+		self.static_surface.blit(self.vitrail, self.vitrail18_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail19_rect)	
+		self.static_surface.blit(self.vitrail, self.vitrail20_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail21_rect)	
+		self.static_surface.blit(self.vitrail, self.vitrail22_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail23_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail24_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail25_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail26_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail27_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail28_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail29_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail30_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail31_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail32_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail33_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail34_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail35_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail36_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail37_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail38_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail39_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail40_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail41_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail42_rect)
+		self.static_surface.blit(self.vitrail, self.vitrail43_rect)
+				# Les 6 statues : deux colonnes (x=470 à gauche, x=645 à droite),
+		# ange à gauche / dragon à droite à chaque hauteur.
+
+		for row_index, y in enumerate(self.pew_row_ys):
+			pew_rect_right = self.pew_double.get_rect(midbottom=(self.pew_right_x, y))
+			self.static_surface.blit(self.pew_double, pew_rect_right)
+
+			if row_index != self.library_gap_row_index:
+				pew_rect_left = self.pew_double.get_rect(midbottom=(self.pew_left_x, y))
+				self.static_surface.blit(self.pew_double, pew_rect_left)
+		self.bookshelf1_rect = self.bookshelf1.get_rect(midtop=(self.entrance_rect.centerx-1010, 570))
+		self.deck2_rect = self.deck2.get_rect(midtop=(self.entrance_rect.centerx-1010, 750))
+		self.chest1_rect = self.chest1.get_rect(midtop=(self.entrance_rect.centerx-900, 675))
+		self.static_surface.blit(self.bookshelf1, self.bookshelf1_rect)
+		self.static_surface.blit(self.deck2, self.deck2_rect)
+		self.static_surface.blit(self.chest1, self.chest1_rect)
 
 		self.interior_surface = self.static_surface.copy()
+
+	def update_altar(self, animation_speed=8):
+		self.altar_timer += 1
+		if self.altar_timer >= animation_speed:
+			self.altar_timer = 0
+			self.altar_frame += 1
+			if self.altar_frame >= len(self.altar_frames):
+				self.altar_frame = 0
+
+	def update_candelabra(self, animation_speed=10):
+		self.candelabra_timer += 1
+		if self.candelabra_timer >= animation_speed:
+			self.candelabra_timer = 0
+			self.candelabra_frame += 1
+			if self.candelabra_frame >= len(self.candelabra_frames):
+				self.candelabra_frame = 0
+
+
+	def update_statues(self, animation_speed=12):
+		self.statue_timer += 1
+		if self.statue_timer >= animation_speed:
+			self.statue_timer = 0
+			self.statue_frame += 1
+			if self.statue_frame >= len(self.angel_frames):
+				self.statue_frame = 0
+
+	def update_parishioners(self, animation_speed=14):
+		self.parishioner_timer += 1
+		if self.parishioner_timer >= animation_speed:
+			self.parishioner_timer = 0
+			self.parishioner_frame += 1
+			if self.parishioner_frame >= 12:
+				self.parishioner_frame = 0
 
 	def add_symmetric(self, surface, sprite, offset_x, y, centerx=None, anchor="midtop"):
 		"""
@@ -949,3 +1366,43 @@ class ChapelInterior:
 		th = tile.get_height()
 		for y in range(y0, y1, th):
 			surface.blit(tile, (x, y))
+
+	def _tile_floor(self, surface, rect):
+		"""
+		Carrelle 'floor_tile' en alignant toujours sur la même grille
+		globale (à partir de (0,0), le coin haut-gauche de la chapelle),
+		même si 'rect' ne commence pas pile sur un multiple de la taille
+		du carreau -- évite les coutures visibles entre deux rectangles
+		de sol voisins, comme pour l'herbe en extérieur.
+		"""
+		tw, th = self.floor_tile.get_width(), self.floor_tile.get_height()
+
+		previous_clip = surface.get_clip()
+		surface.set_clip(rect)
+
+		start_x = (rect.left // tw) * tw
+		start_y = (rect.top // th) * th
+
+		for x in range(start_x, rect.right, tw):
+			for y in range(start_y, rect.bottom, th):
+				surface.blit(self.floor_tile, (x, y))
+
+		surface.set_clip(previous_clip)
+
+	def draw_debug_floor_corners(self, surface, radius=6):
+		"""
+		Dessine un point sur le coin haut-gauche (vert) et bas-droite
+		(rouge) de chaque rectangle de sol -- pratique pour lire
+		précisément où sont posées les bornes actuelles et ajuster les
+		chiffres dans _build_walls en conséquence.
+		"""
+		font = _get_debug_font()
+		for i, rect in enumerate(self.floor_rects):
+			pygame.draw.circle(surface, (0, 255, 0), rect.topleft, radius)
+			pygame.draw.circle(surface, (255, 0, 0), rect.bottomright, radius)
+
+			label_tl = font.render(f"#{i} {rect.topleft}", True, (0, 255, 0))
+			surface.blit(label_tl, (rect.left + 8, rect.top - 4))
+
+			label_br = font.render(f"#{i} {rect.bottomright}", True, (255, 0, 0))
+			surface.blit(label_br, (rect.right - label_br.get_width() - 8, rect.bottom - 14))
