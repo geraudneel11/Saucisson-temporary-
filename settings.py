@@ -258,7 +258,7 @@ DRAGON_BODY_OFFSET_Y = 0
 # et à la niche à vases (bas), avec un couloir de bancs allongé au
 # milieu. La bibliothèque fait la longueur de ce couloir allongé.
 CHAPEL_NAVE_NARROW_WIDTH = 950      # largeur du couloir de bancs et de l'entrée
-CHAPEL_NAVE_WIDE_EXTRA = 180        # débordement de chaque côté aux paliers larges
+CHAPEL_NAVE_WIDE_EXTRA = 580        # débordement de chaque côté aux paliers larges
 
 CHAPEL_ALCOVE_HEIGHT = 600          # palier large du haut (autel + statues) - pas allongé
 CHAPEL_PEW_HALL_HEIGHT = 750        # palier étroit du milieu -> la partie allongée (réduite de moitié)    

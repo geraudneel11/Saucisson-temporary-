@@ -657,10 +657,7 @@ while run == True :
 	elif game_state == "chapel":
 		screen.fill((0, 0, 0))
 		chapel_interior.interior_surface.blit(chapel_interior.static_surface, (0, 0))
-		chapel_interior.interior_surface.blit(
-			chapel_interior.altar_frames[chapel_interior.altar_frame],
-			chapel_interior.altar_rect
-		)
+		
 		chapel_interior.interior_surface.blit(
 			chapel_interior.candelabra_frames[chapel_interior.candelabra_frame],
 			chapel_interior.candelabra_rect1
@@ -669,23 +666,6 @@ while run == True :
 			chapel_interior.candelabra_frames[chapel_interior.candelabra_frame],
 			chapel_interior.candelabra_rect2	
 		)
-		angel_sprite = chapel_interior.angel_frames[chapel_interior.statue_frame]
-		for x, y in chapel_interior.statue_positions:
-			angel_rect = angel_sprite.get_rect(midbottom=(x, y))
-			chapel_interior.interior_surface.blit(angel_sprite, angel_rect)
-
-		dragon_sprite = chapel_interior.dragon_frames[chapel_interior.statue_frame]
-		for x, y in chapel_interior.dragon_positions:
-			dragon_rect = dragon_sprite.get_rect(midbottom=(x, y))
-			chapel_interior.interior_surface.blit(dragon_sprite, dragon_rect)
-		for x, y, occupant in chapel_interior.pew_seats:
-			if occupant is None:
-				continue
-			sprite = chapel_interior.parishioner_frames[occupant][chapel_interior.parishioner_frame]
-			hair_offset = chapel_interior.parishioner_hair_offset.get(occupant, 0) * CHAPEL_DECOR_SCALE
-			rect = sprite.get_rect(midbottom=(x, y - hair_offset))
-			chapel_interior.interior_surface.blit(sprite, rect)
-	
 		
 	player.apply_knockback()
 	
@@ -798,7 +778,10 @@ while run == True :
 	if game_state == "wave":
 		colliders.extend(tree.hitbox for tree in level_trees)
 		colliders.extend(tree.hitbox for tree in apple_trees)
-		colliders.extend(rock.hitbox for rock in level_rocks) 
+		colliders.extend(rock.hitbox for rock in level_rocks)
+
+	if game_state == "chapel":
+		colliders.extend(chapel_interior.wall_hitboxes) 
 
 	collision.resolve_player_collisions(player, colliders, old_pos)
 
@@ -949,6 +932,30 @@ while run == True :
 			entities.append(("tree", tree, tree.rect.bottom))
 		for rock in level_rocks:
 			entities.append(("rock", rock, rock.rect.bottom))
+
+	if game_state == "chapel":
+		for name, (sprite, rect) in chapel_interior.chapel_furniture.items():
+			offset = chapel_interior.chapel_furniture_sort_offset.get(name, 0)
+			entities.append(("chapel_furniture", (sprite, rect), rect.bottom + offset))
+		altar_sprite = chapel_interior.altar_frames[chapel_interior.altar_frame]
+		entities.append((
+			"chapel_altar",
+			(altar_sprite, chapel_interior.altar_rect),
+			chapel_interior.altar_rect.bottom
+		))
+
+		angel_sprite = chapel_interior.angel_frames[chapel_interior.statue_frame]
+		for x, y in chapel_interior.statue_positions:
+			rect = angel_sprite.get_rect(midbottom=(x, y))
+			entities.append(("chapel_statue", (angel_sprite, rect), rect.bottom))
+
+		dragon_sprite = chapel_interior.dragon_frames[chapel_interior.statue_frame]
+		for x, y in chapel_interior.dragon_positions:
+			rect = dragon_sprite.get_rect(midbottom=(x, y))
+			entities.append(("chapel_statue", (dragon_sprite, rect), rect.bottom))
+
+		for pew_sprite, pew_rect, occupants in chapel_interior.pew_units:
+			entities.append(("chapel_pew", (pew_sprite, pew_rect, occupants), pew_rect.bottom))
 
 	
 			
@@ -1432,6 +1439,22 @@ while run == True :
 		elif entity_type == "furniture":
 			sprite, rect = entity
 			house.interior_surface.blit(sprite, rect)
+		elif entity_type == "chapel_furniture":
+			sprite, rect = entity
+			chapel_interior.interior_surface.blit(sprite, rect)
+		elif entity_type in ("chapel_altar", "chapel_statue"):
+			sprite, rect = entity
+			chapel_interior.interior_surface.blit(sprite, rect)
+		elif entity_type == "chapel_pew":
+			pew_sprite, pew_rect, occupants = entity
+			chapel_interior.interior_surface.blit(pew_sprite, pew_rect)
+			for x, y, occupant in occupants:
+				if occupant is None:
+					continue
+				sprite = chapel_interior.parishioner_frames[occupant][chapel_interior.parishioner_frame]
+				hair_offset = chapel_interior.parishioner_hair_offset.get(occupant, 0) * CHAPEL_DECOR_SCALE
+				rect = sprite.get_rect(midbottom=(x, y - hair_offset))
+				chapel_interior.interior_surface.blit(sprite, rect)
 		elif entity_type == "npc":
 			entity.draw(house.interior_surface)
 		elif entity_type == "tree":
@@ -1605,6 +1628,7 @@ while run == True :
 			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
 	if debug_hitboxes and game_state == "chapel":
 		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
+		chapel_interior.draw_debug_hitboxes(chapel_interior.interior_surface)
 
 	if game_state == "house":
 		overlay_presence = True
