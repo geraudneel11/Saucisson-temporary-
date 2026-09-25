@@ -293,3 +293,15 @@ DYNAMITE_GRAVITY = 0.5              # accélération vers le bas
 DYNAMITE_MIN_VELOCITY = 1.5         # vitesse minimale avant d'être considérée comme arrêtée
 DYNAMITE_PRICE = 15                 # prix chez le marchand
 CHAPEL_ENTRANCE_SIDEWALL1_LENGTH = 375   # longueur (en Y) sur laquelle wall_side se répète, part du bas d'entrance_rect vers le haut
+
+CHAPEL_WALL_HITBOX_OVERRIDES = {
+	# index dans wall_hitboxes (0 = premier ajouté, etc.) -> décalage en pixels
+	# 0: {"offset_x": 10, "offset_y": -5},
+    5: {"offset_x": -320, "offset_y": -100},
+    1: {"offset_x": 0, "offset_y": -130},
+    0: {"offset_x": 0, "offset_y": -130},
+    4: {"offset_x": 0, "offset_y": -130},
+    8: {"offset_x": 0, "offset_y": -130},
+    6: {"offset_x": 0, "offset_y": -130},
+    7: {"offset_x": 0, "offset_y": -130}
+}

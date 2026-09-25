@@ -1368,6 +1368,10 @@ class ChapelInterior:
 			"sofa1": (self.sofa1, self.sofa1_rect),
 			"deck2": (self.deck2, self.deck2_rect),
 		}
+		for index, offset in CHAPEL_WALL_HITBOX_OVERRIDES.items():
+			if index < len(self.wall_hitboxes):
+				self.wall_hitboxes[index].x += offset.get("offset_x", 0)
+				self.wall_hitboxes[index].y += offset.get("offset_y", 0)
 
 		self.interior_surface = self.static_surface.copy()
 
@@ -1476,8 +1480,11 @@ class ChapelInterior:
 		surface.set_clip(previous_clip)
 
 	def draw_debug_hitboxes(self, surface):
-		for rect in self.wall_hitboxes:
+		font = _get_debug_font()
+		for index, rect in enumerate(self.wall_hitboxes):
 			pygame.draw.rect(surface, (255, 80, 80), rect, 2)
+			label = font.render(str(index), True, (255, 255, 0))
+			surface.blit(label, (rect.x, rect.y - 12))
 
 	def draw_debug_floor_corners(self, surface, radius=6):
 		"""
