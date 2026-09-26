@@ -758,6 +758,16 @@ class ChapelInterior:
 			x, y, w, h = rect
 			piece = self.sheet3.subsurface((x, y, w, h))
 			return pygame.transform.scale(piece, (int(w * scale), int(h * scale)))	
+
+		mon1k_sheet = pygame.image.load("Mon1k_Idle.png").convert_alpha()
+		mon2k_sheet = pygame.image.load("Mon2k_Idle.png").convert_alpha()
+		mon4k_sheet = pygame.image.load("Mon4k_Idle.png").convert_alpha()
+		priest_sheet = pygame.image.load("Priest_Idle.png").convert_alpha()
+
+		self.mon1k_idle = load_animation_row(mon1k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		self.mon2k_idle = load_animation_row(mon2k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		self.mon4k_idle = load_animation_row(mon4k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		
 		self.wall_panel = cut((51, 0, 26, 64))
 		self.wall_corner = cut((133, 128, 21, 63))
@@ -979,6 +989,54 @@ class ChapelInterior:
 		self.reset_seating()
 
 		self._build_walls()
+
+				# Reste en poste en permanence derrière le bureau : pas de
+		# points de déplacement (movement_points vide) -> il ne fait
+		# que jouer son idle, sans jamais partir en circuit.
+		monk_x = self.deck2_rect.centerx - 32
+		monk_y = self.deck2_rect.top -20
+		self.monk_desk_npc = NPC(
+			monk_x, monk_y,
+			self.mon2k_idle, {},
+			"monk_desk",
+			movement_points=[]
+		)
+		self.monk_desk_npc.direction = "down"
+				# Moines restants + pretre : postes fixes autour de l'autel
+		# (l'autel occupe x 1013->1237, midbottom (1125, 550)).
+		# movement_points=[] -> idle permanent, comme monk_desk_npc.
+		self.monk_altar_left_npc = NPC(
+			928, 476,   # midbottom (960, 540) -> a gauche de l'autel
+			self.mon1k_idle, {},
+			"monk_altar",
+			movement_points=[]
+		)
+		self.monk_altar_left_npc.direction = "down"
+
+		self.monk_altar_right_npc = NPC(
+			1258, 476,  # midbottom (1290, 540) -> a droite de l'autel
+			self.mon4k_idle, {},
+			"monk_altar",
+			movement_points=[]
+		)
+		self.monk_altar_right_npc.direction = "down"
+
+		self.priest_npc = NPC(
+			1093, 426,  # midbottom (1125, 490) -> DERRIERE l'autel : tete/epaules
+			            # depassent au-dessus (l'autel le recouvre au tri en Y)
+			self.priest_idle, {},
+			"priest_altar",
+			movement_points=[]
+		)
+		self.priest_npc.direction = "down"
+
+		# Liste unique pour le wiring dans main.py
+		self.chapel_npcs = [
+			self.monk_desk_npc,
+			self.monk_altar_left_npc,
+			self.monk_altar_right_npc,
+			self.priest_npc,
+		]
 
 	def _tile_horizontal(self, surface, tile, x0, x1, y):
 		tw = tile.get_width()

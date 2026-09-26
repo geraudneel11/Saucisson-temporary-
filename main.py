@@ -94,7 +94,7 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
-DEV_START_GAME_STATE = "wave"
+DEV_START_GAME_STATE = "chapel"
 game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
@@ -441,6 +441,7 @@ priest_npc = NPC(
 	stop_duration_max_seconds=8
 )
 outdoor_npcs = [priest_npc]
+
 # Pré-simulation : fait "vivre" les NPC avant même que le joueur ait
 # ouvert la porte de la maison, pour qu'ils soient déjà en mouvement,
 # désynchronisés, à des points différents de leur circuit dès la
@@ -735,6 +736,7 @@ while run == True :
 		chapel_interior.update_statues()
 		chapel_interior.update_parishioners()
 		chapel_interior.update_candelabra()
+		chapel_interior.monk_desk_npc.update(chapel_interior.wall_hitboxes, player)
 	else:
 		player.clamp_to_map(MAP_WIDTH, MAP_HEIGHT)
 
@@ -784,6 +786,10 @@ while run == True :
 		colliders.extend(chapel_interior.wall_hitboxes)
 		colliders.extend(chapel_interior.chapel_furniture_hitboxes.values())
 		colliders.extend(chapel_interior.pew_hitboxes)
+		colliders.extend(npc.hitbox_for_players for npc in chapel_interior.chapel_npcs)
+
+		for npc in chapel_interior.chapel_npcs:
+			npc.update(colliders, None)
 
 	collision.resolve_player_collisions(player, colliders, old_pos)
 
@@ -934,7 +940,12 @@ while run == True :
 			entities.append(("tree", tree, tree.rect.bottom))
 		for rock in level_rocks:
 			entities.append(("rock", rock, rock.rect.bottom))
-
+	if game_state == "chapel":
+		entities.append((
+			"chapel_npc",
+			chapel_interior.monk_desk_npc,
+			chapel_interior.monk_desk_npc.rect.bottom
+		))
 	if game_state == "chapel":
 		for name, (sprite, rect) in chapel_interior.chapel_furniture.items():
 			offset = chapel_interior.chapel_furniture_sort_offset.get(name, 0)
@@ -958,6 +969,9 @@ while run == True :
 
 		for pew_sprite, pew_rect, occupants in chapel_interior.pew_units:
 			entities.append(("chapel_pew", (pew_sprite, pew_rect, occupants), pew_rect.bottom))
+
+		for npc in chapel_interior.chapel_npcs:
+			entities.append(("chapel_npc", npc, npc.rect.bottom))
 
 	
 			
@@ -1450,6 +1464,8 @@ while run == True :
 		elif entity_type == "chapel_pew":
 			pew_sprite, pew_rect, occupants = entity
 			chapel_interior.interior_surface.blit(pew_sprite, pew_rect)
+		elif entity_type == "chapel_npc":
+			entity.draw(chapel_interior.interior_surface)
 			for x, y, occupant in occupants:
 				if occupant is None:
 					continue
