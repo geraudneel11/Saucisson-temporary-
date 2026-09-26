@@ -999,7 +999,8 @@ class ChapelInterior:
 			monk_x, monk_y,
 			self.mon2k_idle, {},
 			"monk_desk",
-			movement_points=[]
+			movement_points=[],
+			hitbox_offset_y=-60,
 		)
 		self.monk_desk_npc.direction = "down"
 				# Moines restants + pretre : postes fixes autour de l'autel
@@ -1009,7 +1010,8 @@ class ChapelInterior:
 			928, 476,   # midbottom (960, 540) -> a gauche de l'autel
 			self.mon1k_idle, {},
 			"monk_altar",
-			movement_points=[]
+			movement_points=[],
+			hitbox_offset_y=-60,
 		)
 		self.monk_altar_left_npc.direction = "down"
 
@@ -1017,20 +1019,66 @@ class ChapelInterior:
 			1258, 476,  # midbottom (1290, 540) -> a droite de l'autel
 			self.mon4k_idle, {},
 			"monk_altar",
-			movement_points=[]
+			movement_points=[],
+			hitbox_offset_y=-60,
 		)
 		self.monk_altar_right_npc.direction = "down"
 
-		self.priest_npc = NPC(
-			1093, 426,  # midbottom (1125, 490) -> DERRIERE l'autel : tete/epaules
-			            # depassent au-dessus (l'autel le recouvre au tri en Y)
-			self.priest_idle, {},
-			"priest_altar",
-			movement_points=[]
-		)
-		self.priest_npc.direction = "down"
+		centerx = self.entrance_rect.centerx
+		altar_stop = (self.altar_rect.centerx, self.altar_rect.bottom - 90)
+		altar_y = altar_stop[1]
 
-		# Liste unique pour le wiring dans main.py
+		# 4 points formant un cadre autour de l'autel : pas un tour
+		# complet, juste de quoi le contourner en rejoignant l'allée
+		# centrale d'un côté ou de l'autre, sans toucher les bancs (tous
+		# nettement au-dessus de y=700, où commence la première rangée).
+		altar_margin = 60
+		altar_sw = (self.altar_rect.left - altar_margin, altar_y+100)
+		altar_nw = (self.altar_rect.left - altar_margin, self.altar_rect.top - altar_margin)
+		altar_ne = (self.altar_rect.right + altar_margin, self.altar_rect.top - altar_margin)
+		altar_se = (self.altar_rect.right + altar_margin, altar_y+100)
+
+		priest_points = [
+			(825, 300),          # 0  - ARRÊT statue haut-gauche (ange)
+			(825, altar_y),      # 1  - passage (même y que l'autel)
+			(825, 675),          # 2  - ARRÊT statue milieu-gauche (ange)
+			(825, 1300),         # 3  - passage (longe le mur gauche)
+			(825, 1400),         # 4  - ARRÊT statue bas-gauche (ange)
+			(centerx, 1400),     # 5  - passage (traverse vers l'allée centrale)
+			(centerx, 600),      # 6  - passage (remonte vers l'autel)
+			altar_sw,            # 7  - passage (contourne par l'ouest)
+			altar_nw,            # 8  - passage
+			altar_stop,          # 9  - ARRÊT autel
+			altar_ne,            # 10 - passage (ressort par l'est)
+			altar_se,            # 11 - passage
+			(centerx, 600),      # 12 - passage (rejoint l'allée centrale)
+			(centerx, 1400),     # 13 - passage (retraverse vers la droite)
+			(1425, 1400),        # 14 - ARRÊT statue bas-droite (dragon)
+			(1425, 1300),        # 15 - passage (longe le mur droit)
+			(1425, 675),         # 16 - ARRÊT statue milieu-droite (dragon)
+			(1425, altar_y),     # 17 - passage (même y que l'autel)
+			(1425, 300),         # 18 - ARRÊT statue haut-droite (dragon)
+		]
+
+		self.priest_npc = NPC(
+			priest_points[0][0], priest_points[0][1],
+			self.priest_idle,
+			{"down": self.priest_idle, "left": self.priest_idle,
+			 "right": self.priest_idle, "up": self.priest_idle},
+			"priest",
+			movement_points=priest_points,
+			stop_point_indices=[0, 2, 4, 9, 14, 16, 18],
+			stop_look_directions={
+				0: "right", 2: "right", 4: "right",
+				9: "up",
+				14: "left", 16: "left", 18: "left",
+			},
+			speed=2,
+			stop_duration_min_seconds=4,
+			stop_duration_max_seconds=12
+		)
+		# Liste unique pour le wiring dans main.py -- reconstruite ICI,
+		# après la création définitive de priest_npc.
 		self.chapel_npcs = [
 			self.monk_desk_npc,
 			self.monk_altar_left_npc,

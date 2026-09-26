@@ -736,7 +736,8 @@ while run == True :
 		chapel_interior.update_statues()
 		chapel_interior.update_parishioners()
 		chapel_interior.update_candelabra()
-		chapel_interior.monk_desk_npc.update(chapel_interior.wall_hitboxes, player)
+		chapel_interior.priest_npc.update(chapel_interior.wall_hitboxes, player)
+		
 	else:
 		player.clamp_to_map(MAP_WIDTH, MAP_HEIGHT)
 
@@ -955,6 +956,11 @@ while run == True :
 			"chapel_altar",
 			(altar_sprite, chapel_interior.altar_rect),
 			chapel_interior.altar_rect.bottom
+		))
+		entities.append((
+			"chapel_npc",
+			chapel_interior.priest_npc,
+			chapel_interior.priest_npc.rect.bottom
 		))
 
 		angel_sprite = chapel_interior.angel_frames[chapel_interior.statue_frame]
@@ -1464,8 +1470,6 @@ while run == True :
 		elif entity_type == "chapel_pew":
 			pew_sprite, pew_rect, occupants = entity
 			chapel_interior.interior_surface.blit(pew_sprite, pew_rect)
-		elif entity_type == "chapel_npc":
-			entity.draw(chapel_interior.interior_surface)
 			for x, y, occupant in occupants:
 				if occupant is None:
 					continue
@@ -1473,6 +1477,8 @@ while run == True :
 				hair_offset = chapel_interior.parishioner_hair_offset.get(occupant, 0) * CHAPEL_DECOR_SCALE
 				rect = sprite.get_rect(midbottom=(x, y - hair_offset))
 				chapel_interior.interior_surface.blit(sprite, rect)
+		elif entity_type == "chapel_npc":
+			entity.draw(chapel_interior.interior_surface)
 		elif entity_type == "npc":
 			entity.draw(house.interior_surface)
 		elif entity_type == "tree":
@@ -1647,6 +1653,15 @@ while run == True :
 	if debug_hitboxes and game_state == "chapel":
 		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
 		chapel_interior.draw_debug_hitboxes(chapel_interior.interior_surface)
+
+		npc_debug_font = pygame.font.SysFont(None, 16)
+		for npc in chapel_interior.chapel_npcs:
+			for i, point in enumerate(npc.movement_points):
+				is_stop = i in npc.stop_point_indices
+				color = (255, 80, 80) if is_stop else (255, 255, 0)
+				pygame.draw.circle(chapel_interior.interior_surface, color, point, 5)
+				point_label = npc_debug_font.render(f"{npc.type} #{i}", True, color)
+				chapel_interior.interior_surface.blit(point_label, (point[0] + 6, point[1] - 6))
 
 	if game_state == "house":
 		overlay_presence = True
