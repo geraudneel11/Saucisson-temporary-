@@ -266,7 +266,7 @@ CHAPEL_VASE_NOOK_HEIGHT = 160       # palier large du bas (niche à vases) - pas
 CHAPEL_ENTRANCE_HEIGHT = 130        # palier étroit tout en bas (couloir d'entrée)
 
 CHAPEL_LIBRARY_WIDTH = 650          # fait la longueur de CHAPEL_PEW_HALL_HEIGHT
-CHAPEL_LIBRARY_DOOR_WIDTH = 110     # largeur du passage ouvert entre bibliothèque et nef
+CHAPEL_LIBRARY_DOOR_WIDTH = 220     # largeur du passage ouvert entre bibliothèque et nef
 
 CHAPEL_INSIDE_SCALE = 4            
 CHAPEL_WALL_SCALE = 3               # échelle des pièces de mur (chapel_interior_walls.png)

@@ -94,7 +94,7 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
-DEV_START_GAME_STATE = "chapel"
+DEV_START_GAME_STATE = "wave"
 game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
@@ -781,7 +781,9 @@ while run == True :
 		colliders.extend(rock.hitbox for rock in level_rocks)
 
 	if game_state == "chapel":
-		colliders.extend(chapel_interior.wall_hitboxes) 
+		colliders.extend(chapel_interior.wall_hitboxes)
+		colliders.extend(chapel_interior.chapel_furniture_hitboxes.values())
+		colliders.extend(chapel_interior.pew_hitboxes)
 
 	collision.resolve_player_collisions(player, colliders, old_pos)
 

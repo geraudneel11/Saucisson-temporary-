@@ -1146,7 +1146,33 @@ class ChapelInterior:
 		self.wall_hitboxes.append(corner_rect_5.copy())
 
 		self.vase_nook_wall_tiles = self._wall_column_tiles(self.big_wall_side, 565, 1265, 470)
-		self.wall_hitboxes.append(pygame.Rect(470, 565, self.big_wall_side.get_width(), 1265 - 565))
+
+		# --- Porte de la bibliothèque : trou dans la hitbox du mur x=470 ---
+		# Le passage est percé au niveau du centre Y du tapis rouge
+		# (library_rug_half est posé pile sur library_rect.centery, même
+		# formule que son blit plus haut) : si tu déplaces le tapis, le
+		# trou suit automatiquement. Largeur du passage en Y =
+		# CHAPEL_LIBRARY_DOOR_WIDTH (settings.py).
+		door_cy = self.library_rect.centery
+		door_top = door_cy - CHAPEL_LIBRARY_DOOR_WIDTH // 2
+		door_bottom = door_cy + CHAPEL_LIBRARY_DOOR_WIDTH // 2
+
+		wall_x = 470
+		wall_top = 565
+		wall_bottom = 1265
+
+		# Segment de mur AU-DESSUS du passage
+		self.wall_hitboxes.append(pygame.Rect(
+			wall_x, wall_top,
+			self.big_wall_side.get_width(),
+			door_top - wall_top
+		))
+		# Segment de mur EN-DESSOUS du passage
+		self.wall_hitboxes.append(pygame.Rect(
+			wall_x, door_bottom,
+			self.big_wall_side.get_width(),
+			wall_bottom - door_bottom
+		))
 		corner_rect_4 = self.wall_corner.get_rect(midtop=(0, 527))
 		self.static_surface.blit(self.wall_corner, corner_rect_4)
 		self.wall_hitboxes.append(corner_rect_4.copy())
@@ -1364,6 +1390,47 @@ class ChapelInterior:
 			"sofa1": 0,
 			"deck2": 0,
 		}
+				# ------------------------------------------------------------------
+		# Hitboxes des meubles de la chapelle (même principe que dans House) :
+		# chaque meuble reçoit un rect SÉPARÉ, indépendant du rect du sprite,
+		# que tu peux redimensionner et déplacer librement. Clés possibles :
+		#   ratio        -> hauteur de la hitbox en % de la hauteur du sprite (defaut 0.35)
+		#   width_ratio  -> largeur de la hitbox en % de la largeur du sprite (defaut 1.0)
+		#   height       -> hauteur fixe en pixels (prioritaire sur ratio)
+		#   width        -> largeur fixe en pixels (prioritaire sur width_ratio)
+		#   offset_x     -> décalage horizontal en pixels (defaut 0)
+		#   offset_y     -> décalage vertical en pixels (defaut 0, négatif = vers le haut)
+		#   anchor       -> point d'ancrage sur le rect du sprite (defaut "midbottom")
+		# ------------------------------------------------------------------
+		self.DEFAULT_CHAPEL_HITBOX_RATIO = 0.35
+
+		# Tailles des sprites à l'échelle 3, pour repère :
+		#   bookshelf1 150x186 | chest1 81x72 | sofa1 180x150
+		#   deck2 180x111      | candelabra 96x96
+		self.chapel_furniture_hitbox_config = {
+			"bookshelf1":   {"height": 50, "width_ratio": 0.85, "offset_y": -90},
+			"chest1":       {"ratio": 0.45, "width_ratio": 0.60, "offset_y": -90},
+			"sofa1":        {"height": 85, "width_ratio": 0.80, "offset_y": 0},
+			"deck2":        {"height": 10, "width_ratio": 0.85, "offset_y": -90},
+			"candelabra1":  {"width": 30, "height": 30, "offset_x": 0, "offset_y": -90},
+			"candelabra2":  {"width": 30, "height": 30, "offset_x": 0, "offset_y": -90},
+			"altar":        {"height": 2, "width_ratio": 0.50, "offset_y": -100},
+			"angel_0":      {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+			"angel_1":      {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+			"angel_2":      {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+			"dragon_0":     {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+			"dragon_1":     {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+			"dragon_2":     {"height": 30, "width_ratio": 0.60, "offset_y": -100},
+		}
+
+		self._build_chapel_furniture_hitboxes()
+		# Un seul réglage, appliqué à chaque banc (même sprite, même
+		# taille pour tous) -- pas besoin d'un nom par banc.
+		self.pew_hitbox_config = {"height": 20, "width_ratio": 0.85, "offset_y": -90}
+		self.pew_hitboxes = [
+			self._make_chapel_hitbox(pew_rect, self.pew_hitbox_config)
+			for pew_sprite, pew_rect, occupants in self.pew_units
+		]
 		self.chapel_furniture = {
 			"sofa1": (self.sofa1, self.sofa1_rect),
 			"deck2": (self.deck2, self.deck2_rect),
@@ -1374,6 +1441,46 @@ class ChapelInterior:
 				self.wall_hitboxes[index].y += offset.get("offset_y", 0)
 
 		self.interior_surface = self.static_surface.copy()
+
+	def _make_chapel_hitbox(self, rect, cfg):
+		"""Crée un rect de collision SÉPARÉ à partir du rect du sprite :
+		taille par ratio du sprite ou en pixels fixes (prioritaires),
+		ancré sur 'anchor' (defaut midbottom), puis décalé par les offsets."""
+		ratio = cfg.get("ratio", self.DEFAULT_CHAPEL_HITBOX_RATIO)
+		width_ratio = cfg.get("width_ratio", 1.0)
+
+		height = cfg.get("height", max(4, int(rect.height * ratio)))
+		width = cfg.get("width", max(4, int(rect.width * width_ratio)))
+
+		hitbox = pygame.Rect(0, 0, width, height)
+
+		anchor = cfg.get("anchor", "midbottom")
+		setattr(hitbox, anchor, getattr(rect, anchor))
+
+		hitbox.x += cfg.get("offset_x", 0)
+		hitbox.y += cfg.get("offset_y", 0)
+
+		return hitbox
+
+	def _build_chapel_furniture_hitboxes(self):
+		rects_by_name = {
+			"sofa1":       self.sofa1_rect,
+			"deck2":       self.deck2_rect,
+			"bookshelf1":  self.bookshelf1_rect,
+			"chest1":      self.chest1_rect,
+			"candelabra1": self.candelabra_rect1,
+			"candelabra2": self.candelabra_rect2,
+			"altar":       self.altar_rect,
+		}
+		for i, pos in enumerate(self.statue_positions):
+			rects_by_name[f"angel_{i}"] = self.angel_frames[0].get_rect(midbottom=pos)
+		for i, pos in enumerate(self.dragon_positions):
+			rects_by_name[f"dragon_{i}"] = self.dragon_frames[0].get_rect(midbottom=pos)
+
+		self.chapel_furniture_hitboxes = {}
+		for name, rect in rects_by_name.items():
+			cfg = self.chapel_furniture_hitbox_config.get(name, {})
+			self.chapel_furniture_hitboxes[name] = self._make_chapel_hitbox(rect, cfg)
 
 	def update_altar(self, animation_speed=8):
 		self.altar_timer += 1
@@ -1485,6 +1592,22 @@ class ChapelInterior:
 			pygame.draw.rect(surface, (255, 80, 80), rect, 2)
 			label = font.render(str(index), True, (255, 255, 0))
 			surface.blit(label, (rect.x, rect.y - 12))
+				# Hitboxes des meubles (orange, comme dans House)
+		for name, rect in self.chapel_furniture_hitboxes.items():
+			pygame.draw.rect(surface, (255, 170, 0), rect, 2)
+			label = font.render(name, True, (255, 170, 0))
+			surface.blit(label, (rect.x, rect.y - 14))
+
+		# Hitboxes des bancs (cyan, numérotées comme les murs)
+		for index, rect in enumerate(self.pew_hitboxes):
+			pygame.draw.rect(surface, (0, 220, 220), rect, 2)
+			label = font.render(str(index), True, (0, 220, 220))
+			surface.blit(label, (rect.x, rect.y - 12))
+					# Zone de sortie (vert, pour vérifier qu'elle tombe bien dans
+		# l'ouverture de la porte du bas, entre les deux murs)
+		pygame.draw.rect(surface, (0, 255, 0), self.exit_rect, 2)
+		label = font.render("exit_rect", True, (0, 255, 0))
+		surface.blit(label, (self.exit_rect.x, self.exit_rect.y - 14))
 
 	def draw_debug_floor_corners(self, surface, radius=6):
 		"""

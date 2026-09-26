@@ -59,14 +59,14 @@ class Player:
 		self.knockback_y *= 0.7
 
 	def clamp_to_map(self, map_width, map_height):
-		if self.rect.left < 0:
-			self.rect.left = 0
-		if self.rect.right > map_width:
-			self.rect.right = map_width
-		if self.rect.top < 0:
-			self.rect.top = 0
-		if self.rect.bottom > map_height:
-			self.rect.bottom = map_height
+		if self.hitbox.left < 0:
+			self.rect.x -= self.hitbox.left
+		if self.hitbox.right > map_width:
+			self.rect.x -= self.hitbox.right - map_width
+		if self.hitbox.top < 0:
+			self.rect.y -= self.hitbox.top
+		if self.hitbox.bottom > map_height:
+			self.rect.y -= self.hitbox.bottom - map_height
 		self.update_hitbox()
 
 	def take_damage(self, damage, enemy):
