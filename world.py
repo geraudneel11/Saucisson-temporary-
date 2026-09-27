@@ -793,6 +793,34 @@ class ChapelInterior:
 			"down": self.priest_idle, "left": priest_idle_left,
 			"right": priest_idle_right, "up": priest_idle_up,
 		}
+		monk1_walk_sheet = pygame.image.load("Mon1k_Walk.png").convert_alpha()
+		monk1_walk = {
+			"down": load_animation_row(monk1_walk_sheet, 0, CHAPEL_DECOR_SCALE, 6, 4),
+			"left": load_animation_row(monk1_walk_sheet, 1, CHAPEL_DECOR_SCALE, 6, 4),
+			"right": load_animation_row(monk1_walk_sheet, 2, CHAPEL_DECOR_SCALE, 6, 4),
+			"up": load_animation_row(monk1_walk_sheet, 3, CHAPEL_DECOR_SCALE, 6, 4),
+		}
+		monk1_pray_sheet = pygame.image.load("Mon1k_Pray.png").convert_alpha()
+		monk1_pray = {
+			"down": load_animation_row(monk1_pray_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4),
+			"left": load_animation_row(monk1_pray_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4),
+			"right": load_animation_row(monk1_pray_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4),
+			"up": load_animation_row(monk1_pray_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4),
+		}
+		monk1_idle_sheet = pygame.image.load("Mon1k_Idle.png").convert_alpha()
+		self.monk1_idle_animations = {
+			"down": self.mon1k_idle,
+			"left": load_animation_row(monk1_idle_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4),
+			"right": load_animation_row(monk1_idle_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4),
+			"up": load_animation_row(monk1_idle_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4),
+		}
+		monk2_idle_sheet = pygame.image.load("Mon2k_Idle.png").convert_alpha()
+		self.monk2_idle_animations = {
+			"down": self.mon2k_idle,
+			"left": load_animation_row(monk2_idle_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4),
+			"right": load_animation_row(monk2_idle_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4),
+			"up": load_animation_row(monk2_idle_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4),
+		}
 
 				# --- Animations de messe. Grilles reelles :
 		#   speech       : 192x96  -> 6 col x 2 rangées, cases 32x48 (12 frames)
@@ -1047,19 +1075,72 @@ class ChapelInterior:
 			monk_x, monk_y,
 			self.mon2k_idle, {},
 			"monk_desk",
+			idle_animations=self.monk2_idle_animations,
 			movement_points=[],
 			hitbox_offset_y=-60,
+			watch_stop_index=8,
+			watch_default_direction="down"
 		)
 		self.monk_desk_npc.direction = "down"
 				# Moines restants + pretre : postes fixes autour de l'autel
 		# (l'autel occupe x 1013->1237, midbottom (1125, 550)).
 		# movement_points=[] -> idle permanent, comme monk_desk_npc.
+			# Moines restants + pretre : postes fixes autour de l'autel
+		# (l'autel occupe x 1013->1237, midbottom (1125, 550)).
+		# movement_points=[] -> idle permanent, comme monk_desk_npc.
+		# --- Circuit du moine de gauche : les 3 statues de gauche sont
+		# contre le mur ouest x=650-668 : leur cote accessible est
+		# l'EST (x ~ 810), ou il prie face a elles (vers la gauche).
+		# Tour en bibliotheque par la porte reelle du mur x=470
+		# (y 820-930) pour discuter avec le moine du bureau.
+		monk_left_points = [
+			(960, 508),    # 0  - ARRET poste (gauche de l'autel), regarde a droite
+			(810, 470),    # 1  - couloir de voyage (x 875, eloigne du
+			               #      couloir du pretre en x 825)
+			(810, 295),    # 2  - ARRET priere statue du HAUT (face a gauche)
+			(810, 470),    # 3  - retour couloir
+			(810, 670),    # 4  - ARRET priere statue du MILIEU (face a gauche)
+			(810, 700),    # 5  - passage (contourne la statue du milieu)
+			(560, 875),    # 6  - entree porte bibliotheque (cote est)
+			(420, 875),    # 7  - sortie de la porte (cote ouest)
+			(270, 810),    # 8  - ARRET discussion avec le moine du bureau
+			(420, 875),    # 9  - retour vers la porte
+			(560, 875),    # 10 - ressorti de la bibliotheque
+			(810, 930),    # 11 - jonction sud
+			(810, 1385),   # 12 - ARRET priere statue du BAS (face a gauche)
+			(810, 1325),   # 13 - sortie du bas
+			(810, 470),    # 14 - remontee du couloir
+		]
 		self.monk_altar_left_npc = NPC(
-			928, 476,   # midbottom (960, 540) -> a gauche de l'autel
-			self.mon1k_idle, {},
+			monk_left_points[0][0], monk_left_points[0][1],
+			self.mon1k_idle,
+			monk1_walk,
 			"monk_altar",
-			movement_points=[],
+			sequential_stops=True,     # parcours dans l'ordre (ping-pong)
+			idle_at_stops=True,
+			idle_animations=self.monk1_idle_animations,
+			movement_points=monk_left_points,
 			hitbox_offset_y=-60,
+			stop_point_indices=[0, 2, 4, 8, 12],
+			stop_look_directions={
+				0: "right",
+				2: "left", 4: "left", 12: "left",
+				8: "left",
+			},
+			speed=2,
+			stop_duration_min_seconds=1,
+			stop_duration_max_seconds=3,
+			stop_duration_overrides={
+				2: (8, 12), 4: (8, 12), 8: (8, 12), 12: (8, 12),  # ~10 s aleatoire
+			},
+			turn_pause_min_seconds=0,
+			turn_pause_max_seconds=0,
+			pray_animations=monk1_pray,
+			pray_indices={2, 4, 12},
+			messe_replace_indices={2, 4},
+			home_index=0,
+			home_pray_direction="right",
+			leave_when={2: 0, 4: 2, 12: 4},
 		)
 		self.monk_altar_left_npc.direction = "down"
 
@@ -1073,7 +1154,7 @@ class ChapelInterior:
 		self.monk_altar_right_npc.direction = "down"
 
 		centerx = self.entrance_rect.centerx
-		altar_stop = (self.altar_rect.centerx, self.altar_rect.bottom - 90)
+		altar_stop = (self.altar_rect.centerx, self.altar_rect.bottom - 110)
 		altar_y = altar_stop[1]
 
 		# 4 points formant un cadre autour de l'autel : pas un tour
@@ -1148,6 +1229,12 @@ class ChapelInterior:
 			self.monk_altar_right_npc,
 			self.priest_npc,
 		]
+		# Le moine cede le passage au pretre (esquive) et corte sa
+		# priere si le pretre s'arrete sur la meme statue ; le moine du
+		# bureau se tourne vers son collegue pendant la discussion.
+		self.monk_altar_left_npc.leave_target = self.priest_npc
+		self.monk_altar_left_npc.dodge_target = self.priest_npc
+		self.monk_desk_npc.watch_target = self.monk_altar_left_npc
 
 	def _tile_horizontal(self, surface, tile, x0, x1, y):
 		tw = tile.get_width()
@@ -1795,3 +1882,22 @@ class ChapelInterior:
 
 			label_br = font.render(f"#{i} {rect.bottomright}", True, (255, 0, 0))
 			surface.blit(label_br, (rect.right - label_br.get_width() - 8, rect.bottom - 14))
+
+	def draw_debug_monk_points(self, surface, radius=8):
+		"""
+		Debug du circuit du moine de gauche : un point par point de
+		deplacement -- ROSE = point d'arret (priere / poste /
+		discussion), ORANGE = point d'itinerance (simple passage,
+		jamais de repos dessus). Le numero affiche a cote correspond
+		aux commentaires du circuit monk_left_points dans __init__.
+		"""
+		font = _get_debug_font()
+		npc = self.monk_altar_left_npc
+		for i, point in enumerate(npc.movement_points):
+			if i in npc.stop_point_indices:
+				couleur = (255, 105, 180)   # rose : arret
+			else:
+				couleur = (255, 165, 0)     # orange : itinerance
+			pygame.draw.circle(surface, couleur, point, radius)
+			label = font.render(f"#{i}", True, couleur)
+			surface.blit(label, (point[0] + 8, point[1] - 8))

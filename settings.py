@@ -45,6 +45,7 @@ HEAL_POTION_MAX_QUANTITY = 5
 TRANSITION_TIMER = 120
 
 DEBUG_HITBOXES = False
+DEBUG_MONK_POINTS = True
 
 # --- Décor de sol (herbe + chemin + place) ---
 SPLAT_SCALE = 3

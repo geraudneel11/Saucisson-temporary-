@@ -545,6 +545,17 @@ class NPC:
 		messe_speech_seconds=3,
 		messe_spell_effect=None,
 		messe_spell_effect_offset_y=-60,
+		pray_animations=None,
+		pray_indices=None,
+		leave_target=None,
+		leave_when=None,
+		dodge_target=None,
+		messe_replace_indices=None,
+		home_index=0,
+		home_pray_direction="right",
+		watch_target=None,
+		watch_stop_index=None,
+		watch_default_direction="down"
 	):
 
 		self.rect = pygame.Rect(x, y, 64, 64)
@@ -570,6 +581,17 @@ class NPC:
 		self.messe_phase = "speech"
 		self.messe_phase_timer = 0
 		self.direction = "down"
+		self.pray_animations = pray_animations
+		self.pray_indices = pray_indices or set()
+		self.leave_target = leave_target
+		self.leave_when = leave_when or {}
+		self.dodge_target = dodge_target
+		self.messe_replace_indices = messe_replace_indices or set()
+		self.home_index = home_index
+		self.home_pray_direction = home_pray_direction
+		self.watch_target = watch_target
+		self.watch_stop_index = watch_stop_index
+		self.watch_default_direction = watch_default_direction
 
 		self.type = npc_type
 
@@ -633,6 +655,68 @@ class NPC:
 		self.approach_stuck_timer = 0
 		self.talk_delay_timer = 0
 
+	def _dodge_blocked(self, colliders):
+		# Vrai si la hitbox de deplacement touche un obstacle (hors sa
+		# propre hitbox joueur) -- utilisee pour choisir le cote d'esquive.
+		for collider in colliders:
+			if collider is self.hitbox_for_players:
+				continue
+			if self.hitbox_for_furniture.colliderect(collider):
+				return True
+		return False
+
+	def _update_monk_rest(self):
+		# Priorites pendant un repos (moine de la chapelle) : regard du
+		# moine du bureau, replacement messe, priere coupee par le
+		# pretre, animation de priere. Sans effet pour les autres NPC.
+		if (self.messe_speech is not None and self.messe_active
+				and self.resting_at_index != self.messe_index):
+			# La messe est terminee des qu'on quitte l'autel
+			self.messe_active = False
+		if self.state == "moving":
+			return
+		if (self.watch_target is not None and not self.movement_points):
+			if (self.watch_target.state == "idle"
+					and self.watch_target.resting_at_index == self.watch_stop_index):
+				self.direction = self._direction_towards(
+					self.watch_target.rect.centerx, self.watch_target.rect.centery)
+			else:
+				self.direction = self.watch_default_direction
+			self._set_animation(self._get_idle_animation())
+			return
+		if self.resting_at_index is None:
+			return
+		if (self.messe_replace_indices
+				and self.resting_at_index in self.messe_replace_indices
+				and self.leave_target is not None
+				and getattr(self.leave_target, "messe_active", False)):
+			# Le pretre commence une messe : coupe la priere et file au poste
+			if self.target_stop_index is None:
+				self.target_stop_index = self.home_index
+				self.path_direction = -1 if self.path_index > self.home_index else 1
+				self.resting_at_index = None
+				self.state = "moving"
+			return
+		if (self.resting_at_index == self.home_index
+				and self.leave_target is not None
+				and getattr(self.leave_target, "messe_active", False)):
+			# Poste tenu EN PRIERE jusqu'a la fin de la messe
+			self.direction = self.home_pray_direction
+			if self.pray_animations:
+				self._set_animation(self.pray_animations.get(
+					self.direction, next(iter(self.pray_animations.values()))))
+			self.idle_timer = max(self.idle_timer, 30)
+			return
+		if (self.leave_when and self.leave_target is not None
+				and self.resting_at_index in self.leave_when
+				and self.leave_target.resting_at_index == self.leave_when[self.resting_at_index]):
+			# Le pretre prie sur la meme statue : on corte la priere
+			self.idle_timer = min(self.idle_timer, 15)
+		if (self.pray_indices and self.pray_animations
+				and self.resting_at_index in self.pray_indices):
+			self._set_animation(self.pray_animations.get(
+				self.direction, next(iter(self.pray_animations.values()))))
+
 	def _update_hitbox_position(self):
 		self.hitbox.center = self.rect.center
 		self.hitbox_for_players.center = self.rect.center
@@ -691,12 +775,8 @@ class NPC:
 		if len(self.movement_points) <= 1:
 			return
 
-		# ARRIVEE sur le point courant : si c'est la cible d'arret, on
-		# se pose ICI, SUR le point lui-meme, AVANT d'incrementer
-		# path_index. L'ancien code incrementait d'abord -> la comparaison
-		# se faisait sur le point SUIVANT, et le repos tombait un point
-		# trop tot : sur le passage juste avant chaque arret (1 pour
-		# l'arret 2, 3 pour l'arret 4, 8 pour l'autel 9...).
+		# ARRIVEE sur le point courant : repos ICI si c'est la cible
+		# d'arret, AVANT d'incrementer path_index.
 		if self.path_index == self.target_stop_index:
 			self.state = "idle"
 			if self.target_stop_index in self.stop_duration_overrides:
@@ -710,8 +790,8 @@ class NPC:
 			look_direction = self.stop_look_directions.get(self.target_stop_index)
 			if look_direction:
 				self.direction = look_direction
-					# --- Messe : tirage a l'arrivee sur l'autel (une chance sur
-			# deux) ; si succes, le repos dure messe_extra de plus ---
+			# --- Messe : tirage a l'arrivee sur l'autel (une chance
+			# sur deux) ; si succes, le repos dure messe_extra de plus
 			self.messe_active = False
 			if (self.messe_index is not None and self.messe_speech is not None
 					and self.path_index == self.messe_index):
@@ -725,9 +805,14 @@ class NPC:
 			self.target_stop_index = None
 			return
 
-		# Point de passage franchi (pas une cible d'arret) : on vise le suivant.
-		self.path_index += self.path_direction
-		self.path_index = max(0, min(self.path_index, len(self.movement_points) - 1))
+		# Point de passage franchi : on vise le suivant, en faisant
+		# demi-tour si on est au bout du circuit (sinon on boucle sur
+		# place et plus aucun arret ne serait honore).
+		nxt = self.path_index + self.path_direction
+		if nxt < 0 or nxt >= len(self.movement_points):
+			self.path_direction = -self.path_direction
+			nxt = self.path_index + self.path_direction
+		self.path_index = nxt
 		self.current_target = self.movement_points[self.path_index]
 
 	def _direction_towards(self, target_x, target_y):
@@ -798,13 +883,86 @@ class NPC:
 		self.rect.x += dx / distance * step
 		self.rect.y += dy / distance * step
 
+				# Esquive : se DECALE pour laisser passer dodge_target (le
+		# pretre). Glisse lateralement, du cote de sa destination, en
+		# testant chaque deplacement : premier cote LIBRE retenu
+		# (destination, autre cote, petit recul). Jamais dans un mur.
+		if self.dodge_target is not None:
+			ddx = self.rect.centerx - self.dodge_target.rect.centerx
+			ddy = self.rect.centery - self.dodge_target.rect.centery
+			ddist = (ddx ** 2 + ddy ** 2) ** 0.5
+			if 0 < ddist < 45:
+				# Glisse lateralement pour laisser passer : on essaie le
+				# cote de la destination, puis l'autre cote, puis un
+				# petit recul -- premier deplacement LIBRE retenu.
+				px = -ddy / ddist
+				py = ddx / ddist
+				dot = (px * (self.current_target[0] - self.rect.centerx)
+					+ py * (self.current_target[1] - self.rect.centery))
+				if dot < 0:
+					px, py = -px, -py
+				pre_dodge = self.rect.copy()
+				for vx, vy in ((px, py), (-px, -py),
+						(ddx / ddist, ddy / ddist)):
+					self.rect.x += vx * 4
+					self.rect.y += vy * 4
+					self._update_hitbox_position()
+					if not self._dodge_blocked(colliders):
+						break
+					self.rect.topleft = pre_dodge.topleft
+					self._update_hitbox_position()
+
 		blocked = self._resolve_movement_collisions(colliders, old_pos)
 
 		if blocked:
 			self.stuck_timer += 1
 			if self.stuck_timer >= 30:
 				self.stuck_timer = 0
-				self._advance_to_next_point()
+				if self.stuck_timer >= 30:
+					self.stuck_timer = 0
+					# a) Bloque A PROXIMITE de l'arret vise (le coin de
+					# l'autel pour le pretre) : l'arret est considere
+					# atteint, on pose sur place. Reserve aux NPC de messe
+					# : pour les autres (moines), mieux vaut passer et
+					# revenir que de poser a un endroit bancal.
+					idx_vise = None
+					if self.messe_speech is None:
+						idx_vise = None
+					elif (self.target_stop_index is not None
+							and self.path_index == self.target_stop_index):
+						idx_vise = self.path_index
+					else:
+						nxt = self.path_index + self.path_direction
+						if (0 <= nxt < len(self.movement_points)
+								and nxt == self.target_stop_index):
+							idx_vise = nxt
+					if idx_vise is not None:
+						cible = self.movement_points[idx_vise]
+						dist_target = ((cible[0] - self.rect.centerx) ** 2
+							+ (cible[1] - self.rect.centery) ** 2) ** 0.5
+						if dist_target <= 48:
+							self.path_index = idx_vise
+							self.current_target = self.movement_points[self.path_index]
+							self._advance_to_next_point()
+							return
+					# b) Sinon : on avance d'UN point (relais). Si ce point
+					# EST l'arret vise (toujours injoignable), on passe
+					# au-dela et on re-cible le prochain arret dans le sens
+					# courant : il sera honore au retour.
+					nxt = self.path_index + self.path_direction
+					if 0 <= nxt < len(self.movement_points):
+						self.path_index = nxt
+						if nxt == self.target_stop_index:
+							apres = nxt + self.path_direction
+							if 0 <= apres < len(self.movement_points):
+								self.path_index = apres
+							self.target_stop_index = None
+							self._pick_new_stop_target()
+							return
+						self.current_target = self.movement_points[self.path_index]
+					else:
+						self.target_stop_index = None
+						self._pick_new_stop_target()
 		else:
 			self.stuck_timer = 0
 
@@ -899,6 +1057,7 @@ class NPC:
 
 		self.interaction_rect.center = self.rect.center
 		self._update_hitbox_position()
+		self._update_monk_rest()
 
 	def draw(self, surface):
 

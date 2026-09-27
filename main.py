@@ -46,6 +46,7 @@ merchant_1.load_merchant_ui()
 speed = PLAYER_SPEED
 transition = True
 debug_hitboxes = DEBUG_HITBOXES
+debug_monk_points = DEBUG_MONK_POINTS
 portal_timer = 0
 smoke_timer = 0
 smoke_frame = 0
@@ -1671,6 +1672,10 @@ while run == True :
 	elif game_state == "chapel":
 		overlay_presence = True
 		screen.blit(chapel_interior.interior_surface, (-camera_x, -camera_y))
+		chapel_interior.draw_debug_monk_points(chapel_interior.interior_surface)
+		
+	#if debug_monk_points and game_state == "chapel":
+		#chapel_interior.draw_debug_monk_points(chapel_interior.interior_surface)
 
 	else:
 		overlay_presence = False
