@@ -30,7 +30,7 @@ def load_merchant_ui():
     little_potion_sheet = pygame.image.load("Fiole_de_soin.png").convert_alpha()
     dynamite_sheet = pygame.image.load("Dynamite.png").convert_alpha()
 
-    close_button_sheet = pygame.image.load("shop_exit_button.png").convert_alpha()
+    close_button_sheet = pygame.image.load("Shop_exit_button.png").convert_alpha()
 
     shop_window_1 = shop_window.subsurface((0, 0, 128, 160))
     shop_window_2 = shop_window.subsurface((128, 0, 128, 160))

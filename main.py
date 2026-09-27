@@ -1,4 +1,4 @@
-from turtle import update
+
 
 import pygame
 import random
@@ -139,8 +139,8 @@ healer_walk_sheet = pygame.image.load("Citizen1_Walk.png").convert_alpha()
 merchant1_idle_sheet = pygame.image.load("Citizen2_Idle.png").convert_alpha()
 merchant1_walk_sheet = pygame.image.load("Citizen2_Walk.png").convert_alpha()
 
-priest_idle_sheet = pygame.image.load("priest_idle.png").convert_alpha()
-priest_walk_sheet = pygame.image.load("priest_walk.png").convert_alpha()
+priest_idle_sheet = pygame.image.load("Priest_Idle.png").convert_alpha()
+priest_walk_sheet = pygame.image.load("Priest_Walk.png").convert_alpha()
 
 chapel_dragon_sheet = pygame.image.load("chapel_dragon.png").convert_alpha()
 chapel_dragon_body_sheet = pygame.image.load("chapel_dragon_body.png").convert_alpha()
@@ -460,13 +460,20 @@ for _ in range(3000):  # ~50 secondes de circuit simulées instantanément
 	for npc in npcs:
 		npc.update(_startup_colliders, None)
 
-# Désactivé pour l'instant : le prêtre n'apparaît nulle part tant que
-# l'intérieur de la chapelle n'existe pas. Décommenter avec la Partie 5.3
-# et la Partie 5.4 quand ce sera le cas.
-# _chapel_startup_colliders = [chapel.hitbox, house.hitbox]
-# for _ in range(3000):
-# 	for npc in outdoor_npcs:
-# 		npc.update(_chapel_startup_colliders, None)
+# Pré-simulation de la chapelle : mêmes colliders que dans la boucle de
+# jeu (murs + meubles + bancs + hitboxes croisées des PNJ), pour que les
+# moines et le prêtre soient déjà en plein circuit, désynchronisés, dès
+# la première entrée dans la chapelle. L'intérieur existe désormais
+# (créé plus haut), l'ancien bloc commenté est remplacé par cette
+# version active.
+_chapel_startup_colliders = list(chapel_interior.wall_hitboxes)
+_chapel_startup_colliders.extend(chapel_interior.chapel_furniture_hitboxes.values())
+_chapel_startup_colliders.extend(chapel_interior.pew_hitboxes)
+_chapel_startup_colliders.extend(npc.hitbox_for_players for npc in chapel_interior.chapel_npcs)
+
+for _ in range(3000):  # ~50 secondes de circuit simulées instantanément
+	for npc in chapel_interior.chapel_npcs:
+		npc.update(_chapel_startup_colliders, None)
 
 ground_details = decor.load_ground_details(splat_scale=SPLAT_SCALE, tuft_scale=TUFT_SCALE)
 

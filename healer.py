@@ -6,7 +6,7 @@ import fonts
 def load_healer_ui():
     global shop_window, close_button_sheet, button_on, button_on2, shop_window, shop_window_1, shop_window_2, exit_button
     shop_window = pygame.image.load("Shop.png").convert_alpha()
-    close_button_sheet = pygame.image.load("shop_exit_button.png").convert_alpha()
+    close_button_sheet = pygame.image.load("Shop_exit_button.png").convert_alpha()
     button_on = shop_window.subsurface((94, 186, 37, 17))
     button_on2 = shop_window.subsurface((102, 186, 29, 17))
     shop_window_2 = shop_window.subsurface((128, 0, 128, 160))

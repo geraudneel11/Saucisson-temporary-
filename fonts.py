@@ -7,8 +7,8 @@ coin_font = pygame.font.SysFont("Ebrima", 32, bold=True)
 
 def load_font():
 	global title_font_sheet, corp_font_sheet, lettersT1, lettersC1, lettersC6, glyph_width, lettersC4
-	title_font_sheet = pygame.image.load("text1.png").convert_alpha()
-	corp_font_sheet = pygame.image.load("text2.png").convert_alpha()
+	title_font_sheet = pygame.image.load("Text1.png").convert_alpha()
+	corp_font_sheet = pygame.image.load("Text2.png").convert_alpha()
 
 	corp_font_chars = [
 	"A","B","C","D","E","F","G","H","I","J",

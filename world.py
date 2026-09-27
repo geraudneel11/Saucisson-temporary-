@@ -740,7 +740,7 @@ class ChapelInterior:
 	def __init__(self):
 		self.sheet = pygame.image.load("chapel_interior_walls.png").convert_alpha()
 		self.sheet2 = pygame.image.load("chapel_interior_objects.png").convert_alpha()
-		self.sheet3 = pygame.image.load("interior_objects.png").convert_alpha()
+		self.sheet3 = pygame.image.load("Interior_objects.png").convert_alpha()
 
 		scale = CHAPEL_WALL_SCALE
 
@@ -831,6 +831,28 @@ class ChapelInterior:
 		PRIEST_SPEECH_GRID = (6, 2)
 		PRIEST_MAKING_GRID = (6, 3)
 		PRIEST_SPELL_GRID = (6, 3)
+
+		monk4_walk_sheet = pygame.image.load("Mon4k_Walk.png").convert_alpha()
+		monk4_walk = {
+			"down": load_animation_row(monk4_walk_sheet, 0, CHAPEL_DECOR_SCALE, 6, 4),
+			"left": load_animation_row(monk4_walk_sheet, 1, CHAPEL_DECOR_SCALE, 6, 4),
+			"right": load_animation_row(monk4_walk_sheet, 2, CHAPEL_DECOR_SCALE, 6, 4),
+			"up": load_animation_row(monk4_walk_sheet, 3, CHAPEL_DECOR_SCALE, 6, 4),
+		}
+		monk4_pray_sheet = pygame.image.load("Mon4k_Pray.png").convert_alpha()
+		monk4_pray = {
+			"down": load_animation_row(monk4_pray_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4),
+			"left": load_animation_row(monk4_pray_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4),
+			"right": load_animation_row(monk4_pray_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4),
+			"up": load_animation_row(monk4_pray_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4),
+		}
+		monk4_idle_sheet = pygame.image.load("Mon4k_Idle.png").convert_alpha()
+		self.monk4_idle_animations = {
+			"down": self.mon4k_idle,
+			"left": load_animation_row(monk4_idle_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4),
+			"right": load_animation_row(monk4_idle_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4),
+			"up": load_animation_row(monk4_idle_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4),
+		}
 
 		def load_priest_sequence(path, grid):
 			cols, rows = grid
@@ -1144,12 +1166,51 @@ class ChapelInterior:
 		)
 		self.monk_altar_left_npc.direction = "down"
 
+				# --- Circuit du moine de droite : miroir du moine de gauche
+		# (x 1440 = 2250 - 810), prie face aux 3 statues de droite.
+		# Pas de tour en bibliotheque pour lui.
+		monk_right_points = [
+			(1290, 508),   # 0 - ARRET poste (droite de l'autel), regarde a gauche
+			(1440, 470),   # 1 - couloir de voyage (x 1440, entre la
+			               #     colonne du pretre x=1297 et ses arrets x=1425)
+			(1440, 295),   # 2 - ARRET priere statue du HAUT (face a droite)
+			(1440, 470),   # 3 - retour couloir
+			(1440, 670),   # 4 - ARRET priere statue du MILIEU (face a droite)
+			(1440, 700),   # 5 - passage (contourne la statue du milieu)
+			(1440, 930),   # 6 - jonction sud
+			(1440, 1385),  # 7 - ARRET priere statue du BAS (face a droite)
+			(1440, 1325),  # 8 - sortie du bas
+			(1440, 470),   # 9 - remontee du couloir
+		]
 		self.monk_altar_right_npc = NPC(
-			1258, 476,  # midbottom (1290, 540) -> a droite de l'autel
-			self.mon4k_idle, {},
+			monk_right_points[0][0], monk_right_points[0][1],
+			self.mon4k_idle,
+			monk4_walk,
 			"monk_altar",
-			movement_points=[],
+			sequential_stops=True,     # parcours dans l'ordre (ping-pong)
+			idle_at_stops=True,
+			idle_animations=self.monk4_idle_animations,
+			movement_points=monk_right_points,
 			hitbox_offset_y=-60,
+			stop_point_indices=[0, 2, 4, 7],
+			stop_look_directions={
+				0: "left",
+				2: "right", 4: "right", 7: "right",
+			},
+			speed=2,
+			stop_duration_min_seconds=1,
+			stop_duration_max_seconds=3,
+			stop_duration_overrides={
+				2: (8, 12), 4: (8, 12), 7: (8, 12),   # ~10 s aleatoire
+			},
+			turn_pause_min_seconds=0,
+			turn_pause_max_seconds=0,
+			pray_animations=monk4_pray,
+			pray_indices={2, 4, 7},
+			messe_replace_indices={2, 4},
+			home_index=0,
+			home_pray_direction="left",
+			leave_when={2: 18, 4: 16, 7: 14},
 		)
 		self.monk_altar_right_npc.direction = "down"
 
@@ -1234,6 +1295,9 @@ class ChapelInterior:
 		# bureau se tourne vers son collegue pendant la discussion.
 		self.monk_altar_left_npc.leave_target = self.priest_npc
 		self.monk_altar_left_npc.dodge_target = self.priest_npc
+		self.monk_altar_right_npc.leave_target = self.priest_npc
+		self.monk_altar_right_npc.dodge_target = self.priest_npc
+
 		self.monk_desk_npc.watch_target = self.monk_altar_left_npc
 
 	def _tile_horizontal(self, surface, tile, x0, x1, y):
@@ -1441,39 +1505,49 @@ class ChapelInterior:
 			self.entrance_rect.right + 162, 565, self.big_wall_side_flipped.get_width(), 1265 - 565
 		))
 
-		self._tile_horizontal(self.static_surface, self.wall_panel2,
-			470, 645, 1265)
+		for sprite, rect in self._wall_row_tiles(self.wall_panel2, 470, 645, 1265):
+			self.vase_nook_wall_tiles.append((sprite, rect))
 		self.wall_hitboxes.append(pygame.Rect(470, 1265, 645 - 470, self.wall_panel2.get_height()))
 
-		self._tile_horizontal(self.static_surface, self.wall_panel2,
-			self.entrance_rect.right, 1775, 1265)
+		for sprite, rect in self._wall_row_tiles(self.wall_panel2,
+				self.entrance_rect.right, 1775, 1265):
+			self.vase_nook_wall_tiles.append((sprite, rect))
 		self.wall_hitboxes.append(pygame.Rect(
 			self.entrance_rect.right, 1265,
 			1775 - self.entrance_rect.right, self.wall_panel2.get_height()
 		))
-		self._tile_horizontal(self.static_surface, self.wall_panel,
-			self.entrance_rect.left, door_left, y)
+		for sprite, rect in self._wall_row_tiles(self.wall_panel,
+				self.entrance_rect.left, door_left, y):
+			self.vase_nook_wall_tiles.append((sprite, rect))
 		self.wall_hitboxes.append(pygame.Rect(
 			self.entrance_rect.left, int(y), door_left - self.entrance_rect.left, self.wall_panel.get_height()
 		))
 
-		self._tile_horizontal(self.static_surface, self.wall_panel,
-			door_right, self.entrance_rect.right, y)
+		for sprite, rect in self._wall_row_tiles(self.wall_panel,
+				door_right, self.entrance_rect.right, y):
+			self.vase_nook_wall_tiles.append((sprite, rect))
 		self.wall_hitboxes.append(pygame.Rect(
 			door_right, int(y), self.entrance_rect.right - door_right, self.wall_panel.get_height()
 		))
 		sidewall_length = CHAPEL_ENTRANCE_SIDEWALL1_LENGTH
 		corner_rect_3 = self.wall_corner.get_rect(midtop=(645, 1227))
-		self.static_surface.blit(self.wall_corner, corner_rect_3)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_3))
 		corner_rect_3b = self.wall_corner.get_rect(
 			midtop=(2 * self.entrance_rect.centerx - 645, 1227))
-		self.static_surface.blit(self.wall_corner, corner_rect_3b)
-		self.tile_vertical_symmetric(
-			self.static_surface, self.big_wall_side,
-			self.entrance_rect.bottom - sidewall_length, self.entrance_rect.bottom,
-			offset_x=self.entrance_rect.width // 2,
-			centerx=self.entrance_rect.centerx
-		)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_3b))
+		# Version tuiles de tile_vertical_symmetric : les colonnes
+		# laterales du couloir rejoignent la liste dessinee PAR-DESSUS
+		# le joueur (meme principe que la niche a vases).
+		flipped_side = pygame.transform.flip(self.big_wall_side, True, False)
+		side_th = self.big_wall_side.get_height()
+		for side_y in range(self.entrance_rect.bottom - sidewall_length,
+				self.entrance_rect.bottom, side_th):
+			self.vase_nook_wall_tiles.append((self.big_wall_side,
+				self.big_wall_side.get_rect(midtop=(
+					self.entrance_rect.centerx - self.entrance_rect.width // 2, side_y))))
+			self.vase_nook_wall_tiles.append((flipped_side,
+				flipped_side.get_rect(midtop=(
+					self.entrance_rect.centerx + self.entrance_rect.width // 2, side_y))))
 		self.wall_hitboxes.append(pygame.Rect(
 			self.entrance_rect.centerx - self.entrance_rect.width // 2,
 			self.entrance_rect.bottom - sidewall_length,
@@ -1486,9 +1560,9 @@ class ChapelInterior:
 		))
 		# Coins, aux deux extrémités du mur du bas
 		corner_rect_left = self.wall_corner.get_rect(midtop=(self.entrance_rect.left, col_y))
-		self.static_surface.blit(self.wall_corner, corner_rect_left)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_left))
 		corner_rect_right = self.wall_corner.get_rect(midtop=(self.entrance_rect.right, col_y))
-		self.static_surface.blit(self.wall_corner, corner_rect_right)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_right))
 		#self.static_surface.blit(self.wall_gothic_arch, (arch_x, 50))
 		arch_y = 50
 		wall_line_y = 122   # hauteur à partir de laquelle l'arche entre "dans" la pièce
@@ -1528,11 +1602,11 @@ class ChapelInterior:
 
 		corner_rect_8 = self.wall_corner.get_rect(
 			midtop=(door_left, col_y))
-		self.static_surface.blit(self.wall_corner, corner_rect_8)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_8))
 
 		corner_rect_9 = self.wall_corner.get_rect(
 			midtop=(door_right, col_y))
-		self.static_surface.blit(self.wall_corner, corner_rect_9)
+		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_9))
 		corner_rect_1 = self.wall_corner.get_rect(midtop=(0, 1227))
 		self.vase_nook_wall_tiles.append((self.wall_corner, corner_rect_1))
 		self.wall_hitboxes.append(corner_rect_1.copy())
@@ -1604,20 +1678,13 @@ class ChapelInterior:
 		self.static_surface.blit(self.vitrail, self.vitrail13_rect)	
 		self.static_surface.blit(self.vitrail, self.vitrail14_rect)
 		self.static_surface.blit(self.vitrail, self.vitrail15_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail16_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail17_rect)	
-		self.static_surface.blit(self.vitrail, self.vitrail18_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail19_rect)	
-		self.static_surface.blit(self.vitrail, self.vitrail20_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail21_rect)	
-		self.static_surface.blit(self.vitrail, self.vitrail22_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail23_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail24_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail25_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail26_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail27_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail28_rect)
-		self.static_surface.blit(self.vitrail, self.vitrail29_rect)
+		# Vitraux poses SUR les murs du bas (15-18) : dessines via la
+		# liste overlay, APRES les tuiles des murs, pour rester
+		# visibles par-dessus la pierre (et masquer le joueur comme
+		# le mur le fait).
+		for i in range(16, 30):
+			self.vase_nook_wall_tiles.append(
+				(self.vitrail, getattr(self, f"vitrail{i}_rect")))
 		for vitrail_rect in (
 			self.vitrail30_rect, self.vitrail31_rect, self.vitrail32_rect,
 			self.vitrail33_rect, self.vitrail34_rect, self.vitrail35_rect,
@@ -1885,19 +1952,20 @@ class ChapelInterior:
 
 	def draw_debug_monk_points(self, surface, radius=8):
 		"""
-		Debug du circuit du moine de gauche : un point par point de
-		deplacement -- ROSE = point d'arret (priere / poste /
+		Debug des circuits des moines de la chapelle : un point par
+		point de deplacement -- ROSE = point d'arret (priere / poste /
 		discussion), ORANGE = point d'itinerance (simple passage,
 		jamais de repos dessus). Le numero affiche a cote correspond
-		aux commentaires du circuit monk_left_points dans __init__.
+		aux commentaires du circuit dans __init__.
 		"""
 		font = _get_debug_font()
-		npc = self.monk_altar_left_npc
-		for i, point in enumerate(npc.movement_points):
-			if i in npc.stop_point_indices:
-				couleur = (255, 105, 180)   # rose : arret
-			else:
-				couleur = (255, 165, 0)     # orange : itinerance
-			pygame.draw.circle(surface, couleur, point, radius)
-			label = font.render(f"#{i}", True, couleur)
-			surface.blit(label, (point[0] + 8, point[1] - 8))
+		for npc, prefixe in ((self.monk_altar_left_npc, "M1"),
+				(self.monk_altar_right_npc, "M4")):
+			for i, point in enumerate(npc.movement_points):
+				if i in npc.stop_point_indices:
+					couleur = (255, 105, 180)   # rose : arret
+				else:
+					couleur = (255, 165, 0)     # orange : itinerance
+				pygame.draw.circle(surface, couleur, point, radius)
+				label = font.render(f"{prefixe} #{i}", True, couleur)
+				surface.blit(label, (point[0] + 8, point[1] - 8))
