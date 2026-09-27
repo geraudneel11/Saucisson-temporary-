@@ -532,7 +532,8 @@ class NPC:
 		stop_duration_min_seconds=2,
 		stop_duration_max_seconds=10,
 		turn_pause_min_seconds=2,
-		turn_pause_max_seconds=4
+		turn_pause_max_seconds=4,
+		stop_duration_overrides=None
 	):
 
 		self.rect = pygame.Rect(x, y, 64, 64)
@@ -586,6 +587,11 @@ class NPC:
 		self.speed = speed
 		self.stop_duration_min = int(stop_duration_min_seconds * FPS_MAX)
 		self.stop_duration_max = int(stop_duration_max_seconds * FPS_MAX)
+		# Dict optionnel {index_du_point: (min_secondes, max_secondes)} :
+		# remplace stop_duration_min/max UNIQUEMENT pour les index listés
+		# ici -- pratique quand un NPC doit s'attarder plus longtemps à
+		# un arrêt précis (l'autel) qu'aux autres (les statues).
+		self.stop_duration_overrides = stop_duration_overrides or {}
 		self.turn_pause_min = int(turn_pause_min_seconds * FPS_MAX)
 		self.turn_pause_max = int(turn_pause_max_seconds * FPS_MAX)
 
@@ -641,9 +647,17 @@ class NPC:
 		self.current_target = self.movement_points[self.path_index]
 
 		if self.path_index == self.target_stop_index:
-			# Point d'arrêt atteint : pause aléatoire (2-10s par défaut)
+			# Point d'arrêt atteint : pause aléatoire (2-10s par défaut,
+			# ou la plage spécifique de stop_duration_overrides si ce
+			# point y figure).
 			self.state = "idle"
-			self.idle_timer = random.randint(self.stop_duration_min, self.stop_duration_max)
+			if self.target_stop_index in self.stop_duration_overrides:
+				dur_min_s, dur_max_s = self.stop_duration_overrides[self.target_stop_index]
+				idle_min = int(dur_min_s * FPS_MAX)
+				idle_max = int(dur_max_s * FPS_MAX)
+			else:
+				idle_min, idle_max = self.stop_duration_min, self.stop_duration_max
+			self.idle_timer = random.randint(idle_min, idle_max)
 			self.resting_at_index = self.target_stop_index
 			look_direction = self.stop_look_directions.get(self.target_stop_index)
 			if look_direction:

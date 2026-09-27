@@ -763,11 +763,22 @@ class ChapelInterior:
 		mon2k_sheet = pygame.image.load("Mon2k_Idle.png").convert_alpha()
 		mon4k_sheet = pygame.image.load("Mon4k_Idle.png").convert_alpha()
 		priest_sheet = pygame.image.load("Priest_Idle.png").convert_alpha()
+		priest_walk_sheet = pygame.image.load("Priest_Walk.png").convert_alpha()
 
 		self.mon1k_idle = load_animation_row(mon1k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		self.mon2k_idle = load_animation_row(mon2k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		self.mon4k_idle = load_animation_row(mon4k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+
+		priest_walk_down = load_animation_row(priest_walk_sheet, 0, CHAPEL_DECOR_SCALE, 6, 4)
+		priest_walk_left = load_animation_row(priest_walk_sheet, 1, CHAPEL_DECOR_SCALE, 6, 4)
+		priest_walk_right = load_animation_row(priest_walk_sheet, 2, CHAPEL_DECOR_SCALE, 6, 4)
+		priest_walk_up = load_animation_row(priest_walk_sheet, 3, CHAPEL_DECOR_SCALE, 6, 4)
+		self.priest_walk_animations = {
+			"down": priest_walk_down, "left": priest_walk_left,
+			"right": priest_walk_right, "up": priest_walk_up,
+		}
 		
 		self.wall_panel = cut((51, 0, 26, 64))
 		self.wall_corner = cut((133, 128, 21, 63))
@@ -1063,9 +1074,9 @@ class ChapelInterior:
 		self.priest_npc = NPC(
 			priest_points[0][0], priest_points[0][1],
 			self.priest_idle,
-			{"down": self.priest_idle, "left": self.priest_idle,
-			 "right": self.priest_idle, "up": self.priest_idle},
+			self.priest_walk_animations,
 			"priest",
+			hitbox_offset_y=-60,
 			movement_points=priest_points,
 			stop_point_indices=[0, 2, 4, 9, 14, 16, 18],
 			stop_look_directions={
@@ -1074,8 +1085,13 @@ class ChapelInterior:
 				14: "left", 16: "left", 18: "left",
 			},
 			speed=2,
-			stop_duration_min_seconds=4,
-			stop_duration_max_seconds=12
+			stop_duration_min_seconds=5,
+			stop_duration_max_seconds=10,
+			stop_duration_overrides={
+				9: (10, 25),   # autel : 10 à 25 secondes
+			},
+			turn_pause_min_seconds=0,
+			turn_pause_max_seconds=0
 		)
 		# Liste unique pour le wiring dans main.py -- reconstruite ICI,
 		# après la création définitive de priest_npc.

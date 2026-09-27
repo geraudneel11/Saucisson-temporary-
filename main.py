@@ -408,7 +408,7 @@ merchant1_npc = NPC(
 	movement_points=[
 		(700, 250),   # 0 - passage
 		(850, 300),   # 1 - passage
-		(900, 450),   # 2 - ARRÊT
+		(900, 500),   # 2 - ARRÊT
 		(800, 600),   # 3 - ARRÊT
 		(400, 400),   # 4 - passage : POINT COMMUN avec la guérisseuse (son index 5)
 		(600, 400),   # 5 - passage
@@ -736,7 +736,7 @@ while run == True :
 		chapel_interior.update_statues()
 		chapel_interior.update_parishioners()
 		chapel_interior.update_candelabra()
-		chapel_interior.priest_npc.update(chapel_interior.wall_hitboxes, player)
+		
 		
 	else:
 		player.clamp_to_map(MAP_WIDTH, MAP_HEIGHT)
@@ -1661,7 +1661,7 @@ while run == True :
 				color = (255, 80, 80) if is_stop else (255, 255, 0)
 				pygame.draw.circle(chapel_interior.interior_surface, color, point, 5)
 				point_label = npc_debug_font.render(f"{npc.type} #{i}", True, color)
-				chapel_interior.interior_surface.blit(point_label, (point[0] + 6, point[1] - 6))
+				chapel_interior.interior_surface.blit(point_label, (point[0] + 6, point[1] - 6))	
 
 	if game_state == "house":
 		overlay_presence = True
