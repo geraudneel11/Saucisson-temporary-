@@ -1076,13 +1076,15 @@ class ChapelInterior:
 			self.priest_idle,
 			self.priest_walk_animations,
 			"priest",
+			sequential_stops=True,      # <-- AJOUT : parcours dans l'ordre (ping-pong)
+			idle_at_stops=True,         # <-- AJOUT : idle anime a l'arret (pas de pose figee)
 			hitbox_offset_y=-60,
 			movement_points=priest_points,
 			stop_point_indices=[0, 2, 4, 9, 14, 16, 18],
 			stop_look_directions={
-				0: "right", 2: "right", 4: "right",
-				9: "up",
-				14: "left", 16: "left", 18: "left",
+				0: "left", 2: "left", 4: "left",
+				9: "down",
+				14: "right", 16: "right", 18: "right",
 			},
 			speed=2,
 			stop_duration_min_seconds=5,

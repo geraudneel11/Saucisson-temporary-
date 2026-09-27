@@ -533,7 +533,9 @@ class NPC:
 		stop_duration_max_seconds=10,
 		turn_pause_min_seconds=2,
 		turn_pause_max_seconds=4,
-		stop_duration_overrides=None
+		stop_duration_overrides=None,
+		sequential_stops=False,
+		idle_at_stops=False
 	):
 
 		self.rect = pygame.Rect(x, y, 64, 64)
@@ -541,9 +543,11 @@ class NPC:
 		self.idle_animation = idle_animation
 		self.walk_animations = walk_animations
 		self.current_animation = idle_animation
-
+		self.stop_duration_overrides = stop_duration_overrides or {},
+		self.sequential_stops = sequential_stops
 		self.current_frame = 0
 		self.frame_timer = 0
+		self.idle_at_stops = idle_at_stops
 
 		self.direction = "down"
 
@@ -618,6 +622,30 @@ class NPC:
 
 	def _pick_new_stop_target(self):
 		if not self.stop_point_indices:
+			return
+		if self.sequential_stops:
+			# Circuit DANS L'ORDRE (ping-pong) : prochain arret dans le
+			# sens courant, demi-tour au bout de la liste. Les points de
+			# passage ne sont jamais des cibles d'arret.
+			stops = sorted(self.stop_point_indices)
+			if self.path_direction >= 0:
+				nxt = [i for i in stops if i > self.path_index]
+				if nxt:
+					self.target_stop_index = nxt[0]
+				else:
+					self.path_direction = -1
+					prv = [i for i in stops if i < self.path_index]
+					self.target_stop_index = prv[-1]
+			else:
+				prv = [i for i in stops if i < self.path_index]
+				if prv:
+					self.target_stop_index = prv[-1]
+				else:
+					self.path_direction = 1
+					nxt = [i for i in stops if i > self.path_index]
+					self.target_stop_index = nxt[0]
+			self.resting_at_index = None
+			self.state = "moving"
 			return
 		candidates = [i for i in self.stop_point_indices if i != self.path_index]
 		if not candidates:
@@ -698,6 +726,8 @@ class NPC:
 	def _resolve_movement_collisions(self, colliders, old_pos):
 		self._update_hitbox_position()
 		for collider in colliders:
+			if collider is self.hitbox_for_players:   # <-- nouvelle ligne
+				continue  
 			if self.hitbox_for_furniture.colliderect(collider):
 				self.rect = old_pos
 				self._update_hitbox_position()
@@ -766,9 +796,19 @@ class NPC:
 			# self.direction, fixée dans begin_conversation).
 			self._set_animation(self.idle_animation)
 		elif self.resting_at_index is not None and self.resting_at_index in self.stop_look_directions:
-			self.current_animation = self.walk_animations[self.direction]
-			self.current_frame = 0
-			frozen_pose = True
+			# Direction du regard RE-appliquee a CHAQUE frame de repos
+			# (pas seulement a l'arrivee) -> impossible de finir fige
+			# oriente dans une mauvaise direction.
+			self.direction = self.stop_look_directions[self.resting_at_index]
+			if self.idle_at_stops:
+				# Idle anime a l'arret (mode du pretre de la chapelle)
+				self._set_animation(self.idle_animation)
+			else:
+				# Ancien comportement (healer/merchant de House) :
+				# pose de marche figee frame 0
+				self.current_animation = self.walk_animations[self.direction]
+				self.current_frame = 0
+				frozen_pose = True
 		else:
 			self._set_animation(self.idle_animation)
 
