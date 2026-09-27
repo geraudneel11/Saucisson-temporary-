@@ -670,14 +670,14 @@ class NPC:
 	def _advance_to_next_point(self):
 		if len(self.movement_points) <= 1:
 			return
-		self.path_index += self.path_direction
-		self.path_index = max(0, min(self.path_index, len(self.movement_points) - 1))
-		self.current_target = self.movement_points[self.path_index]
 
+		# ARRIVEE sur le point courant : si c'est la cible d'arret, on
+		# se pose ICI, SUR le point lui-meme, AVANT d'incrementer
+		# path_index. L'ancien code incrementait d'abord -> la comparaison
+		# se faisait sur le point SUIVANT, et le repos tombait un point
+		# trop tot : sur le passage juste avant chaque arret (1 pour
+		# l'arret 2, 3 pour l'arret 4, 8 pour l'autel 9...).
 		if self.path_index == self.target_stop_index:
-			# Point d'arrêt atteint : pause aléatoire (2-10s par défaut,
-			# ou la plage spécifique de stop_duration_overrides si ce
-			# point y figure).
 			self.state = "idle"
 			if self.target_stop_index in self.stop_duration_overrides:
 				dur_min_s, dur_max_s = self.stop_duration_overrides[self.target_stop_index]
@@ -691,6 +691,12 @@ class NPC:
 			if look_direction:
 				self.direction = look_direction
 			self.target_stop_index = None
+			return
+
+		# Point de passage franchi (pas une cible d'arret) : on vise le suivant.
+		self.path_index += self.path_direction
+		self.path_index = max(0, min(self.path_index, len(self.movement_points) - 1))
+		self.current_target = self.movement_points[self.path_index]
 
 	def _direction_towards(self, target_x, target_y):
 		dx = target_x - self.rect.centerx
