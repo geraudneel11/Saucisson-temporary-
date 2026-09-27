@@ -535,7 +535,16 @@ class NPC:
 		turn_pause_max_seconds=4,
 		stop_duration_overrides=None,
 		sequential_stops=False,
-		idle_at_stops=False
+		idle_at_stops=False,
+		idle_animations=None,
+		messe_index=None,
+		messe_speech=None,
+		messe_spell=None,
+		messe_chance=0.5,
+		messe_extra_seconds=10,
+		messe_speech_seconds=3,
+		messe_spell_effect=None,
+		messe_spell_effect_offset_y=-60,
 	):
 
 		self.rect = pygame.Rect(x, y, 64, 64)
@@ -547,8 +556,19 @@ class NPC:
 		self.sequential_stops = sequential_stops
 		self.current_frame = 0
 		self.frame_timer = 0
+		self.messe_spell_effect = messe_spell_effect
+		self.messe_spell_effect_offset_y = messe_spell_effect_offset_y
 		self.idle_at_stops = idle_at_stops
-
+		self.idle_animations = idle_animations
+		self.messe_index = messe_index
+		self.messe_speech = messe_speech
+		self.messe_spell = messe_spell
+		self.messe_chance = messe_chance
+		self.messe_extra = int(messe_extra_seconds * FPS_MAX)
+		self.messe_speech_time = int(messe_speech_seconds * FPS_MAX)
+		self.messe_active = False
+		self.messe_phase = "speech"
+		self.messe_phase_timer = 0
 		self.direction = "down"
 
 		self.type = npc_type
@@ -690,6 +710,18 @@ class NPC:
 			look_direction = self.stop_look_directions.get(self.target_stop_index)
 			if look_direction:
 				self.direction = look_direction
+					# --- Messe : tirage a l'arrivee sur l'autel (une chance sur
+			# deux) ; si succes, le repos dure messe_extra de plus ---
+			self.messe_active = False
+			if (self.messe_index is not None and self.messe_speech is not None
+					and self.path_index == self.messe_index):
+				# Phase reinitialisee a CHAQUE arrivee (evite un residu
+				# "effect" d'une messe precedente)
+				self.messe_phase = "speech"
+				self.messe_phase_timer = self.messe_speech_time
+				self.messe_active = random.random() < self.messe_chance
+				if self.messe_active:
+					self.idle_timer += self.messe_extra
 			self.target_stop_index = None
 			return
 
@@ -724,6 +756,13 @@ class NPC:
 	def end_conversation(self):
 		self.state = "idle"
 		self.idle_timer = random.randint(30, 90)  # petite pause avant de reprendre le circuit
+
+	def _get_idle_animation(self):
+		# Idle DIRECTIONNEL si le NPC possède un dict d'idles (4 rangées),
+		# sinon l'idle unique (compatibilité healer/merchant).
+		if self.idle_animations:
+			return self.idle_animations.get(self.direction, next(iter(self.idle_animations.values())))
+		return self.idle_animation
 
 	def _set_animation(self, animation):
 		self.current_animation = animation
@@ -800,15 +839,43 @@ class NPC:
 			# Idle normal, animé, pendant que le NPC est orienté vers le
 			# joueur (l'orientation elle-même est gérée séparément via
 			# self.direction, fixée dans begin_conversation).
-			self._set_animation(self.idle_animation)
+			self._set_animation(self._get_idle_animation())
 		elif self.resting_at_index is not None and self.resting_at_index in self.stop_look_directions:
 			# Direction du regard RE-appliquee a CHAQUE frame de repos
 			# (pas seulement a l'arrivee) -> impossible de finir fige
 			# oriente dans une mauvaise direction.
 			self.direction = self.stop_look_directions[self.resting_at_index]
-			if self.idle_at_stops:
+			if self.messe_speech is not None and self.resting_at_index == self.messe_index:
+				# Sur l'autel : speech en continu ; si une messe a ete
+				# tiree : cast (le pretre leve les bras) PUIS effect
+				# (effet magique DESSINE PAR-DESSUS le pretre, qui
+				# reste visible en idle), puis retour speech.
+				if self.messe_active and self.messe_spell:
+					if self.messe_phase == "speech":
+						self._set_animation(self.messe_speech)
+						self.messe_phase_timer -= 1
+						if self.messe_phase_timer <= 0:
+							self.messe_phase = "cast"
+							self.messe_phase_timer = len(self.messe_spell) * 8
+					elif self.messe_phase == "cast":
+						self._set_animation(self.messe_spell)
+						self.messe_phase_timer -= 1
+						if self.messe_phase_timer <= 0:
+							self.messe_phase = "effect"
+							self.messe_phase_timer = (len(self.messe_spell_effect) * 8
+								if self.messe_spell_effect else self.messe_speech_time)
+					else:  # effect : le pretre reste visible (idle)
+						self._set_animation(self._get_idle_animation())
+						self.messe_phase_timer -= 1
+						if self.messe_phase_timer <= 0:
+							self.messe_phase = "speech"
+							self.messe_phase_timer = self.messe_speech_time
+				else:
+					self._set_animation(self.messe_speech)
+			elif self.idle_at_stops:
+			
 				# Idle anime a l'arret (mode du pretre de la chapelle)
-				self._set_animation(self.idle_animation)
+				self._set_animation(self._get_idle_animation())
 			else:
 				# Ancien comportement (healer/merchant de House) :
 				# pose de marche figee frame 0
@@ -816,7 +883,7 @@ class NPC:
 				self.current_frame = 0
 				frozen_pose = True
 		else:
-			self._set_animation(self.idle_animation)
+			self._set_animation(self._get_idle_animation())
 
 		if not frozen_pose:
 			self.frame_timer += 1
@@ -842,6 +909,21 @@ class NPC:
 		)
 
 		surface.blit(sprite, sprite_rect)
+
+		# Effet de sortilege DESSINE PAR-DESSUS le pretre (phase
+		# "effect" d'une messe) : superpose les frames de
+		# Priest_spell.png ancrees au-dessus de lui, sans jamais le
+		# remplacer.
+		if (self.messe_active and self.messe_phase == "effect"
+				and self.messe_spell_effect):
+			elapsed = len(self.messe_spell_effect) * 8 - self.messe_phase_timer
+			fx_index = max(0, min(len(self.messe_spell_effect) - 1, elapsed // 8))
+			fx = self.messe_spell_effect[fx_index]
+			fx_rect = fx.get_rect(
+				midbottom=(self.rect.midbottom[0],
+						   self.rect.midbottom[1] + self.messe_spell_effect_offset_y)
+			)
+			surface.blit(fx, fx_rect)
 class DynamiteProjectile:
 	"""
 	Gère une dynamite lancée : physique, rotation, clignotement, collision, explosion

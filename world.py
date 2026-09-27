@@ -3,7 +3,7 @@ import waves
 from classes import *
 from settings import *
 import random
-from animations import load_animation, load_animation_row
+from animations import load_animation, load_animation_row, load_animation_grid
 
 _debug_font = None
 
@@ -769,7 +769,13 @@ class ChapelInterior:
 		self.mon2k_idle = load_animation_row(mon2k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		self.mon4k_idle = load_animation_row(mon4k_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
 		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
-		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_left = load_animation_row(priest_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_right = load_animation_row(priest_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_up = load_animation_row(priest_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4)
+		self.priest_idle_animations = {
+			"down": self.priest_idle, "left": priest_idle_left,
+			"right": priest_idle_right, "up": priest_idle_up,
+		}
 
 		priest_walk_down = load_animation_row(priest_walk_sheet, 0, CHAPEL_DECOR_SCALE, 6, 4)
 		priest_walk_left = load_animation_row(priest_walk_sheet, 1, CHAPEL_DECOR_SCALE, 6, 4)
@@ -779,6 +785,37 @@ class ChapelInterior:
 			"down": priest_walk_down, "left": priest_walk_left,
 			"right": priest_walk_right, "up": priest_walk_up,
 		}
+		self.priest_idle = load_animation_row(priest_sheet, 0, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_left = load_animation_row(priest_sheet, 1, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_right = load_animation_row(priest_sheet, 2, CHAPEL_DECOR_SCALE, 12, 4)
+		priest_idle_up = load_animation_row(priest_sheet, 3, CHAPEL_DECOR_SCALE, 12, 4)
+		self.priest_idle_animations = {
+			"down": self.priest_idle, "left": priest_idle_left,
+			"right": priest_idle_right, "up": priest_idle_up,
+		}
+
+				# --- Animations de messe. Grilles reelles :
+		#   speech       : 192x96  -> 6 col x 2 rangées, cases 32x48 (12 frames)
+		#   making_spell : 192x144 -> 6 col x 3 rangées, cases 32x48 (18 frames)
+		#   spell        : 768x288 -> 6 col x 3 rangées, cases 128x96 (18 frames),
+		#                  lues ligne par ligne (gauche->droite puis rangée
+		#                  suivante) = ordre natif de load_animation_grid.
+		PRIEST_SPEECH_GRID = (6, 2)
+		PRIEST_MAKING_GRID = (6, 3)
+		PRIEST_SPELL_GRID = (6, 3)
+
+		def load_priest_sequence(path, grid):
+			cols, rows = grid
+			sheet = pygame.image.load(path).convert_alpha()
+			return load_animation_grid(sheet, CHAPEL_DECOR_SCALE, cols, rows,
+				frame_count=cols * rows)
+
+		self.priest_speech_anim = load_priest_sequence("Priest_speech.png", PRIEST_SPEECH_GRID)
+		# making_spell = LE PRETRE qui prepare le sort (remplace son
+		# sprite pendant l'incantation). spell = l'EFFET magique,
+		# dessine EN PLUS, par-dessus lui (il reste visible).
+		self.priest_cast_anim = load_priest_sequence("Priest_making_spell.png", PRIEST_MAKING_GRID)
+		self.priest_spell_effect_anim = load_priest_sequence("Priest_spell.png", PRIEST_SPELL_GRID)
 		
 		self.wall_panel = cut((51, 0, 26, 64))
 		self.wall_corner = cut((133, 128, 21, 63))
@@ -1077,7 +1114,15 @@ class ChapelInterior:
 			self.priest_walk_animations,
 			"priest",
 			sequential_stops=True,      # <-- AJOUT : parcours dans l'ordre (ping-pong)
-			idle_at_stops=True,         # <-- AJOUT : idle anime a l'arret (pas de pose figee)
+			idle_at_stops=True,
+			idle_animations=self.priest_idle_animations,
+			messe_index=9,               # arret autel
+			messe_speech=self.priest_speech_anim,
+			messe_spell=self.priest_cast_anim,
+			messe_spell_effect=self.priest_spell_effect_anim,
+			messe_spell_effect_offset_y=-100, 
+			messe_chance=0.5,
+			messe_extra_seconds=10,         
 			hitbox_offset_y=-60,
 			movement_points=priest_points,
 			stop_point_indices=[0, 2, 4, 9, 14, 16, 18],
@@ -1086,7 +1131,7 @@ class ChapelInterior:
 				9: "down",
 				14: "right", 16: "right", 18: "right",
 			},
-			speed=2,
+			speed=1.7,
 			stop_duration_min_seconds=5,
 			stop_duration_max_seconds=10,
 			stop_duration_overrides={
