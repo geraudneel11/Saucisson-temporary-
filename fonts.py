@@ -205,3 +205,43 @@ def draw_body_text(surface, text, x, y, max_width, font_dict, scale=1, visible_c
 		else:
 			line = test_line
 	draw_line(surface, line, x, y, scale, font_dict=font_dict)
+
+def draw_wrapped_text(surface, text, x, y, max_width, font_dict, scale=1, max_y=None):
+	"""
+	Comme draw_body_text, mais :
+	  - coupe aussi les mots plus longs qu'une ligne entière (caractère
+	    par caractère), ce que draw_body_text ne sait pas faire ;
+	  - s'arrête d'écrire dès qu'une ligne dépasserait 'max_y'
+	    (coordonnée écran), pour ne jamais déborder de la zone de texte.
+	"""
+	line_step = 8 * scale
+	lines = []
+	line = ""
+
+	for word in text.split(" "):
+		# Mot trop long pour une ligne : on le découpe en morceaux.
+		while get_text_width(word, scale, font_dict) > max_width:
+			cut = len(word)
+			while cut > 1 and get_text_width(word[:cut], scale, font_dict) > max_width:
+				cut -= 1
+			if line != "":
+				lines.append(line)
+				line = ""
+			lines.append(word[:cut])
+			word = word[cut:]
+
+		test_line = line + word + " "
+		if get_text_width(test_line, scale, font_dict) > max_width and line != "":
+			lines.append(line)
+			line = word + " "
+		else:
+			line = test_line
+
+	if line != "":
+		lines.append(line)
+
+	for text_line in lines:
+		if max_y is not None and y + line_step > max_y:
+			break
+		draw_line(surface, text_line, x, y, scale, font_dict=font_dict)
+		y += line_step

@@ -23,10 +23,11 @@ class Player:
 		self.current_animation = None
 		self.direction = "down"
 		self.invicible_timer = 0
-		self.coins = 0
+		self.coins = 1
 		self.selected_slot = 0
 		self.met_healer = False
 		self.met_merchant = False
+		self.met_librarian = False
 
 		self.knockback_x = 0
 		self.knockback_y = 0
@@ -1466,3 +1467,10 @@ class Rock:
         self.hitbox.midbottom = self.rect.midbottom
         self.hitbox.x += self.hitbox_offset_x
         self.hitbox.y += self.hitbox_offset_y
+
+class Book:
+
+	def __init__(self, title, pages):
+		self.title = title      # str
+		self.pages = pages      # liste de str, une par page
+		self.rect = None        # utilisé pour détecter le clic sur le titre

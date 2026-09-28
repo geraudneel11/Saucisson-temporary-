@@ -1,6 +1,6 @@
 
 
-import pygame
+import pygame 
 import random
 import math
 
@@ -38,10 +38,12 @@ import dialogues
 import healer
 import ui
 import merchant_1
+import librarian
 
 load_font()
 healer.load_healer_ui()
 merchant_1.load_merchant_ui()
+librarian.load_librarian_ui()
 
 speed = PLAYER_SPEED
 transition = True
@@ -58,6 +60,19 @@ current_npc = None
 awaiting_npc_arrival = None
 healer_state = "main"
 merchant_state = "main"
+librarian_state = "main"
+librarian_pay_rect = None
+librarian_retour_rect = None
+librarian_book_rects = []
+librarian_quit_rect = None
+librarian_back_rect = None
+librarian_left_arrow_rect = None
+librarian_right_arrow_rect = None
+current_librarian_book = None
+current_librarian_page = 0
+librarian_coin_timer = 0
+librarian_buy_animation_start_coins = 0
+librarian_buy_animation_target_coins = 0
 HEAL_ANIMATION_DURATION = 30
 BUY_COIN_ANIMATION_DURATION = 30
 POTION_ANIMATION_DURATION = 30
@@ -684,7 +699,63 @@ while run == True :
 	if not attacking and player.state != "hurt" and current_npc is None and awaiting_npc_arrival is None:
 		moving = player_system.movement(player, speed, walk_up, walk_down, walk_left, walk_right)
 
-		near_npc = npc_system.get_interactable_npc(player, npcs)
+		if game_state == "chapel":
+			interactable_npcs = [chapel_interior.monk_desk_npc]
+		else:
+			interactable_npcs = npcs
+
+		near_npc = npc_system.get_interactable_npc(player, interactable_npcs)
+
+		# Le NPC est arrivé face au joueur : on ouvre le dialogue seulement
+	# une fois le petit délai d'orientation écoulé. Générique, s'applique
+	# quel que soit le game_state (house, chapel...).
+	if (awaiting_npc_arrival is not None
+			and awaiting_npc_arrival.state == "talking"
+			and awaiting_npc_arrival.talk_delay_timer <= 0):
+		current_npc = awaiting_npc_arrival
+		awaiting_npc_arrival = None
+		dialogues.reset()
+		healer_state = "main"
+		merchant_state = "main"
+		librarian_state = "main"
+
+		if current_npc.type == "heal":
+			if not player.met_healer:
+				healer_text = random.choice(healer.healer_dialogues["first_meeting"])
+				dialogues.start_dialogue(healer_text)
+				player.met_healer = True
+			else:
+				hp_ratio = player.hp / player.max_hp
+				if hp_ratio > 0.99:
+					healer_text = random.choice(healer.healer_dialogues["healthy"])
+					dialogues.start_dialogue(healer_text)
+				elif hp_ratio < 0.25:
+					healer_text = random.choice(healer.healer_dialogues["critical"])
+					dialogues.start_dialogue(healer_text)
+				else:
+					healer_text = random.choice(healer.healer_dialogues["normal"])
+					dialogues.start_dialogue(healer_text)
+
+		elif current_npc.type == "merchant_1":
+			if not player.met_merchant:
+				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["first_meeting"])
+				dialogues.start_dialogue(merchant_1_text)
+				player.met_merchant = True
+			else:
+				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["normal"])
+				dialogues.start_dialogue(merchant_1_text)
+
+		elif current_npc.type == "monk_desk":
+			if player.coins < 1:
+				librarian_text = random.choice(librarian.librarian_dialogues["not_enough_gold"])
+				dialogues.start_dialogue(librarian_text)
+			elif not player.met_librarian:
+				librarian_text = random.choice(librarian.librarian_dialogues["first_meeting"])
+				dialogues.start_dialogue(librarian_text)
+				player.met_librarian = True
+			else:
+				librarian_text = random.choice(librarian.librarian_dialogues["normal"])
+				dialogues.start_dialogue(librarian_text)
 
 	if game_state == "house":
 		colliders.extend([
@@ -699,45 +770,6 @@ while run == True :
 			npc.update(colliders, player)
 
 		colliders.extend(npc.hitbox_for_players for npc in npcs)
-
-		# Le NPC est arrivé face au joueur : on ouvre le dialogue
-		# maintenant, pas au moment où E a été pressé.
-				# Le NPC est arrivé face au joueur : on ouvre le dialogue
-		# seulement une fois le petit délai d'orientation écoulé.
-		if (awaiting_npc_arrival is not None
-				and awaiting_npc_arrival.state == "talking"
-				and awaiting_npc_arrival.talk_delay_timer <= 0):
-			current_npc = awaiting_npc_arrival
-			awaiting_npc_arrival = None
-			dialogues.reset()
-			healer_state = "main"
-			merchant_state = "main"
-
-			if current_npc.type == "heal":
-				if not player.met_healer:
-					healer_text = random.choice(healer.healer_dialogues["first_meeting"])
-					dialogues.start_dialogue(healer_text)
-					player.met_healer = True
-				else:
-					hp_ratio = player.hp / player.max_hp
-					if hp_ratio > 0.99:
-						healer_text = random.choice(healer.healer_dialogues["healthy"])
-						dialogues.start_dialogue(healer_text)
-					elif hp_ratio < 0.25:
-						healer_text = random.choice(healer.healer_dialogues["critical"])
-						dialogues.start_dialogue(healer_text)
-					else:
-						healer_text = random.choice(healer.healer_dialogues["normal"])
-						dialogues.start_dialogue(healer_text)
-
-			elif current_npc.type == "merchant_1":
-				if not player.met_merchant:
-					merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["first_meeting"])
-					dialogues.start_dialogue(merchant_1_text)
-					player.met_merchant = True
-				else:
-					merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["normal"])
-					dialogues.start_dialogue(merchant_1_text)
 	elif game_state == "chapel":
 		player.clamp_to_map(chapel_interior.width, chapel_interior.height)
 		chapel_interior.update_altar()
@@ -1194,6 +1226,7 @@ while run == True :
 							current_npc = None
 							close_rect = None
 							healer_state = "main"
+							librarian_state = "main"
 
 					# Boutons de confirmation
 						elif healer_state in ("confirm", "heal_confirm"):
@@ -1216,6 +1249,48 @@ while run == True :
 								healer.previous_healer_state = healer_state
 								dialogues.reset()
 								healer_state = "main"
+
+					elif current_npc and current_npc.type == "monk_desk":
+
+						if librarian_state == "main":
+							if librarian_pay_rect and librarian_pay_rect.collidepoint(event.pos):
+								if player.coins >= 1:
+									librarian_buy_animation_start_coins = player.coins
+									librarian_buy_animation_target_coins = player.coins - 1
+									librarian_coin_timer = BUY_COIN_ANIMATION_DURATION
+									librarian_state = "books"
+									dialogues.reset()
+							elif librarian_retour_rect and librarian_retour_rect.collidepoint(event.pos):
+								current_npc.end_conversation()
+								current_npc = None
+								close_rect = None
+								librarian_state = "main"
+
+						elif librarian_state == "books":
+							clicked_book = False
+							for i, rect in enumerate(librarian_book_rects):
+								if rect.collidepoint(event.pos):
+									current_librarian_book = i
+									current_librarian_page = 0
+									librarian_state = "reading"
+									clicked_book = True
+									break
+							if not clicked_book and librarian_quit_rect and librarian_quit_rect.collidepoint(event.pos):
+								librarian_state = "goodbye"
+								goodbye_timer = pygame.time.get_ticks()
+								librarian_text = random.choice(librarian.librarian_dialogues["goodbye"])
+								dialogues.start_dialogue(librarian_text)
+
+						elif librarian_state == "reading":
+							if librarian_back_rect and librarian_back_rect.collidepoint(event.pos):
+								librarian_state = "books"
+							elif librarian_left_arrow_rect and librarian_left_arrow_rect.collidepoint(event.pos):
+								if current_librarian_page > 0:
+									current_librarian_page -= 1
+							elif librarian_right_arrow_rect and librarian_right_arrow_rect.collidepoint(event.pos):
+								book = librarian.librarian_books[current_librarian_book]
+								if current_librarian_page < len(book.pages) - 1:
+									current_librarian_page += 1
 					elif current_npc and current_npc.type == "merchant_1":
 						
 						if merchant_state == "main":
@@ -1571,6 +1646,23 @@ while run == True :
 		)
 		if merchant_coin_timer == 0:
 			player.coins = buy_animation_target_coins
+		
+
+	if librarian_coin_timer > 0:
+		librarian_coin_timer -= 1
+		progress = 1 - librarian_coin_timer / BUY_COIN_ANIMATION_DURATION
+		player.coins = int(
+			librarian_buy_animation_start_coins +
+			(librarian_buy_animation_target_coins - librarian_buy_animation_start_coins) * progress
+		)
+		if librarian_coin_timer == 0:
+			player.coins = librarian_buy_animation_target_coins
+
+	if librarian_state == "goodbye":
+		if pygame.time.get_ticks() - goodbye_timer > 1500:
+			librarian_state = "main"
+			current_npc = None
+			goodbye_timer = 0
 
 	if potion_heal_timer > 0:
 		potion_heal_timer -= 1
@@ -1748,6 +1840,8 @@ while run == True :
 			ui.draw_coins(screen, player)
 		if merchant_coin_timer > 0:
 			ui.draw_coins(screen, player)
+		if librarian_coin_timer > 0:
+			ui.draw_coins(screen, player)
 		if current_npc and current_npc.type == "heal":
 		
 			missing_hp = player.max_hp - player.hp
@@ -1761,6 +1855,12 @@ while run == True :
 		merchant_1.button_on,
 		merchant_1.button_on2
 	)
+		elif current_npc and current_npc.type == "monk_desk":
+			(close_rect, librarian_pay_rect, librarian_retour_rect, librarian_book_rects,
+			 librarian_quit_rect, librarian_back_rect, librarian_left_arrow_rect,
+			 librarian_right_arrow_rect) = librarian.draw_librarian_ui(
+				screen, player, UI_SCALE, librarian_state, current_librarian_book, current_librarian_page
+			)
 	if transition == False and current_npc == None:
 		overlay_presence = False
 	pygame.display.update()
