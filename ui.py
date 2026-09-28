@@ -4,6 +4,7 @@ import random
 from classes import Player
 from fonts import *
 import dialogues
+from settings import *
 
 pygame.init()
 
@@ -46,7 +47,25 @@ def draw_transition(screen, transition, current_level, current_wave, game_state)
 
 def draw_coins(screen, player):
     coin_text = coin_font.render(f"Pieces : {player.coins}", True, (255,230,0))
-    screen.blit(coin_text,(20,60))
+    screen.blit(coin_text,(20,84))
+
+def draw_xp_bar(screen, player):
+    # Barre d'xp : SOUS les PV, AU-DESSUS de l'or. Plus courte et
+    # plus fine que la barre de vie, bleue comme les orbes. Le
+    # compteur de niveau est affiche juste a droite de la barre.
+    ratio = max(0, min(1, player.xp / player.xp_required()))
+    pygame.draw.rect(screen, (30, 30, 45), (20, 56, XP_BAR_WIDTH, XP_BAR_HEIGHT))
+    pygame.draw.rect(screen, XP_ORB_COLOR, (20, 56, int(XP_BAR_WIDTH * ratio), XP_BAR_HEIGHT))
+    pygame.draw.rect(screen, (255, 255, 255), (20, 56, XP_BAR_WIDTH, XP_BAR_HEIGHT), 2)
+
+    level_text = coin_font.render(str(player.xp_level), True, (255, 255, 255))
+    screen.blit(level_text, (20 + XP_BAR_WIDTH + 12,
+        56 - (level_text.get_height() - XP_BAR_HEIGHT) // 2))
+
+def draw_player_level(screen, player):
+    # Compteur de niveau de personnage, sous le compteur de pieces
+    level_text = coin_font.render(f"Compétences : niv {player.level}", True, (170, 190, 255))
+    screen.blit(level_text, (20, 130))
 
 def draw_hotbar(screen, player):
     slot_size = 64

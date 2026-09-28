@@ -12,7 +12,7 @@ from animations import load_animation_column
 from animations import load_animation_grid
 from animations import split_frames_by_regions
 from settings import *
-from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile
+from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb
 import npc_system
 import waves
 import world
@@ -118,7 +118,7 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
-DEV_START_GAME_STATE = "chapel"
+DEV_START_GAME_STATE = "wave"
 game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
@@ -563,6 +563,7 @@ enemies = []
 for i in range(MONSTRES):
 	enemies.append(waves.spawn_enemy(orc_data))
 coins = []
+xp_orbs = []   # orbes d'xp lachees par les monstres
 colliders = []
 
 
@@ -1112,6 +1113,7 @@ while run == True :
 	for enemy in enemies[:]: 
 		if enemy.dead_finished: 
 			coins.append(Coin(enemy.rect.centerx, enemy.rect.centery, coins_animation))
+			xp_orbs.append(XpOrb(enemy.rect.centerx, enemy.rect.centery))
 			enemies.remove(enemy)
 
 	if game_state == "wave" and len(enemies) == 0:
@@ -1145,6 +1147,10 @@ while run == True :
 			for coin in coins[:]:
 				coin.auto_collect = False
 			coins.clear()
+						# L'xp restante en vol est creditee directement (jamais perdue)
+		for orb in xp_orbs[:]:
+			player.gain_xp(orb.value)
+			xp_orbs.remove(orb)
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
@@ -1563,6 +1569,14 @@ while run == True :
 				coins.remove(coin)
 
 		coin.draw(game_surface)
+
+	for orb in xp_orbs[:]:
+		orb.update(player)
+		if player.hitbox.colliderect(orb.rect):
+			player.gain_xp(orb.value)
+			xp_orbs.remove(orb)
+		orb.draw(game_surface)
+	
 	
 	# Dessiner les projectiles (dynamites)
 	if projectiles:
@@ -1885,6 +1899,8 @@ while run == True :
 	ui.draw_level(screen, current_level, current_wave, game_state)
 	ui.draw_hotbar(screen, player)
 	ui.draw_portal_indicator(screen,portal_rect, camera_x, camera_y, game_state)
+	ui.draw_xp_bar(screen, player)
+	ui.draw_player_level(screen, player)
 	#for x, y, sprite in town_trees:
 		#screen.blit(sprite[0], (x - camera_x, y - camera_y))
 	ui.draw_transition(screen, transition, current_level, current_wave, game_state)

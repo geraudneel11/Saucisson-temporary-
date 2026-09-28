@@ -307,3 +307,20 @@ CHAPEL_WALL_HITBOX_OVERRIDES = {
     7: {"offset_x": 0, "offset_y": -130}
 }
 ALTAR_INTERACT_DISTANCE = 60         # distance d'interaction avec l'autel (autour de sa hitbox) pour ouvrir le menu avec E
+
+# --- Systeme d'XP (orbes, barre, niveaux) ---
+XP_LEVEL_BASE = 100               # xp requise pour passer du niveau 0 au niveau 1
+XP_LEVEL_STEP = 20                # xp en plus par niveau (progression lineaire
+                                  # parallele a celle du nombre de monstres :
+                                  # +6/niveau dans waves.monsters_for_wave)
+XP_ORB_VALUE = 10                 # xp lachee par monstre tue (1 orbe moyenne)
+XP_ORB_RADIUS_BIG = 10            # orbe de 10 xp (petite boule)
+XP_ORB_RADIUS_SMALL = 5           # orbe de 1 xp (tres petite boule)
+XP_ORB_MAGNET_SPEED = 11           # vitesse d'attraction vers le joueur
+XP_ORB_SCATTER_SPEED = 3          # petite dispersion a l'apparition, amortie
+XP_ORB_PULSE_FRAMES = 30          # duree d'une pulsation (~2 Hz a 60 FPS)
+XP_ORB_ALPHA_MIN = 145            # opacite minimale du clignotement
+XP_ORB_COLOR = (25, 55, 190)      # bleu fonce des orbes et de la barre
+XP_ORB_COLOR_LIGHT = (110, 150, 255)  # coeur clair de l'orbe
+XP_BAR_WIDTH = 240                # plus courte que la barre de vie (300)
+XP_BAR_HEIGHT = 14                # plus fine que la barre de vie (30)

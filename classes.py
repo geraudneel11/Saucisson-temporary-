@@ -49,6 +49,24 @@ class Player:
     	{"item": None, "quantity": 0},
 		]
 
+		self.xp = 0
+		self.level = 0           # niveau de personnage / competences (fige a 0 pour l'instant)
+		self.xp_level = 0        # niveau donne par la barre d'xp (sans lien avec level)
+
+	def gain_xp(self, amount):
+		# Ajoute de l'xp et fait monter le NIVEAU D'XP (xp_level) :
+		# barre remplie -> retour a zero, niveau suivant (le surplus
+		# est conserve). Sans lien avec self.level (competences).
+		self.xp += amount
+		while self.xp >= self.xp_required():
+			self.xp -= self.xp_required()
+			self.xp_level += 1
+
+	def xp_required(self):
+		# Cout du prochain niveau d'xp : progression lineaire parallele
+		# a celle du nombre de monstres (cf. waves.monsters_for_wave).
+		return XP_LEVEL_BASE + XP_LEVEL_STEP * self.xp_level
+
 	def update_hitbox(self):
 		self.hitbox.center = self.rect.center
 
@@ -1474,3 +1492,47 @@ class Book:
 		self.title = title      # str
 		self.pages = pages      # liste de str, une par page
 		self.rect = None        # utilisé pour détecter le clic sur le titre
+
+class XpOrb:
+
+	# Boule d'xp bleu fonce qui clignote (pulsation douce) et vole
+	# IMMEDIATEMENT vers le joueur. value = xp rendue a la collecte :
+	# XP_ORB_VALUE (10) -> petite boule, 1 -> tres petite boule.
+	def __init__(self, x, y, value=XP_ORB_VALUE):
+		self.value = value
+		self.radius = XP_ORB_RADIUS_BIG if value >= 10 else XP_ORB_RADIUS_SMALL
+		self.rect = pygame.Rect(0, 0, self.radius * 2, self.radius * 2)
+		self.rect.center = (x, y)
+		self.pulse_timer = random.randint(0, XP_ORB_PULSE_FRAMES - 1)
+		# Legere dispersion a l'apparition (facon Minecraft), amortie
+		angle = random.uniform(0, math.tau)
+		speed = random.uniform(1.0, XP_ORB_SCATTER_SPEED)
+		self.vx = math.cos(angle) * speed
+		self.vy = math.sin(angle) * speed
+		# Sprite pre-calcule : disque bleu fonce + coeur clair
+		d = self.radius * 2
+		self.sprite = pygame.Surface((d, d), pygame.SRCALPHA)
+		pygame.draw.circle(self.sprite, XP_ORB_COLOR, (self.radius, self.radius), self.radius)
+		pygame.draw.circle(self.sprite, XP_ORB_COLOR_LIGHT,
+			(self.radius - self.radius // 3, self.radius - self.radius // 3),
+			max(1, self.radius // 3))
+
+	def update(self, player):
+		# Dispersion amortie puis attraction IMMEDIATE vers le joueur
+		self.rect.x += self.vx
+		self.rect.y += self.vy
+		self.vx *= 0.9
+		self.vy *= 0.9
+		dx = player.rect.centerx - self.rect.centerx
+		dy = player.rect.centery - self.rect.centery
+		distance = max(1, math.hypot(dx, dy))
+		self.rect.x += dx / distance * XP_ORB_MAGNET_SPEED
+		self.rect.y += dy / distance * XP_ORB_MAGNET_SPEED
+		self.pulse_timer = (self.pulse_timer + 1) % XP_ORB_PULSE_FRAMES
+
+	def draw(self, surface):
+		# Pulsation douce : l'opacite oscille sans jamais disparaitre
+		phase = math.sin(2 * math.pi * self.pulse_timer / XP_ORB_PULSE_FRAMES)
+		alpha = int(XP_ORB_ALPHA_MIN + (255 - XP_ORB_ALPHA_MIN) * (0.5 + 0.5 * phase))
+		self.sprite.set_alpha(alpha)
+		surface.blit(self.sprite, self.rect)
