@@ -39,11 +39,13 @@ import healer
 import ui
 import merchant_1
 import librarian
+import divinity
 
 load_font()
 healer.load_healer_ui()
 merchant_1.load_merchant_ui()
 librarian.load_librarian_ui()
+divinity.load_divinity_ui()
 
 speed = PLAYER_SPEED
 transition = True
@@ -73,6 +75,12 @@ current_librarian_page = 0
 librarian_coin_timer = 0
 librarian_buy_animation_start_coins = 0
 librarian_buy_animation_target_coins = 0
+divinity_state = "main"
+divinity_page = 0
+divinity_skill_rects = []
+divinity_quit_rect = None
+divinity_left_arrow_rect = None
+divinity_right_arrow_rect = None
 HEAL_ANIMATION_DURATION = 30
 BUY_COIN_ANIMATION_DURATION = 30
 POTION_ANIMATION_DURATION = 30
@@ -457,6 +465,16 @@ priest_npc = NPC(
 	stop_duration_max_seconds=8
 )
 outdoor_npcs = [priest_npc]
+
+# Fausse cible d'interaction pour l'autel : un "NPC" qui n'est
+# ni dessine ni mis a jour ; il sert seulement de handle pour
+# current_npc afin de reutiliser tout le pipeline des menus
+# (overlay, croix de fermeture, greetings).
+divinity_npc = NPC(
+	0, 0, None, None,
+	"divinity",
+	movement_points=[],
+)
 
 # Pré-simulation : fait "vivre" les NPC avant même que le joueur ait
 # ouvert la porte de la maison, pour qu'ils soient déjà en mouvement,
@@ -1291,6 +1309,33 @@ while run == True :
 								book = librarian.librarian_books[current_librarian_book]
 								if current_librarian_page < len(book.pages) - 1:
 									current_librarian_page += 1
+
+					elif current_npc and current_npc.type == "divinity":
+
+						if divinity_state == "main":
+							if divinity_quit_rect and divinity_quit_rect.collidepoint(event.pos):
+								divinity_state = "goodbye"
+								goodbye_timer = pygame.time.get_ticks()
+								divinity_text = random.choice(divinity.divinity_dialogues["goodbye"])
+								dialogues.start_dialogue(divinity_text)
+							elif divinity_left_arrow_rect and divinity_left_arrow_rect.collidepoint(event.pos):
+								if divinity_page > 0:
+									divinity_page -= 1
+							elif divinity_right_arrow_rect and divinity_right_arrow_rect.collidepoint(event.pos):
+								if divinity_page < divinity.divinity_max_pages - 1:
+									divinity_page += 1
+							else:
+								for i, rect in enumerate(divinity_skill_rects):
+									if rect.collidepoint(event.pos):
+										# Clic VOLONTAIREMENT sans effet :
+										# seule la zone repond au survol.
+										# Ta mecanique d'achat se branchera
+										# ici. La competence cliquee est :
+										#   divinity.divinity_skills[
+										#       divinity_page
+										#       * divinity.SKILLS_PER_PAGE + i]
+										break
+					
 					elif current_npc and current_npc.type == "merchant_1":
 						
 						if merchant_state == "main":
@@ -1424,6 +1469,7 @@ while run == True :
 						close_rect = None
 						healer_state = "main"
 						merchant_state = "main"
+						divinity_state = "main"
 						heal_offer = None
 				elif near_npc and awaiting_npc_arrival is None:
 					# On ne lance plus le dialogue tout de suite : le NPC
@@ -1431,7 +1477,17 @@ while run == True :
 					near_npc.begin_conversation(player)
 					awaiting_npc_arrival = near_npc
 				else: 
-
+					if game_state == "chapel" and player.hitbox.colliderect(chapel_interior.altar_interaction_rect):
+						# Interaction avec l'autel : ouverture directe
+						# du menu de la divinite (pas d'approche, l'autel
+						# ne se deplace pas). Le titre affiche
+						# "DIVINITE" et non un nom de PNJ.
+						current_npc = divinity_npc
+						divinity_state = "main"
+						divinity_page = 0
+						dialogues.reset()
+						divinity_text = random.choice(divinity.divinity_dialogues["greetings"])
+						dialogues.start_dialogue(divinity_text)
 					if game_state == "shop":
 
 						if player.hitbox.colliderect(house.door_hitbox):
@@ -1664,6 +1720,12 @@ while run == True :
 			current_npc = None
 			goodbye_timer = 0
 
+	if divinity_state == "goodbye":
+		if pygame.time.get_ticks() - goodbye_timer > 1500:
+			divinity_state = "main"
+			current_npc = None
+			goodbye_timer = 0
+
 	if potion_heal_timer > 0:
 		potion_heal_timer -= 1
 		progress = (POTION_ANIMATION_DURATION - potion_heal_timer) / POTION_ANIMATION_DURATION
@@ -1860,6 +1922,11 @@ while run == True :
 			 librarian_quit_rect, librarian_back_rect, librarian_left_arrow_rect,
 			 librarian_right_arrow_rect) = librarian.draw_librarian_ui(
 				screen, player, UI_SCALE, librarian_state, current_librarian_book, current_librarian_page
+			)
+		elif current_npc and current_npc.type == "divinity":
+			(close_rect, divinity_skill_rects, divinity_quit_rect,
+			 divinity_left_arrow_rect, divinity_right_arrow_rect) = divinity.draw_divinity_ui(
+				screen, player, UI_SCALE, divinity_state, divinity_page
 			)
 	if transition == False and current_npc == None:
 		overlay_presence = False

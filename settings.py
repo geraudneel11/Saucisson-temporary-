@@ -306,3 +306,4 @@ CHAPEL_WALL_HITBOX_OVERRIDES = {
     6: {"offset_x": 0, "offset_y": -130},
     7: {"offset_x": 0, "offset_y": -130}
 }
+ALTAR_INTERACT_DISTANCE = 60         # distance d'interaction avec l'autel (autour de sa hitbox) pour ouvrir le menu avec E

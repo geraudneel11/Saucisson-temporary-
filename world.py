@@ -997,6 +997,13 @@ class ChapelInterior:
 		self.altar_rect = pygame.Rect(0, 0, altar_w, altar_h)
 		self.altar_rect.midbottom = (self.entrance_rect.centerx, 550)
 
+				# Zone d'interaction avec l'autel (menu de la divinite) :
+		# un rect elargi autour de l'autel ; le joueur ouvre le menu
+		# avec E quand sa hitbox touche cette zone.
+		self.altar_interaction_rect = self.altar_rect.inflate(
+			ALTAR_INTERACT_DISTANCE * 2, ALTAR_INTERACT_DISTANCE * 2
+		)
+
 		Candelabra_sheet = pygame.image.load("Candelabra.png").convert_alpha()
 		self.candelabra_frames = load_animation(Candelabra_sheet, decor_scale, 3)
 		self.candelabra_frame = 0
