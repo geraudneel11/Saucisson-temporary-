@@ -70,10 +70,10 @@ class Player:
 
 	def xp_required(self):
 		# Cout du prochain niveau d'xp : base sur le RECORD (plus haut
-		# niveau jamais atteint). Depenser un niveau ne fait donc jamais
-		# baisser le prix : apres avoir atteint le niv 1 (100xp) et
-		# depense, il faut toujours 120xp pour recuperer le niv 1.
-		return XP_LEVEL_BASE + XP_LEVEL_STEP * self.xp_record
+		# niveau jamais atteint), croissance GEOMETRIQUE : chaque niveau
+		# coute base x croissance^niveau (100, 130, 169, 220, 286...).
+		# Depenser un niveau ne fait jamais baisser le prix.
+		return max(1, round(XP_LEVEL_BASE * XP_LEVEL_GROWTH ** self.xp_record))
 
 	def spend_xp_levels(self, amount):
 		# Depense des NIVEAUX d'xp (monnaie des competences pv/force).

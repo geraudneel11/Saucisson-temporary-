@@ -310,7 +310,7 @@ ALTAR_INTERACT_DISTANCE = 60         # distance d'interaction avec l'autel (auto
 
 # --- Systeme d'XP (orbes, barre, niveaux) ---
 XP_LEVEL_BASE = 100               # xp requise pour passer du niveau 0 au niveau 1
-XP_LEVEL_STEP = 20                # xp en plus par niveau (progression lineaire
+XP_LEVEL_GROWTH = 1.30               # cout du niveau suivant = base x croissance^niveau               # xp en plus par niveau (progression lineaire
                                   # parallele a celle du nombre de monstres :
                                   # +6/niveau dans waves.monsters_for_wave)
 XP_ORB_VALUE = 10                 # xp lachee par monstre tue (1 orbe moyenne)

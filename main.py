@@ -1365,7 +1365,7 @@ while run == True :
 											dialogues.reset()
 											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
 											dialogues.start_dialogue(divinity_text)
-									break
+								break
 					
 					elif current_npc and current_npc.type == "merchant_1":
 						
