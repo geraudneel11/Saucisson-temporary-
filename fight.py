@@ -39,7 +39,7 @@ def resolve_player_attack(player, enemies, attacking, attack_done, attack_hitbox
     for enemy in targets[:max_targets]:
         if enemy.dead:
             continue
-        enemy.take_damage(int(player.base_damage * player.damage_multiplier), player)
+        enemy.take_damage(int(player.base_damage * player.damage_multiplier * player.strength_factor()), player)
         enemy.hit_this_attack = True
         if enemy.dead:
             killed_this_attack.append(enemy)

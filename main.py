@@ -1,5 +1,3 @@
-
-
 import pygame 
 import random
 import math
@@ -81,6 +79,7 @@ divinity_skill_rects = []
 divinity_quit_rect = None
 divinity_left_arrow_rect = None
 divinity_right_arrow_rect = None
+divinity_purchase = None   # achat en cours : {skill, old_level, phase, timer}
 HEAL_ANIMATION_DURATION = 30
 BUY_COIN_ANIMATION_DURATION = 30
 POTION_ANIMATION_DURATION = 30
@@ -1333,14 +1332,40 @@ while run == True :
 							else:
 								for i, rect in enumerate(divinity_skill_rects):
 									if rect.collidepoint(event.pos):
-										# Clic VOLONTAIREMENT sans effet :
-										# seule la zone repond au survol.
-										# Ta mecanique d'achat se branchera
-										# ici. La competence cliquee est :
-										#   divinity.divinity_skills[
-										#       divinity_page
-										#       * divinity.SKILLS_PER_PAGE + i]
-										break
+										# Achat de la competence cliquee (si les
+										# moyens sont la) : stats appliquees
+										# immediatement, puis effet spell
+										# au-dessus de l'autel et banniere.
+										skill = divinity.divinity_skills[
+											divinity_page
+											* divinity.SKILLS_PER_PAGE + i]
+										# --- DEBUG (a retirer quand ça marche) ---
+										print(f"[DIVINITE] clic {skill['key']} | "
+											f"cout {skill['cost_kind']}:{skill['cost_value']} | "
+											f"xp_level={player.xp_level} xp_barre={player.xp} | "
+											f"moyens={divinity.can_afford(player, skill)} | "
+											f"etat={divinity_state}")
+										# -----------------------------------------
+										if (divinity_purchase is None
+												and divinity.can_afford(player, skill)):
+											result = divinity.purchase(player, skill)
+											if result:
+												old_level, _new_level = result
+												divinity_state = "purchase"
+												priest = chapel_interior.priest_npc
+												if (priest.messe_active
+														and priest.messe_phase == "effect"):
+													divinity_purchase = {"skill": skill, "old_level": old_level, "phase": "wait_spell", "timer": 0}
+												else:
+													divinity_purchase = {"skill": skill, "old_level": old_level, "phase": "spell", "timer": len(chapel_interior.priest_spell_effect_anim) * SKILL_SPELL_FRAME_TIME}
+										elif divinity_purchase is None:
+											# Refus (pas assez de niveaux d'xp) : on ne
+											# laisse jamais un clic etre mort, le menu
+											# affiche la raison comme un dialogue.
+											dialogues.reset()
+											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
+											dialogues.start_dialogue(divinity_text)
+									break
 					
 					elif current_npc and current_npc.type == "merchant_1":
 						
@@ -1465,7 +1490,7 @@ while run == True :
 		if event.type == pygame.KEYDOWN:
 
 			if event.key == pygame.K_e:
-				if current_npc:
+				if current_npc and divinity_purchase is None:
 					
 					if not dialogues.dialogue_finished:
 						dialogues.skip_dialogue()
@@ -1483,7 +1508,9 @@ while run == True :
 					near_npc.begin_conversation(player)
 					awaiting_npc_arrival = near_npc
 				else: 
-					if game_state == "chapel" and player.hitbox.colliderect(chapel_interior.altar_interaction_rect):
+					if (game_state == "chapel"
+							and divinity_purchase is None
+							and player.hitbox.colliderect(chapel_interior.altar_interaction_rect)):
 						# Interaction avec l'autel : ouverture directe
 						# du menu de la divinite (pas d'approche, l'autel
 						# ne se deplace pas). Le titre affiche
@@ -1603,6 +1630,19 @@ while run == True :
 				player_system.draw_player(house.interior_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 			elif game_state == "chapel":
 				player_system.draw_player(chapel_interior.interior_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
+				if divinity_purchase and divinity_purchase["phase"] == "spell":
+					# Effet de sortilege de l'achat, au-dessus de l'autel
+					# (meme rendu que l'effet de messe, sans lien avec elle)
+					fx_anim = chapel_interior.priest_spell_effect_anim
+					if fx_anim:
+						elapsed = len(fx_anim) * SKILL_SPELL_FRAME_TIME - divinity_purchase["timer"]
+						fx_index = max(0, min(len(fx_anim) - 1, elapsed // SKILL_SPELL_FRAME_TIME))
+						fx = fx_anim[fx_index]
+						fx_rect = fx.get_rect(midbottom=(
+							chapel_interior.altar_rect.centerx,
+							chapel_interior.altar_rect.top - SKILL_SPELL_ALTAR_OFFSET_Y
+						))
+						chapel_interior.interior_surface.blit(fx, fx_rect)
 			else:
 				player_system.draw_player(game_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 
@@ -1733,12 +1773,30 @@ while run == True :
 			librarian_state = "main"
 			current_npc = None
 			goodbye_timer = 0
-
-	if divinity_state == "goodbye":
-		if pygame.time.get_ticks() - goodbye_timer > 1500:
-			divinity_state = "main"
-			current_npc = None
-			goodbye_timer = 0
+	if divinity_purchase:
+		if divinity_purchase["phase"] == "wait_spell":
+			# La messe joue son effet : on attend qu'elle ait fini
+			priest = chapel_interior.priest_npc
+			if not (priest.messe_active and priest.messe_phase == "effect"):
+				divinity_purchase["phase"] = "spell"
+				divinity_purchase["timer"] = len(chapel_interior.priest_spell_effect_anim) * SKILL_SPELL_FRAME_TIME
+		elif divinity_purchase["phase"] == "spell":
+			divinity_purchase["timer"] -= 1
+			if divinity_purchase["timer"] <= 0:
+				divinity_purchase["phase"] = "banner_x"
+				divinity_purchase["timer"] = SKILL_BANNER_FRAMES
+		elif divinity_purchase["phase"] == "banner_x":
+			# L'ancien niveau s'affiche puis disparaît
+			divinity_purchase["timer"] -= 1
+			if divinity_purchase["timer"] <= 0:
+				divinity_purchase["phase"] = "banner_y"
+				divinity_purchase["timer"] = SKILL_BANNER_FRAMES
+		elif divinity_purchase["phase"] == "banner_y":
+			# Le nouveau niveau apparaît, puis le menu se reaffiche
+			divinity_purchase["timer"] -= 1
+			if divinity_purchase["timer"] <= 0:
+				divinity_purchase = None
+				divinity_state = "main"
 
 	if potion_heal_timer > 0:
 		potion_heal_timer -= 1
@@ -1856,13 +1914,13 @@ while run == True :
 		overlay_presence = False
 		screen.blit(game_surface, (-camera_x, -camera_y))
 
+		# Slots dynamiques : un rect de plus a chaque competence "Slots" achetee
 	inventory_slot_rects = [
-	pygame.Rect(15, screen.get_height()-86, 64, 64),
-	pygame.Rect(87, screen.get_height()-86, 64, 64),
-	pygame.Rect(159, screen.get_height()-86, 64, 64)
-]
+	pygame.Rect(15 + i * 72, screen.get_height()-86, 64, 64)
+	for i in range(len(player.inventory))
+	]
 	for i, rect in enumerate(inventory_slot_rects):
-
+	
 		slot = player.inventory[i]
 		item = slot["item"]
 
@@ -1939,11 +1997,25 @@ while run == True :
 			 librarian_right_arrow_rect) = librarian.draw_librarian_ui(
 				screen, player, UI_SCALE, librarian_state, current_librarian_book, current_librarian_page
 			)
-		elif current_npc and current_npc.type == "divinity":
+		elif current_npc and current_npc.type == "divinity" and divinity_state != "purchase":
 			(close_rect, divinity_skill_rects, divinity_quit_rect,
 			 divinity_left_arrow_rect, divinity_right_arrow_rect) = divinity.draw_divinity_ui(
 				screen, player, UI_SCALE, divinity_state, divinity_page
 			)
+	if divinity_purchase and divinity_purchase["phase"] in ("banner_x", "banner_y"):
+		# Grande annonce, comme les changements de niveau :
+		# "{competence} : niveau x" (disparition) puis "niveau y".
+		overlay = pygame.Surface((screen.get_width(), screen.get_height()))
+		overlay.set_alpha(150)
+		overlay.fill((0, 0, 0))
+		screen.blit(overlay, (0, 0))
+		skill = divinity_purchase["skill"]
+		if divinity_purchase["phase"] == "banner_x":
+			shown_level = divinity_purchase["old_level"]
+		else:
+			shown_level = player.skill_levels[skill["key"]]
+		banner_text = ui.font.render(f"{skill['name']} : niveau {shown_level}", True, (255, 255, 255))
+		screen.blit(banner_text, (screen.get_width() // 2 - banner_text.get_width() // 2, 250))
 	if transition == False and current_npc == None:
 		overlay_presence = False
 	pygame.display.update()

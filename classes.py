@@ -53,6 +53,10 @@ class Player:
 		self.level = 0           # niveau de personnage / competences (fige a 0 pour l'instant)
 		self.xp_level = 0        # niveau donne par la barre d'xp (sans lien avec level)
 
+		self.xp_record = 0       # plus haut niveau d'xp jamais atteint (base du cout)
+		self.skill_levels = {"max_hp": 0, "strength": 0, "slot_capacity": 0, "slot_count": 0}
+		self.inventory_slots = 3    # slots de hotbar (etendus par la competence Slots)
+
 	def gain_xp(self, amount):
 		# Ajoute de l'xp et fait monter le NIVEAU D'XP (xp_level) :
 		# barre remplie -> retour a zero, niveau suivant (le surplus
@@ -61,11 +65,45 @@ class Player:
 		while self.xp >= self.xp_required():
 			self.xp -= self.xp_required()
 			self.xp_level += 1
+			if self.xp_level > self.xp_record:
+				self.xp_record = self.xp_level
 
 	def xp_required(self):
-		# Cout du prochain niveau d'xp : progression lineaire parallele
-		# a celle du nombre de monstres (cf. waves.monsters_for_wave).
-		return XP_LEVEL_BASE + XP_LEVEL_STEP * self.xp_level
+		# Cout du prochain niveau d'xp : base sur le RECORD (plus haut
+		# niveau jamais atteint). Depenser un niveau ne fait donc jamais
+		# baisser le prix : apres avoir atteint le niv 1 (100xp) et
+		# depense, il faut toujours 120xp pour recuperer le niv 1.
+		return XP_LEVEL_BASE + XP_LEVEL_STEP * self.xp_record
+
+	def spend_xp_levels(self, amount):
+		# Depense des NIVEAUX d'xp (monnaie des competences pv/force).
+		if self.xp_level >= amount:
+			self.xp_level -= amount
+			return True
+		return False
+
+	def spend_xp_points(self, amount):
+		# Depense de l'xp brute de la barre (competences d'inventaire).
+		# Ne peut jamais entamer un niveau deja acquis.
+		if self.xp >= amount:
+			self.xp -= amount
+			return True
+		return False
+
+	def strength_factor(self):
+		# Degats x 1.15^niveau de force (compose).
+		return STRENGTH_DAMAGE_FACTOR ** self.skill_levels["strength"]
+
+	def item_max_per_slot(self):
+		# Pile max par slot : 16 de base, +2 par achat.
+		return ITEM_MAX_PER_SLOT_BASE + ITEM_MAX_PER_SLOT_STEP * self.skill_levels["slot_capacity"]
+
+	def recompute_max_hp(self):
+		# pv max = base + bonus permanents (competence PV max)
+		# + bonus temporaires (pomme doree).
+		self.max_hp = (self.base_max_hp
+			+ MAX_HP_SKILL_BONUS * self.skill_levels["max_hp"]
+			+ self.bonus_hp)
 
 	def update_hitbox(self):
 		self.hitbox.center = self.rect.center
@@ -95,7 +133,7 @@ class Player:
 			if self.bonus_hp > 0:
 				reduction = min(self.bonus_hp, damage)
 				self.bonus_hp -= reduction
-				self.max_hp = self.base_max_hp + self.bonus_hp
+				self.recompute_max_hp()
 				if self.hp > self.max_hp:
 					self.hp = self.max_hp
 
@@ -137,12 +175,19 @@ class Player:
 
 	def add_item_to_inventory(self, item):
 
+
+		# Pile max par slot (competence "Items par slot" du menu divinite)
+		max_stack = self.item_max_per_slot()
+
 	# Chercher une pile existante
 		for slot in self.inventory:
 
 			if slot["item"] is not None:
 
 				if slot["item"].name == item.name:
+
+					if slot["quantity"] >= max_stack:
+						continue
 
 					slot["quantity"] += 1
 					return True
@@ -1366,7 +1411,7 @@ class GoldenApple:
 
         bonus = int(player.base_max_hp * self.max_hp_bonus_percent)
         player.bonus_hp = bonus
-        player.max_hp = player.base_max_hp + player.bonus_hp
+        player.recompute_max_hp()
         player.hp = min(player.max_hp, player.hp + bonus)
 
 

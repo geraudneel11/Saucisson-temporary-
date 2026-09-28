@@ -8,12 +8,19 @@ from settings import *
 
 pygame.init()
 
+health_font = pygame.font.SysFont("Ebrima", 20, bold=True)
+
 def draw_health(screen, player):
     health_ratio = player.hp / player.max_hp
 
     pygame.draw.rect(screen, (255, 0, 0), (20, 20, 300, 30))
     pygame.draw.rect(screen, (0, 255, 50), (20, 20, 300 * health_ratio, 30))
     pygame.draw.rect(screen, (255, 255, 255), (20, 20, 300, 30), 3)
+        # pv / pv max affiches en blanc SUR la barre (vert ou rouge),
+    # sans changer sa taille. Fonction pour tous les soins
+    # (potion, pomme doree, healer) car tout passe par player.hp/max_hp.
+    hp_text = health_font.render(f"{int(player.hp)}/{int(player.max_hp)}", True, (255, 255, 255))
+    screen.blit(hp_text, (20 + (300 - hp_text.get_width()) // 2, 20 + (30 - hp_text.get_height()) // 2))
 
 def draw_level(screen, current_level, current_wave, game_state):
     level_text = font.render(f"Niveau {current_level}", True, (255, 255, 255))

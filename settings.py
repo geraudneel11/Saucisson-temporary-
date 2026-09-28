@@ -324,3 +324,14 @@ XP_ORB_COLOR = (25, 55, 190)      # bleu fonce des orbes et de la barre
 XP_ORB_COLOR_LIGHT = (110, 150, 255)  # coeur clair de l'orbe
 XP_BAR_WIDTH = 240                # plus courte que la barre de vie (300)
 XP_BAR_HEIGHT = 14                # plus fine que la barre de vie (30)
+
+# --- Competences (menu divinite, payees en niveaux d'xp / xp) ---
+SKILL_LEVEL_COST = 1               # niveaux d'xp par amelioration pv max / force
+SKILL_XP_COST = 10                 # xp brute par amelioration d'inventaire
+STRENGTH_DAMAGE_FACTOR = 1.15      # degats x 1.15^niveau de force (compose)
+MAX_HP_SKILL_BONUS = 10            # +10 pv max par achat
+ITEM_MAX_PER_SLOT_BASE = 16        # pile max de base par slot
+ITEM_MAX_PER_SLOT_STEP = 2         # +2 par achat d'items par slot
+SKILL_SPELL_FRAME_TIME = 8         # frames par image de l'effet spell (comme la messe)
+SKILL_SPELL_ALTAR_OFFSET_Y = 20    # hauteur de l'effet au-dessus du haut de l'autel
+SKILL_BANNER_FRAMES = 60           # frames d'affichage de chaque nombre (x puis y)

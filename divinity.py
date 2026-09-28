@@ -60,32 +60,32 @@ divinity_skills = [
 		"key": "max_hp",
 		"name": "PV max",
 		"description": "Points de vie maximum.",
-		"xp_cost": 50,
-		"level": 0,
+		"cost_kind": "level",
+		"cost_value": 1,
 		"value_per_level": 10,
 	},
 	{
 		"key": "strength",
 		"name": "Force",
 		"description": "Degats d'attaque.",
-		"xp_cost": 60,
-		"level": 0,
+		"cost_kind": "level",
+		"cost_value": 1,
 		"value_per_level": 2,
 	},
 	{
 		"key": "slot_capacity",
 		"name": "Items par slot",
 		"description": "Items max par slot.",
-		"xp_cost": 40,
-		"level": 0,
+		"cost_kind": "level",
+		"cost_value": 10,
 		"value_per_level": 1,
 	},
 	{
 		"key": "slot_count",
 		"name": "Slots",
 		"description": "Emplacements d'inventaire.",
-		"xp_cost": 80,
-		"level": 0,
+		"cost_kind": "level",
+		"cost_value": 10,
 		"value_per_level": 1,
 	},
 ]
@@ -97,7 +97,36 @@ SKILLS_PER_PAGE = 4
 # Nombre total de pages, recalcule automatiquement.
 divinity_max_pages = max(1, math.ceil(len(divinity_skills) / SKILLS_PER_PAGE))
 
+# --- Achat de competences -----------------------------------------
+# Les niveaux sont stockes chez le JOUEUR (player.skill_levels),
+# pas ici : ces fonctions verifient le cout, le deduisent, puis
+# appliquent l'effet.
+def can_afford(player, skill):
+	# "level" = niveaux d'xp (la monnaie), "xp" = xp brute de la barre.
+	if skill["cost_kind"] == "level":
+		return player.xp_level >= skill["cost_value"]
+	return player.xp >= skill["cost_value"]
 
+def purchase(player, skill):
+	# Deduit le cout, +1 au niveau de la competence et au compteur
+	# "Competences" (player.level), puis applique l'effet.
+	# Renvoie (ancien_niveau, nouveau_niveau) ou None si pas les moyens.
+	if not can_afford(player, skill):
+		return None
+	player.spend_xp_levels(skill["cost_value"])
+	old_level = player.skill_levels[skill["key"]]
+	player.skill_levels[skill["key"]] = old_level + 1
+	player.level += 1
+	if skill["key"] == "max_hp":
+		player.recompute_max_hp()       # +MAX_HP_SKILL_BONUS par niveau
+		# Le bonus est aussi AJOUTE aux pv actuels : 100/100 -> 110/110.
+		player.hp = min(player.max_hp, player.hp + MAX_HP_SKILL_BONUS)
+	elif skill["key"] == "slot_count":
+		player.inventory_slots += 1     # un nouveau carre de slot
+		player.inventory.append({"item": None, "quantity": 0})
+	# "strength" et "slot_capacity" sont lus en direct chez le joueur
+	# (strength_factor / item_max_per_slot) : rien a faire ici.
+	return old_level, old_level + 1
 def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 	"""
 	Dessine la fenetre de la divinite (interaction avec l'autel).
@@ -168,7 +197,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 			)
 			level_font = fonts.lettersC6 if rect.collidepoint(mouse_pos) else fonts.lettersC1
 			fonts.draw_body_text(
-				screen, f"Niv. {skill['level']}", rect.right - 125, rect.y,
+				screen, f"Niv. {player.skill_levels[skill['key']]}", rect.right - 125, rect.y,
 				125, level_font, max(1, ui_scale * 0.6)
 			)
 			# Description (une ligne) puis cout en XP.
@@ -176,7 +205,10 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 				screen, skill["description"], rect.x, rect.y + 38,
 				rect.width, classic_font, desc_scale
 			)
-			cost_label = f"Cout : {skill['xp_cost']} XP"
+			if skill["cost_kind"] == "level":
+				cost_label = f"Cout : {skill['cost_value']} niv"
+			else:
+				cost_label = f"Cout : {skill['cost_value']} XP"
 			fonts.draw_body_text(
 				screen, cost_label, rect.x, rect.bottom - 26,
 				rect.width, fonts.lettersC1, desc_scale
