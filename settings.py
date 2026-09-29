@@ -335,3 +335,18 @@ ITEM_MAX_PER_SLOT_STEP = 2         # +2 par achat d'items par slot
 SKILL_SPELL_FRAME_TIME = 8         # frames par image de l'effet spell (comme la messe)
 SKILL_SPELL_ALTAR_OFFSET_Y = 20    # hauteur de l'effet au-dessus du haut de l'autel
 SKILL_BANNER_FRAMES = 60           # frames d'affichage de chaque nombre (x puis y)
+
+# --- Niveaux des monstres ---------------------------------------
+MONSTER_MAX_LEVEL_RATIO = 0.25     # part de la vague au niveau courant
+MONSTER_ELITE_COUNT = 3            # monstres d'elite par vague
+MONSTER_ELITE_MIN_OFFSET = 3       # elite : niveau >= courant + 3
+MONSTER_ELITE_MAX_OFFSET = 25      # elite : niveau <= courant + 25
+MONSTER_HP_PER_LEVEL = 10          # + pv par niveau (base 20)
+MONSTER_DAMAGE_PER_LEVEL = 2       # + degats par niveau (base 5)
+MONSTER_COOLDOWN_PER_LEVEL = 5     # frames de cooldown en moins par niveau
+MONSTER_COOLDOWN_MIN = 50          # plancher du cooldown d'attaque
+MONSTER_SPEED_STEP_LEVELS = 5      # un palier de vitesse tous les 5 niveaux
+MONSTER_SPEED_FACTOR_PER_TIER = 1.10   # vitesse x1.10 par palier (base 4)
+MONSTER_ELITE_LABEL_COLOR = (255, 220, 0)  # couleur du label des elites
+MONSTER_BASE_XP = 10               # xp de base lachee par monstre
+MONSTER_XP_PER_LEVEL = 2           # +2 xp par niveau du monstre

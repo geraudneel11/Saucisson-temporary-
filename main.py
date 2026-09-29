@@ -1112,9 +1112,9 @@ while run == True :
 	for enemy in enemies[:]: 
 		if enemy.dead_finished: 
 			coins.append(Coin(enemy.rect.centerx, enemy.rect.centery, coins_animation))
-			xp_orbs.append(XpOrb(enemy.rect.centerx, enemy.rect.centery))
-			enemies.remove(enemy)
-
+						# L'xp lachee depend du niveau du monstre (10 + 2 x niveau)
+			xp_orbs.append(XpOrb(enemy.rect.centerx, enemy.rect.centery,
+				MONSTER_BASE_XP + MONSTER_XP_PER_LEVEL * enemy.level))
 	if game_state == "wave" and len(enemies) == 0:
 		coins_to_collect = min(5, len(coins))
 		for coin in coins[:coins_to_collect]:
@@ -1365,7 +1365,7 @@ while run == True :
 											dialogues.reset()
 											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
 											dialogues.start_dialogue(divinity_text)
-								break
+											break
 					
 					elif current_npc and current_npc.type == "merchant_1":
 						
@@ -1651,6 +1651,7 @@ while run == True :
 			sprite_rect = sprite.get_rect(midbottom=(entity.rect.centerx, entity.rect.bottom + ORC_SPRITE_OFFSET_Y))
 			game_surface.blit(sprite, sprite_rect)
 			entity.draw_health_bar(game_surface, sprite_rect)
+			entity.draw_level_label(game_surface, sprite_rect)
 		elif entity_type == "furniture":
 			sprite, rect = entity
 			house.interior_surface.blit(sprite, rect)

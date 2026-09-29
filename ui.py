@@ -81,7 +81,7 @@ def draw_hotbar(screen, player):
     start_x = 15
     y = screen.get_height()-74
 
-    for i in range(3):
+    for i in range(player.inventory_slots):
 
         if i == player.selected_slot:
             color = (255,255,0)

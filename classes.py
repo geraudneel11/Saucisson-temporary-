@@ -202,11 +202,13 @@ class Player:
 				return True
 
 		return False
+_monster_level_font = None   # font du label de niveau (creee a la demande)
+
 
 class Enemy:
 
 	@classmethod
-	def from_orc_data(cls, x, y, orc_data):
+	def from_orc_data(cls, x, y, orc_data, level=1):
 		return cls(
 			x,
 			y,
@@ -214,21 +216,31 @@ class Enemy:
 			orc_data["hurt"],
 			orc_data["death"],
 			orc_data["attack"],
-			orc_data["idle"]
+			orc_data["idle"],
+			level=level
 		)
 
-	def __init__(self, x, y, orc_animations, orc_hurt_animations, orc_death_animations, orc_attack_animations, orc_idle_animations):
+	def __init__(self, x, y, orc_animations, orc_hurt_animations, orc_death_animations, orc_attack_animations, orc_idle_animations, level=1):
 
 		self.rect = pygame.Rect(x, y, 64, 64)
 		self.hitbox = pygame.Rect(0, 0, 40, 40)
 		self.hitbox.center = self.rect.center
 
-		self.hp = 20
-		self.max_hp = 20
-		self.damage = 5
-
-		self.speedx = 4
-		self.speedy = 4
+				# --- Niveau du monstre : pv, degats, vitesse (par palier de 5),
+		# cooldown d'attaque. Les autres stats ne bougent pas.
+		self.level = max(1, int(level))
+		self.is_elite = False            # pose par waves.spawn_enemy
+		self.max_hp = 20 + MONSTER_HP_PER_LEVEL * (self.level - 1)
+		self.hp = self.max_hp
+		self.damage = 5 + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
+		_speed_tier = self.level // MONSTER_SPEED_STEP_LEVELS
+		_speed = 4 * (MONSTER_SPEED_FACTOR_PER_TIER ** _speed_tier)
+		self.speedx = _speed
+		self.speedy = _speed
+		self.base_attack_cooldown = max(
+			MONSTER_COOLDOWN_MIN,
+			120 - MONSTER_COOLDOWN_PER_LEVEL * (self.level - 1)
+		)
 		self.attack_range = 75
 		self.attack_cooldown = 0
 		self.attack_hit_done = False
@@ -263,13 +275,15 @@ class Enemy:
 		self.patrol_timer = 0
 		self.patrol_moving = False
 
+
+
 	def take_damage(self, damage, player):
 		if self.dead:
 			return
 
 		self.hp = max(self.hp - damage, 0)
 		self.health_bar_timer = 120
-		self.attack_cooldown = 120
+		self.attack_cooldown = self.base_attack_cooldown
 		self.state = "hurt"
 		self.current_frame = 0
 		self.frame_timer = 0
@@ -522,7 +536,7 @@ class Enemy:
 				self.current_frame = 0
 				if self.state == "attack":
 					self.state = "walk"
-					self.attack_cooldown = 120
+					self.attack_cooldown = self.base_attack_cooldown
 					self.attack_hit_done = False
 
 	def _update_cooldowns(self):
@@ -530,6 +544,20 @@ class Enemy:
 			self.attack_cooldown -= 1
 		if self.health_bar_timer > 0:
 			self.health_bar_timer -= 1
+
+	def draw_level_label(self, surface, sprite_rect):
+		# "Niv. X" au-dessus de l'emplacement de la barre de vie,
+		# meme quand celle-ci n'est pas affichee. Les elites ont un
+		# label d'une autre couleur (MONSTER_ELITE_LABEL_COLOR).
+		global _monster_level_font
+		if _monster_level_font is None:
+			_monster_level_font = pygame.font.SysFont("Ebrima", 14, bold=True)
+		color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
+		text = _monster_level_font.render(f"Niv. {self.level}", True, color)
+		label_rect = text.get_rect(midbottom=(sprite_rect.centerx, sprite_rect.top - 12))
+		surface.blit(text, label_rect)
+
+	
 
 class Coin:
 
