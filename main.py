@@ -1115,6 +1115,7 @@ while run == True :
 						# L'xp lachee depend du niveau du monstre (10 + 2 x niveau)
 			xp_orbs.append(XpOrb(enemy.rect.centerx, enemy.rect.centery,
 				MONSTER_BASE_XP + MONSTER_XP_PER_LEVEL * enemy.level))
+			enemies.remove(enemy)
 	if game_state == "wave" and len(enemies) == 0:
 		coins_to_collect = min(5, len(coins))
 		for coin in coins[:coins_to_collect]:

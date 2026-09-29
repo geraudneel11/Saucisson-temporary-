@@ -310,7 +310,7 @@ ALTAR_INTERACT_DISTANCE = 60         # distance d'interaction avec l'autel (auto
 
 # --- Systeme d'XP (orbes, barre, niveaux) ---
 XP_LEVEL_BASE = 100               # xp requise pour passer du niveau 0 au niveau 1
-XP_LEVEL_GROWTH = 1.30               # cout du niveau suivant = base x croissance^niveau               # xp en plus par niveau (progression lineaire
+XP_LEVEL_GROWTH = 3.0               # cout du niveau suivant = base x croissance^niveau               # xp en plus par niveau (progression lineaire
                                   # parallele a celle du nombre de monstres :
                                   # +6/niveau dans waves.monsters_for_wave)
 XP_ORB_VALUE = 10                 # xp lachee par monstre tue (1 orbe moyenne)
@@ -350,3 +350,8 @@ MONSTER_SPEED_FACTOR_PER_TIER = 1.10   # vitesse x1.10 par palier (base 4)
 MONSTER_ELITE_LABEL_COLOR = (255, 220, 0)  # couleur du label des elites
 MONSTER_BASE_XP = 10               # xp de base lachee par monstre
 MONSTER_XP_PER_LEVEL = 2           # +2 xp par niveau du monstre
+
+# --- Affichage du niveau des monstres ---------------------------
+MONSTER_LABEL_FONT_SIZE = 18       # taille du texte "Niv. X"
+MONSTER_LABEL_BELOW_BAR = True     # True : sous la barre de vie ; False : au-dessus du monstre
+MONSTER_LABEL_OFFSET_Y = 2         # ecart en px avec la barre de vie

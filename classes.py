@@ -203,6 +203,7 @@ class Player:
 
 		return False
 _monster_level_font = None   # font du label de niveau (creee a la demande)
+_monster_level_font_size = None   # taille pour laquelle la font a ete creee
 
 
 class Enemy:
@@ -546,15 +547,31 @@ class Enemy:
 			self.health_bar_timer -= 1
 
 	def draw_level_label(self, surface, sprite_rect):
-		# "Niv. X" au-dessus de l'emplacement de la barre de vie,
+		# "Niv. X" a cote de la barre de vie (au-dessus du monstre),
 		# meme quand celle-ci n'est pas affichee. Les elites ont un
 		# label d'une autre couleur (MONSTER_ELITE_LABEL_COLOR).
-		global _monster_level_font
-		if _monster_level_font is None:
-			_monster_level_font = pygame.font.SysFont("Ebrima", 14, bold=True)
+		# Taille, position (sous/au-dessus de la barre) et ecart se
+		# reglent dans settings.py (MONSTER_LABEL_*).
+		global _monster_level_font, _monster_level_font_size
+		if (_monster_level_font is None
+				or _monster_level_font_size != MONSTER_LABEL_FONT_SIZE):
+			_monster_level_font_size = MONSTER_LABEL_FONT_SIZE
+			_monster_level_font = pygame.font.SysFont(
+				"Ebrima", MONSTER_LABEL_FONT_SIZE, bold=True)
 		color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
 		text = _monster_level_font.render(f"Niv. {self.level}", True, color)
-		label_rect = text.get_rect(midbottom=(sprite_rect.centerx, sprite_rect.top - 12))
+		if MONSTER_LABEL_BELOW_BAR:
+			# Sous la barre de vie : la barre occupe top-10 -> top-4,
+			# le label commence juste en dessous (+ l'ecart reglable).
+			label_rect = text.get_rect(midtop=(
+				sprite_rect.centerx,
+				sprite_rect.top - 4 + MONSTER_LABEL_OFFSET_Y
+			))
+		else:
+			label_rect = text.get_rect(midbottom=(
+				sprite_rect.centerx,
+				sprite_rect.top - 12 - MONSTER_LABEL_OFFSET_Y
+			))
 		surface.blit(text, label_rect)
 
 	
