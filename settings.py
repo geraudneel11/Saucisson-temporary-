@@ -279,18 +279,18 @@ DYNAMITE_EXPLOSION_RADIUS = 200
 DYNAMITE_DAMAGE = 50
 DYNAMITE_QUANTITY = random.randint(1, 3)
 DYNAMITE_MAX_QUANTITY = 3
-DYNAMITE_THROW_RANGE = 300
-DYNAMITE_THROW_SPEED = 20
+DYNAMITE_THROW_RANGE = 600          # portée max du lancer (px) : la dynamite atterrit à la souris, bornée par cette valeur
+DYNAMITE_THROW_SPEED = 40           # vitesse de départ max (px/frame). Doit être >= portée x (1 - friction) + vitesse min
 DYNAMITE_SIZE = 12                  # taille du carré (en pixels)
 DYNAMITE_SCALE = 4                  # échelle de la dynamite
-DYNAMITE_EXPLOSION_DELAY = 60       # frames avant l'explosion après l'arrêt
-DYNAMITE_BOUNCE_MIN = 50            # rebond minimum en pixels
-DYNAMITE_BOUNCE_MAX = 100           # rebond maximum en pixels
+DYNAMITE_EXPLOSION_DELAY = 30       # frames avant l'explosion après l'arrêt
+#DYNAMITE_BOUNCE_MIN = 50            # rebond minimum en pixels
+#DYNAMITE_BOUNCE_MAX = 100           # rebond maximum en pixels
 DYNAMITE_TREE_HIT_APPLE_BOOST = 0.15  # augmente les chances de drop de pommes de 15%
 DYNAMITE_ROTATION_SPEED = 12        # degrés par frame pendant le lancer
 DYNAMITE_BLINK_SPEED = 15           # frames entre chaque clignotement avant explosion
 DYNAMITE_FRICTION = 0.94            # ralentissement par frame (proche de 1 = peu de frottement)
-DYNAMITE_GRAVITY = 0.5              # accélération vers le bas
+#DYNAMITE_GRAVITY = 0.5              # accélération vers le bas
 DYNAMITE_MIN_VELOCITY = 1.5         # vitesse minimale avant d'être considérée comme arrêtée
 DYNAMITE_PRICE = 15                 # prix chez le marchand
 CHAPEL_ENTRANCE_SIDEWALL1_LENGTH = 375   # longueur (en Y) sur laquelle wall_side se répète, part du bas d'entrance_rect vers le haut
@@ -355,3 +355,31 @@ MONSTER_XP_PER_LEVEL = 2           # +2 xp par niveau du monstre
 MONSTER_LABEL_FONT_SIZE = 18       # taille du texte "Niv. X"
 MONSTER_LABEL_BELOW_BAR = True     # True : sous la barre de vie ; False : au-dessus du monstre
 MONSTER_LABEL_OFFSET_Y = 2         # ecart en px avec la barre de vie
+
+
+# --- Dynamite : lancer, rebonds, explosion (ajouts) ---------------
+DYNAMITE_THROW_MIN_DISTANCE = 60      # distance mini d'atterrissage (souris collée au joueur)
+DYNAMITE_MAX_STEP = 8                 # px max par sous-étape de mouvement (évite de traverser les obstacles)
+DYNAMITE_WALL_BOUNCE_MIN = 0.45       # part de vitesse conservée après un rebond (arbre/rocher/bord), tirée entre MIN et MAX
+DYNAMITE_WALL_BOUNCE_MAX = 0.75
+DYNAMITE_BOUNCE_SCATTER_DEG = 25      # déviation aléatoire de la trajectoire après un rebond (+/- degrés)
+DYNAMITE_ENEMY_BOUNCE = 0.30          # part de vitesse conservée quand elle tape un monstre ("un peu" de rebond)
+DYNAMITE_ENEMY_BOUNCE_MIN_SPEED = 3   # vitesse mini après un choc avec un monstre (pour qu'on voie le rebond)
+DYNAMITE_EXPLOSION_DURATION = 24      # durée de l'effet visuel d'explosion (frames)
+DYNAMITE_PLAYER_DAMAGE_RATIO = 0.5    # dégâts subis par le joueur dans le souffle (0 = jamais, 1 = pleins dégâts)
+DEV_GIVE_DYNAMITE = True              # TEST : le joueur démarre avec 5 dynamites (passe à False ensuite)
+
+
+# --- Hitbox de collision DE LA DYNAMITE (niveau du sol) -----------
+# Les hitbox normales des arbres/rochers sont decalees vers le haut
+# (TREE_HITBOX_OFFSET_Y, ROCK_HITBOX_OFFSET_Y) pour le joueur et les
+# monstres. La dynamite roule AU SOL : elle utilise ces rects-ci,
+# ancres au bas du sprite (midbottom). Regle-les avec F1.
+#   width/height : taille en pixels (arbres)
+#   width_ratio/height_ratio : part de la taille du sprite (rochers)
+#   offset_x/offset_y : decalage (offset_y negatif = plus haut)
+DYNAMITE_TREE_HITBOX = {"width": 50, "height": 40, "offset_x": 0, "offset_y": -20}
+DYNAMITE_ROCK_HITBOX = {"width_ratio": 0.9, "height_ratio": 0.55, "offset_x": 0, "offset_y": -20}
+# Petits arbres (buissons) : hitbox dynamite plus petite. Meme format que DYNAMITE_TREE_HITBOX.
+# Quelles especes sont "petites" : voir small_tree_frames dans main.py.
+DYNAMITE_SMALL_TREE_HITBOX = {"width": 35, "height": 27, "offset_x": -20, "offset_y": -20}

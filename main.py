@@ -10,7 +10,7 @@ from animations import load_animation_column
 from animations import load_animation_grid
 from animations import split_frames_by_regions
 from settings import *
-from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb
+from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb, Explosion
 import npc_system
 import waves
 import world
@@ -628,6 +628,20 @@ for positions, sprite, default_hitbox in rock_species:
 		))
 		rock_index += 1
 
+# Especes d'arbres considerees comme "petites" : elles recoivent la hitbox
+# dynamite DYNAMITE_SMALL_TREE_HITBOX. Ajoute tree2 ici si tu veux aussi les
+# arbres de taille moyenne : small_tree_frames = [tree3, tree2]
+small_tree_frames = [tree3]
+
+def make_level_tree(x, y, frames, index):
+	# `is` : on compare l'objet liste de frames lui-meme (identite de l'espece)
+	is_small = any(frames is small for small in small_tree_frames)
+	return Tree(
+		x, y, frames, index=index,
+		hitbox_offset_y=TREE_HITBOX_OFFSET_Y,
+		dynamite_hitbox_config=DYNAMITE_SMALL_TREE_HITBOX if is_small else None
+	)
+
 house_bounds = (
 	house_x - 150,
 	house_y - 150,
@@ -646,7 +660,7 @@ level_tree_placements = world.generate_level_trees(
 )
 
 level_trees = [
-	Tree(x, y, frames, index=i, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+	make_level_tree(x, y, frames, i)
 	for i, (x, y, frames) in enumerate(level_tree_placements)
 ]
 rock_variants = [
@@ -687,7 +701,13 @@ level_rocks = [
 
 item_drops = []
 projectiles = []
+explosions = []
 player.selected_slot = 0
+
+# TEST : dynamites de depart, pour ne pas attendre le shop (voir settings.py)
+if DEV_GIVE_DYNAMITE:
+	for _ in range(5):
+		player.add_item_to_inventory(Dynamite(scaled_dynamite))
 coins_to_collect = 0
 
 run = True
@@ -918,51 +938,66 @@ while run == True :
 						))
 						tree.dropped_golden_apple = True
 	
-	# Mise à jour des projectiles (dynamites)
+		# Mise a jour des projectiles (dynamites) et des explosions
+		# Mise a jour des projectiles (dynamites) et des explosions
+	# Obstacles DE LA DYNAMITE : hitbox au niveau du sol (souche/tronc),
+	# differentes de `colliders` (celles-ci sont decalees pour le joueur).
+	if projectiles and game_state == "wave":
+		dynamite_colliders = (
+			[tree.dynamite_hitbox for tree in level_trees]
+			+ [tree.dynamite_hitbox for tree in apple_trees]
+			+ [rock.dynamite_hitbox for rock in level_rocks]
+		)
+	else:
+		dynamite_colliders = []
+
 	for projectile in projectiles[:]:
-		still_active = projectile.update(town_trees, colliders)
-		if not still_active:
-			# L'explosion s'est produite
-			explosion_data = projectile.get_explosion_data()
-			
-			# Dégâts aux ennemis
-			for enemy in enemies[:]:
-				dx = enemy.rect.centerx - explosion_data["x"]
-				dy = enemy.rect.centery - explosion_data["y"]
-				distance = math.hypot(dx, dy)
-				if distance <= explosion_data["radius"]:
-					enemy.take_damage(explosion_data["damage"], player)
-			
-			# Dégâts au joueur (si en jeu)
-			if game_state == "world" or game_state == "shop":
-				dx = player.rect.centerx - explosion_data["x"]
-				dy = player.rect.centery - explosion_data["y"]
-				distance = math.hypot(dx, dy)
-				if distance <= explosion_data["radius"] and player.invicible_timer <= 0:
-					player.take_damage(explosion_data["damage"] // 2, None)
-			
-			# Vérifier les arbres pour les pommes
-			for i, tree in enumerate(town_trees):
-				dx = tree.rect.centerx - explosion_data["x"]
-				dy = tree.rect.centery - explosion_data["y"]
-				distance = math.hypot(dx, dy)
-				if distance <= explosion_data["radius"]:
-					# Augmenter les chances de drop de pomme
-					if random.random() < (0.15 + DYNAMITE_TREE_HIT_APPLE_BOOST):
-						if random.random() < GOLDEN_APPLE_DROP_CHANCE:
-							item_drops.append(ItemDrop(
-								tree.rect.centerx,
-								tree.rect.centery,
-								GoldenApple(golden_apple_sprite)
-							))
-						else:
-							item_drops.append(ItemDrop(
-								tree.rect.centerx,
-								tree.rect.centery,
-								Apple(apple_sprite)
-							))
-			
-			projectiles.remove(projectile)
+		if projectile.update(dynamite_colliders, enemies):
+			continue
+
+		# La meche est finie : BOUM
+		projectiles.remove(projectile)
+		explosion = Explosion(projectile.x, projectile.y, DYNAMITE_EXPLOSION_RADIUS, DYNAMITE_DAMAGE)
+		explosions.append(explosion)
+
+		# 1) Degats aux monstres dans le rayon (l'explosion sert de source
+		#    pour le recul : ils sont repousses depuis son centre)
+		for enemy in enemies:
+			if enemy.dead:
+				continue
+			distance = math.hypot(enemy.rect.centerx - explosion.x, enemy.rect.centery - explosion.y)
+			if distance <= explosion.radius:
+				enemy.take_damage(explosion.damage, explosion)
+
+		# 2) Degats au joueur (souffle), reduits par DYNAMITE_PLAYER_DAMAGE_RATIO
+		if game_state == "wave" and DYNAMITE_PLAYER_DAMAGE_RATIO > 0:
+			distance = math.hypot(player.rect.centerx - explosion.x, player.rect.centery - explosion.y)
+			if distance <= explosion.radius:
+				player.take_damage(int(explosion.damage * DYNAMITE_PLAYER_DAMAGE_RATIO), explosion)
+
+		# 3) Pommiers secoues par le souffle : chance de faire tomber une pomme
+		if game_state == "wave":
+			for tree in apple_trees:
+				distance = math.hypot(tree.rect.centerx - explosion.x, tree.rect.centery - explosion.y)
+				if distance > explosion.radius:
+					continue
+				if random.random() < APPLE_DROP_CHANCE + DYNAMITE_TREE_HIT_APPLE_BOOST:
+					if not tree.dropped_golden_apple and random.random() < GOLDEN_APPLE_DROP_CHANCE:
+						item_drops.append(ItemDrop(
+							tree.rect.centerx, tree.rect.bottom - 10, GoldenApple(golden_apple_sprite),
+							fall_height=ITEM_DROP_FALL_HEIGHT, fall_duration=ITEM_DROP_FALL_DURATION
+						))
+						tree.dropped_golden_apple = True
+					elif not tree.dropped_apple:
+						item_drops.append(ItemDrop(
+							tree.rect.centerx, tree.rect.bottom - 10, Apple(apple_sprite),
+							fall_height=ITEM_DROP_FALL_HEIGHT, fall_duration=ITEM_DROP_FALL_DURATION
+						))
+						tree.dropped_apple = True
+
+	for explosion in explosions[:]:
+		if not explosion.update():
+			explosions.remove(explosion) 
 
 	for coin in coins[:]:
 		if player.hitbox.colliderect(coin.rect):
@@ -1057,7 +1092,7 @@ while run == True :
 				avoid_radius=LEVEL_TREE_AVOID_RADIUS
 			)
 			level_trees = [
-				Tree(x, y, frames, index=i, hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+				make_level_tree(x, y, frames, i)
 				for i, (x, y, frames) in enumerate(level_tree_placements)
 			]
 
@@ -1129,6 +1164,8 @@ while run == True :
 
 		else:
 			merchant_1.refresh_shop()
+			projectiles.clear()
+			explosions.clear()
 			game_state = "shop"
 			transition = True
 			TRANSITION_TIMER = 120
@@ -1606,21 +1643,9 @@ while run == True :
 		orb.draw(game_surface)
 	
 	
-	# Dessiner les projectiles (dynamites)
-	if projectiles:
-		print(f"Dessin de {len(projectiles)} projectiles")
+	# Dessiner les dynamites (coordonnees MONDE, sur game_surface)
 	for projectile in projectiles:
-		projectile.draw(game_surface, camera_x, camera_y)
-		
-		# Dessiner le rayon d'explosion avant l'explosion
-		if projectile.state == "stopped":
-			pygame.draw.circle(
-				game_surface,
-				(255, 100, 0) if projectile.blink_frame == 1 else (200, 80, 0),
-				(int(projectile.x - camera_x), int(projectile.y - camera_y)),
-				DYNAMITE_EXPLOSION_RADIUS,
-				2
-			)
+		projectile.draw(game_surface)
 
 
 	entities.sort(key=lambda entity: entity[2])
@@ -1685,6 +1710,10 @@ while run == True :
 		if game_state == "wave":
 			for drop in item_drops:
 				drop.draw(game_surface)
+
+		# Explosions : par-dessus les entites
+	for explosion in explosions:
+		explosion.draw(game_surface)
 
 	if game_state == "chapel":
 		for sprite, rect in chapel_interior.vase_nook_wall_tiles:
@@ -1886,6 +1915,14 @@ while run == True :
 			pygame.draw.rect(game_surface, (255, 150, 0), tree.hitbox, 2)
 		for rock in level_rocks:
 			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
+		for tree in level_trees + apple_trees:
+			pygame.draw.rect(game_surface, (0, 255, 0), tree.dynamite_hitbox, 2)
+		for rock in level_rocks:
+			pygame.draw.rect(game_surface, (0, 255, 0), rock.dynamite_hitbox, 2)
+		for enemy in enemies:
+			pygame.draw.rect(game_surface, (255, 0, 255), enemy.hitbox, 2)
+		for projectile in projectiles:
+			pygame.draw.rect(game_surface, (255, 255, 0), projectile.hitbox, 2)
 	if debug_hitboxes and game_state == "chapel":
 		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
 		chapel_interior.draw_debug_hitboxes(chapel_interior.interior_surface)
