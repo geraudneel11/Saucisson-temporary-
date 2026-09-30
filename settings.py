@@ -282,7 +282,7 @@ DYNAMITE_MAX_QUANTITY = 3
 DYNAMITE_THROW_RANGE = 600          # portée max du lancer (px) : la dynamite atterrit à la souris, bornée par cette valeur
 DYNAMITE_THROW_SPEED = 40           # vitesse de départ max (px/frame). Doit être >= portée x (1 - friction) + vitesse min
 DYNAMITE_SIZE = 12                  # taille du carré (en pixels)
-DYNAMITE_SCALE = 4                  # échelle de la dynamite
+DYNAMITE_SCALE = 2                  # échelle de la dynamite
 DYNAMITE_EXPLOSION_DELAY = 30       # frames avant l'explosion après l'arrêt
 #DYNAMITE_BOUNCE_MIN = 50            # rebond minimum en pixels
 #DYNAMITE_BOUNCE_MAX = 100           # rebond maximum en pixels
@@ -341,7 +341,7 @@ MONSTER_MAX_LEVEL_RATIO = 0.25     # part de la vague au niveau courant
 MONSTER_ELITE_COUNT = 3            # monstres d'elite par vague
 MONSTER_ELITE_MIN_OFFSET = 3       # elite : niveau >= courant + 3
 MONSTER_ELITE_MAX_OFFSET = 25      # elite : niveau <= courant + 25
-MONSTER_HP_PER_LEVEL = 10          # + pv par niveau (base 20)
+MONSTER_HP_PER_LEVEL = 5          # + pv par niveau (base 20)
 MONSTER_DAMAGE_PER_LEVEL = 2       # + degats par niveau (base 5)
 MONSTER_COOLDOWN_PER_LEVEL = 5     # frames de cooldown en moins par niveau
 MONSTER_COOLDOWN_MIN = 50          # plancher du cooldown d'attaque
@@ -383,3 +383,26 @@ DYNAMITE_ROCK_HITBOX = {"width_ratio": 0.9, "height_ratio": 0.55, "offset_x": 0,
 # Petits arbres (buissons) : hitbox dynamite plus petite. Meme format que DYNAMITE_TREE_HITBOX.
 # Quelles especes sont "petites" : voir small_tree_frames dans main.py.
 DYNAMITE_SMALL_TREE_HITBOX = {"width": 35, "height": 27, "offset_x": -20, "offset_y": -20}
+
+# --- Marchand : absences et equipements (armures) ---------------
+ARMOR_DEV_MODE = True              # True : seuils fixes 2 et 5 (dev) ; False : fourchettes
+ARMOR1_ABSENCE_RANGE = (10, 15)    # prod : seuil d'absence tire au hasard (armure 1)
+ARMOR2_ABSENCE_RANGE = (30, 35)    # prod : seuil d'absence tire au hasard (armure 2)
+ARMOR1_PRICE = 50                  # prix de l'armure niveau 1 (or)
+ARMOR2_PRICE = 100                 # prix de l'armure niveau 2 (or)
+ARMOR_HP_PER_TIER = 40             # +40 pv par niveau d'armure (40 puis 80 au total)
+ARMOR_DAMAGE_PER_TIER = 0.15       # +15 % degats par niveau (x1.15 puis x1.30)
+ARMOR_ATTACK_PER_TIER = 0.25       # attaque +25 % par niveau (x1.25 puis x1.50)
+PLAYER_ATTACK_ANIM_SPEED = 4       # frames par image de l'anim d'attaque (base)
+
+ARMOR_ICON_FILE_1 = "Armure_1.png"  # icone boutique armure 1 (absent = cercle gris)
+ARMOR_ICON_FILE_2 = "Armure_2.png"  # icone boutique armure 2 (absent = cercle gris)
+
+# Échelle des sprites de pommes au sol (l'image est d'abord rognée
+# et recentrée dans un carré, puis multipliée par ce facteur).
+# 2 = pomme ~34 px ; monte à 2.5 ou 3 si tu la veux plus grosse.
+APPLE_SPRITE_SCALE = 2
+# --- Pièces ---
+COIN_MAGNET_RADIUS = 200   # distance (px) à laquelle une pièce est attirée par le joueur
+                           # (sert aussi au nettoyage de fin de vague : hors de ce rayon,
+                           #  une pièce immobile disparaît)

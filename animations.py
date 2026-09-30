@@ -149,3 +149,30 @@ def split_frames_by_regions(frames, region_rects):
         outside_frames.append(outside)
 
     return inside_frames, outside_frames
+
+def load_item_sprite(path, scale=1):
+    """
+    Charge un PNG d'objet (pomme, potion...) et le prépare :
+      1. rogne toute la zone transparente autour du dessin
+         (get_bounding_rect donne la boîte du contenu visible) ;
+      2. recentre le dessin dans un carré transparent, pour que
+         le redimensionnement en carré (hotbar : 48x48) ne le
+         déforme pas ;
+      3. agrandit par 'scale' (pygame.transform.scale = plus proche
+         voisin, donc le pixel art reste net).
+    Doit être appelée APRÈS pygame.display.set_mode (convert_alpha).
+    """
+    image = pygame.image.load(path).convert_alpha()
+
+    bounds = image.get_bounding_rect()
+    cropped = image.subsurface(bounds)
+
+    side = max(bounds.width, bounds.height)
+    square = pygame.Surface((side, side), pygame.SRCALPHA)
+    square.blit(cropped, cropped.get_rect(center=square.get_rect().center))
+
+    if scale != 1:
+        square = pygame.transform.scale(
+            square, (int(side * scale), int(side * scale))
+        )
+    return square

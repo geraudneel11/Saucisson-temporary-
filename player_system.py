@@ -1,5 +1,5 @@
 import pygame
-from settings import PLAYER_SPRITE_OFFSET_Y
+from settings import PLAYER_SPRITE_OFFSET_Y, PLAYER_ATTACK_ANIM_SPEED
 
 
 def movement(player, speed, walk_up, walk_down, walk_left, walk_right):
@@ -59,7 +59,8 @@ def idle(player, moving, attacking, idle_up, idle_down, idle_left, idle_right):
 def animate(player, moving, attacking, next_attack):
 
     if attacking:
-        animation_speed = 4
+        # Vitesse d'attaque acceleree par l'equipement (armures)
+        animation_speed = max(1, round(PLAYER_ATTACK_ANIM_SPEED / player.armor_attack_factor()))
     elif moving:
         animation_speed = 6
     else:

@@ -4,7 +4,7 @@ import fonts
 import dialogues
 import random
 from settings import * 
-from classes import Potion, Dynamite
+from classes import Potion, Dynamite, ArmorOffer
 
 def load_merchant_ui():
     global shop_window
@@ -130,8 +130,23 @@ merchant_1_dialogues = {
         "Prends soin de toi.",
         "Bonne chance.",
         "Reviens quand tu voudras."
-    ]
+    ],
+    "annonce": [
+        "Je pars en voyage des demain... retrouvez-moi apres votre prochaine victoire.",
+        "Je dois m'absenter un moment. Affaire importante, tu vois ?"
+    ],
 }
+# Offre d'armure courante (posee par main.update_merchant_presence).
+annonce_absence = False
+
+def set_armor_offer(tier, icon):
+    # Remplace l'offre d'armure par celle-ci (None = retire).
+    # Inseree en tete de l'inventaire pour etre sur la 1re page.
+    global armor_offer_tier
+    merchant_inventory[:] = [i for i in merchant_inventory if not isinstance(i, ArmorOffer)]
+    armor_offer_tier = tier
+    if tier:
+        merchant_inventory.insert(0, ArmorOffer(tier, icon))
 def set_hover_text(text):
 
     global merchant_hover_text

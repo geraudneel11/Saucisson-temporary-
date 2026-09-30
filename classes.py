@@ -23,7 +23,7 @@ class Player:
 		self.current_animation = None
 		self.direction = "down"
 		self.invicible_timer = 0
-		self.coins = 1
+		self.coins = 150
 		self.selected_slot = 0
 		self.met_healer = False
 		self.met_merchant = False
@@ -56,6 +56,7 @@ class Player:
 		self.xp_record = 0       # plus haut niveau d'xp jamais atteint (base du cout)
 		self.skill_levels = {"max_hp": 0, "strength": 0, "slot_capacity": 0, "slot_count": 0}
 		self.inventory_slots = 3    # slots de hotbar (etendus par la competence Slots)
+		self.equipment_level = 0    # armure equipee (0 = aucune, 1 ou 2)
 
 	def gain_xp(self, amount):
 		# Ajoute de l'xp et fait monter le NIVEAU D'XP (xp_level) :
@@ -94,15 +95,29 @@ class Player:
 		# Degats x 1.15^niveau de force (compose).
 		return STRENGTH_DAMAGE_FACTOR ** self.skill_levels["strength"]
 
+	def armor_hp_bonus(self):
+		# pv bonus de l'armure equipee (40 par niveau)
+		return ARMOR_HP_PER_TIER * self.equipment_level
+
+	def armor_damage_factor(self):
+		# multiplicateur de degats de l'armure (x1.15 / x1.30)
+		return 1 + ARMOR_DAMAGE_PER_TIER * self.equipment_level
+
+	def armor_attack_factor(self):
+		# multiplicateur de vitesse d'attaque (x1.25 / x1.50)
+		return 1 + ARMOR_ATTACK_PER_TIER * self.equipment_level
+
 	def item_max_per_slot(self):
 		# Pile max par slot : 16 de base, +2 par achat.
 		return ITEM_MAX_PER_SLOT_BASE + ITEM_MAX_PER_SLOT_STEP * self.skill_levels["slot_capacity"]
 
 	def recompute_max_hp(self):
-		# pv max = base + bonus permanents (competence PV max)
-		# + bonus temporaires (pomme doree).
+		# pv max = base + competence PV max + armure equipee,
+		# puis bonus temporaires (pomme doree) : l'equipement
+		# s'applique APRES les stats mais AVANT les pommes.
 		self.max_hp = (self.base_max_hp
 			+ MAX_HP_SKILL_BONUS * self.skill_levels["max_hp"]
+			+ self.armor_hp_bonus()
 			+ self.bonus_hp)
 
 	def update_hitbox(self):
@@ -604,7 +619,7 @@ class Coin:
 		dx = player.rect.centerx - self.rect.centerx
 		dy = player.rect.centery - self.rect.centery
 		distance = math.hypot(dx, dy)
-		if distance < 200 and distance > 1:
+		if distance < COIN_MAGNET_RADIUS and distance > 1:
 			speed = 8
 			self.rect.x += dx / distance * speed
 			self.rect.y += dy / distance * speed
@@ -1728,3 +1743,22 @@ class XpOrb:
 		alpha = int(XP_ORB_ALPHA_MIN + (255 - XP_ORB_ALPHA_MIN) * (0.5 + 0.5 * phase))
 		self.sprite.set_alpha(alpha)
 		surface.blit(self.sprite, self.rect)
+
+class ArmorOffer:
+	# Offre d'armure du marchand : objet special de boutique qui
+	# equipe le joueur au lieu d'aller dans l'inventaire.
+	def __init__(self, tier, icon=None):
+		self.tier = tier
+		self.name = f"Armure niv {tier}"
+		self.price = ARMOR1_PRICE if tier == 1 else ARMOR2_PRICE
+		self.stock = 1
+		self.sprite = icon
+		self.rect = None
+		# Icone : celle du marchand, sinon un cercle gris par defaut
+		# (jamais None : le dessin de la boutique doit pouvoir blitter)
+		if icon is not None:
+			self.sprite = icon
+		else:
+			self.sprite = pygame.Surface((40, 40), pygame.SRCALPHA)
+			pygame.draw.circle(self.sprite, (130, 130, 135), (20, 20), 17)
+			pygame.draw.circle(self.sprite, (90, 90, 95), (20, 20), 17, 2)

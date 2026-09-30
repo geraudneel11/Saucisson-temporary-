@@ -1,3 +1,4 @@
+import os
 import pygame 
 import random
 import math
@@ -9,8 +10,9 @@ from animations import load_animation_row
 from animations import load_animation_column
 from animations import load_animation_grid
 from animations import split_frames_by_regions
+from animations import load_item_sprite
 from settings import *
-from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb, Explosion
+from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb, Explosion, ArmorOffer
 import npc_system
 import waves
 import world
@@ -233,13 +235,8 @@ tree2 = load_animation_column(trees_sheet, 1, 3.5, 9, 13)   # même arbre, taill
 tree3 = load_animation_column(trees_sheet, 2, 3.5, 9, 13)   # même arbre, petit buisson
 tree4 = load_animation_column(trees_sheet, 3, 3.5, 9, 13)   # pommier
 tree5 = load_animation_column(trees_sheet, 6, 3.5, 9, 13)   # arbre feuillu foncé
-apple_sprite = pygame.Surface((32, 32), pygame.SRCALPHA)
-pygame.draw.circle(apple_sprite, (200, 30, 30), (16, 16), 14)
-pygame.draw.circle(apple_sprite, (120, 15, 15), (16, 16), 14, 2)
-
-golden_apple_sprite = pygame.Surface((32, 32), pygame.SRCALPHA)
-pygame.draw.circle(golden_apple_sprite, (255, 215, 0), (16, 16), 14)
-pygame.draw.circle(golden_apple_sprite, (180, 140, 0), (16, 16), 14, 2)
+apple_sprite = load_item_sprite("apple.png", APPLE_SPRITE_SCALE)
+golden_apple_sprite = load_item_sprite("golden_apple.png", APPLE_SPRITE_SCALE)
 rock_big_sprite = shop_exterior_sheet.subsurface(ROCK_BIG_RECT)
 rock_big_sprite = pygame.transform.scale(
 	rock_big_sprite,
@@ -446,6 +443,90 @@ merchant1_npc = NPC(
 
 
 npcs = [healer_npc, merchant1_npc]
+# --- Marchand : absences et armures -----------------------------
+# Le calendrier : en mode DEV, absences aux niveaux de jeu 2 et 5 ;
+# en mode normal, seuils tires au hasard dans les fourchettes.
+if ARMOR_DEV_MODE:
+	ARMOR_ABSENCE_LEVELS = [2, 5]
+else:
+	ARMOR_ABSENCE_LEVELS = [random.randint(*ARMOR1_ABSENCE_RANGE),
+		random.randint(*ARMOR2_ABSENCE_RANGE)]
+merchant_absent = False
+
+def charger_animations_joueur(tier):
+	# Reconstruit walk/idle/attack/hurt depuis les planches
+	# Swordsman_lvl{tier}_*.png (meme decoupage que le lvl1).
+	# Ne touche a rien (renvoie False) si une planche manque.
+	niveau_sprite = tier + 1
+	prefixe = f"Swordsman_lvl{niveau_sprite}_"
+	fichiers = {
+		"run": prefixe + "Run_with_shadow.png",
+		"idle": prefixe + "Idle_with_shadow.png",
+		"attack": prefixe + "attack_with_shadow.png",
+		"hurt": prefixe + "Hurt_with_shadow.png",
+	}
+	if not all(os.path.exists(f) for f in fichiers.values()):
+		return False
+	run_sheet = pygame.image.load(fichiers["run"]).convert_alpha()
+	idle_sheet = pygame.image.load(fichiers["idle"]).convert_alpha()
+	attack_sheet = pygame.image.load(fichiers["attack"]).convert_alpha()
+	hurt_sheet = pygame.image.load(fichiers["hurt"]).convert_alpha()
+	for row, liste in ((0, walk_down), (1, walk_left), (2, walk_right), (3, walk_up)):
+		liste[:] = load_animation_row(run_sheet, row, PLAYER_SCALE, 8, 4)
+	for row, liste in ((0, idle_down), (1, idle_left), (2, idle_right), (3, idle_up)):
+		liste[:] = load_animation_row(idle_sheet, row, PLAYER_SCALE, 12, 4)
+	for row, liste in ((0, attack_down), (1, attack_left), (2, attack_right), (3, attack_up)):
+		liste[:] = load_animation_row(attack_sheet, row, PLAYER_SCALE, 8, 4)
+	for row, liste in ((0, hurt_down), (1, hurt_left), (2, hurt_right), (3, hurt_up)):
+		liste[:] = load_animation_row(hurt_sheet, row, PLAYER_SCALE, 5, 4)
+	return True
+
+def icone_armure(tier):
+	# Icone de l'offre dans la boutique : le PNG defini dans
+	# settings (ARMOR_ICON_FILE_1/2) s'il existe, sinon un simple
+	# cercle gris en attendant le visuel definitif.
+	chemin = ARMOR_ICON_FILE_1 if tier == 1 else ARMOR_ICON_FILE_2
+	if chemin and os.path.exists(chemin):
+		return pygame.transform.scale(
+			pygame.image.load(chemin).convert_alpha(), (40, 40))
+	icone = pygame.Surface((40, 40), pygame.SRCALPHA)
+	pygame.draw.circle(icone, (130, 130, 135), (20, 20), 17)
+	pygame.draw.circle(icone, (90, 90, 95), (20, 20), 17, 2)
+	return icone
+
+def update_merchant_presence():
+	# Appele a chaque arrivee en phase de shop : applique l'absence,
+	# l'annonce d'absence et l'offre d'armure selon le niveau de jeu
+	# qui vient de se terminer (current_level).
+	global merchant_absent
+	merchant_absent = current_level in ARMOR_ABSENCE_LEVELS
+	if merchant_absent and merchant1_npc in npcs:
+		npcs.remove(merchant1_npc)      # plus dessine, plus interactif
+	elif not merchant_absent and merchant1_npc not in npcs:
+		npcs.append(merchant1_npc)
+	# Le marchand annonce l'absence a la visite D'AVANT
+	merchant_1.annonce_absence = ((current_level + 1) in ARMOR_ABSENCE_LEVELS)
+	# Offre : le premier tier debloque et pas encore equipe
+		# Offre STRICTEMENT sequentielle : uniquement le tier suivant
+	# (impossible de voir ou d'acheter le tier 2 avant le tier 1).
+	offre = None
+	suivant = player.equipment_level + 1
+	if (suivant <= 2
+			and current_level >= ARMOR_ABSENCE_LEVELS[suivant - 1] + 1):
+		offre = suivant
+	if offre and not merchant_absent:
+		merchant_1.set_armor_offer(offre, icone_armure(offre))
+	else:
+		merchant_1.set_armor_offer(None, None)
+
+def equiper_armure(tier):
+	# Achete -> equipe automatiquement : apparence + stats.
+	charger_animations_joueur(tier)   # no-op si les planches manquent
+	player.equipment_level = tier
+	ancien_max = player.max_hp
+	player.recompute_max_hp()
+	# Le bonus de pv est aussi ajoute aux pv actuels (comme PV max)
+	player.hp = min(player.max_hp, player.hp + (player.max_hp - ancien_max))
 priest_npc = NPC(
 	CHAPEL_X + 180, CHAPEL_Y + 700,
 	priest_idle,
@@ -780,7 +861,7 @@ while run == True :
 				dialogues.start_dialogue(merchant_1_text)
 				player.met_merchant = True
 			else:
-				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["normal"])
+				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["annonce" if merchant_1.annonce_absence else "normal"])
 				dialogues.start_dialogue(merchant_1_text)
 
 		elif current_npc.type == "monk_desk":
@@ -1144,10 +1225,10 @@ while run == True :
 
 	collision.resolve_entity_collisions(enemies)
 
-	for enemy in enemies[:]: 
-		if enemy.dead_finished: 
+	for enemy in enemies[:]:
+		if enemy.dead_finished:
 			coins.append(Coin(enemy.rect.centerx, enemy.rect.centery, coins_animation))
-						# L'xp lachee depend du niveau du monstre (10 + 2 x niveau)
+			# L'xp lachee depend du niveau du monstre (10 + 2 x niveau)
 			xp_orbs.append(XpOrb(enemy.rect.centerx, enemy.rect.centery,
 				MONSTER_BASE_XP + MONSTER_XP_PER_LEVEL * enemy.level))
 			enemies.remove(enemy)
@@ -1156,14 +1237,27 @@ while run == True :
 		for coin in coins[:coins_to_collect]:
 			coin.auto_collect = True
 
+		# --- Nettoyage des pièces immobiles ---
+		# À faire AVANT la téléportation du joueur vers le shop :
+		# les distances sont calculées depuis sa position actuelle.
+		for coin in coins[:]:
+			if coin.auto_collect:
+				continue  # déjà en route vers le joueur
+			dx = player.rect.centerx - coin.rect.centerx
+			dy = player.rect.centery - coin.rect.centery
+			if math.hypot(dx, dy) < COIN_MAGNET_RADIUS:
+				coin.auto_collect = True  # elle bougerait de toute façon : on la garde
+			else:
+				coins.remove(coin)  # immobile : elle disparaît
+
 		if current_wave < 3:
 			current_wave += 1
 			waves.start_wave(enemies, current_level, current_wave, orc_data)
 			transition = True
 			TRANSITION_TIMER = 120
-
 		else:
 			merchant_1.refresh_shop()
+			update_merchant_presence()
 			projectiles.clear()
 			explosions.clear()
 			game_state = "shop"
@@ -1180,11 +1274,9 @@ while run == True :
 			)
 			player.update_hitbox()
 
-		if transition and TRANSITION_TIMER <= 60:
-			for coin in coins[:]:
-				coin.auto_collect = False
-			coins.clear()
-						# L'xp restante en vol est creditee directement (jamais perdue)
+	
+
+		# L'xp restante en vol est creditee directement (jamais perdue)
 		for orb in xp_orbs[:]:
 			player.gain_xp(orb.value)
 			xp_orbs.remove(orb)
@@ -1428,7 +1520,7 @@ while run == True :
 								dialogues.reset()
 								merchant_state = "main"
 
-								merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["normal"])
+								merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["annonce" if merchant_1.annonce_absence else "normal"])
 								dialogues.start_dialogue(merchant_1_text)
 							
 							if right_arrow_rect and merchant_1.merchant1_page < merchant_1.merchant1_max_page and right_arrow_rect.collidepoint(event.pos):
@@ -1444,7 +1536,21 @@ while run == True :
 							for item in current_items:
 								if merchant_coin_timer == 0:
 									if item.rect and item.rect.collidepoint(event.pos):
-										if item.stock <= 0:
+										if isinstance(item, ArmorOffer):
+											# Achat d'armure : equipement automatique,
+											# dans l'ordre (tier 2 refuse sans le tier 1)
+											if item.tier != player.equipment_level + 1:
+												merchant_1.set_click_text("Achetez d'abord l'armure precedente.")
+											elif player.coins >= item.price:
+												buy_animation_start_coins = player.coins
+												buy_animation_target_coins = player.coins - item.price
+												merchant_coin_timer = BUY_COIN_ANIMATION_DURATION
+												equiper_armure(item.tier)
+												merchant_1.merchant_inventory.remove(item)
+												merchant_1.set_click_text(f"Tu équipes {item.name} !")
+											else:
+												merchant_1.set_click_text("Vous n'avez pas assez d'or.")
+										elif item.stock <= 0:
 											merchant_1.set_click_text(
 											"Rupture de stock."
 										)
