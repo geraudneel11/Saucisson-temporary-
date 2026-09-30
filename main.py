@@ -119,7 +119,7 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
-DEV_START_GAME_STATE = "wave"
+DEV_START_GAME_STATE = "chapel"
 game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
@@ -1495,7 +1495,7 @@ while run == True :
 											dialogues.reset()
 											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
 											dialogues.start_dialogue(divinity_text)
-											break
+											break 
 					
 					elif current_npc and current_npc.type == "merchant_1":
 						
@@ -1718,12 +1718,7 @@ while run == True :
 
 		game_surface.blit(house_base, (house_x, house_y + roof_height))
 		game_surface.blit(chapel.base, (chapel.rect.x, chapel.rect.y + chapel.roof_height))
-		if player.hitbox.colliderect(house.door_hitbox):
-			door_text = ui.font.render("E entrer", True, (255, 255, 255))
-			game_surface.blit(door_text, (house.door_hitbox.centerx - door_text.get_width() // 2, house.door_hitbox.top - 30))
-		if player.hitbox.colliderect(chapel.door_hitbox):
-			chapel_door_text = ui.font.render("E entrer", True, (255, 255, 255))
-			game_surface.blit(chapel_door_text, (chapel.door_hitbox.centerx - chapel_door_text.get_width() // 2, chapel.door_hitbox.top - 30))
+		
 
 	for coin in coins[:]:
 
@@ -1945,23 +1940,10 @@ while run == True :
 		if potion_heal_timer == 0:
 			player.hp = potion_heal_animation_target_hp
  
-	if game_state == "house":
-			if player.hitbox.colliderect(house.door_rect):
-
-				exit_text = ui.font.render("E sortir", True, (255, 255, 255))
-
-				screen.blit(exit_text, (screen.get_width() // 2 - exit_text.get_width() // 2, screen.get_height() - 60))
-	if game_state == "chapel":
-			if player.hitbox.colliderect(chapel_interior.exit_rect):
-
-				exit_text = ui.font.render("E sortir", True, (255, 255, 255))
-
-				screen.blit(exit_text, (screen.get_width() // 2 - exit_text.get_width() // 2, screen.get_height() - 60))
 	
-	if near_npc:
-
-		text = ui.font.render("E parler", True, (255,255,255))
-		screen.blit(text, (screen.get_width()//2-text.get_width()//2, screen.get_height()-60))
+	
+	
+	
 
 	house.repeat_horizontal(house.top_wall_front, HOUSE_INSIDE_HEIGHT - house.top_wall_front.get_height() - 130)
 	house.repeat_horizontal(house.wall_front, HOUSE_INSIDE_HEIGHT - house.wall_front.get_height())
@@ -2159,8 +2141,11 @@ while run == True :
 			shown_level = divinity_purchase["old_level"]
 		else:
 			shown_level = player.skill_levels[skill["key"]]
-		banner_text = ui.font.render(f"{skill['name']} : niveau {shown_level}", True, (255, 255, 255))
-		screen.blit(banner_text, (screen.get_width() // 2 - banner_text.get_width() // 2, 250))
+		ui._draw_hp_text(screen,
+						 f"{skill['name']} : niveau {shown_level}".upper(),
+						 screen.get_width() // 2, 270,
+						 echelle=4, centered=True)
+		
 	if transition == False and current_npc == None:
 		overlay_presence = False
 	pygame.display.update()

@@ -89,7 +89,7 @@ def _remplissage_barre(zone, spans, ratio, couleur_fond, couleur_jauge):
 HP_TEXT_SCALE = 2     # chiffres 7x9 de Text3 agrandis x2 (~18 px de haut)
 
 def _draw_hp_text(screen, texte, cx, cy, echelle=None, centered=True,
-                  police=None):
+                  police=None, slash_couleur=None):
     # "X/Y" centre sur (cx, cy) : chiffres blancs de Text3 (planche
     # titre, meme grille que Text1) et slash blanc normal dessine a
     # la main (la planche n'a pas de glyphe "/").
@@ -97,6 +97,8 @@ def _draw_hp_text(screen, texte, cx, cy, echelle=None, centered=True,
         echelle = HP_TEXT_SCALE
     if police is None:
         police = fonts.lettersT3
+    if slash_couleur is None:
+        slash_couleur = (255, 255, 255)
     haut = 9 * echelle
     slash_largeur = 4 * echelle
     largeur = 0
@@ -107,16 +109,16 @@ def _draw_hp_text(screen, texte, cx, cy, echelle=None, centered=True,
             largeur += 7 * echelle
         largeur += echelle                      # petit ecart
     largeur -= echelle
-    x = cx - largeur // 2
+    x = cx - largeur // 2 if centered else cx
     y = cy - haut // 2
     for char in texte:
         if char == "/":
-            pygame.draw.line(screen, (255, 255, 255),
+            pygame.draw.line(screen, slash_couleur,
                              (x, y + haut - 1),
                              (x + slash_largeur - echelle, y + 1), echelle)
             x += slash_largeur + echelle
         elif char in police:
-            sprite = pygame.transform.scale(fonts.lettersT3[char],
+            sprite = pygame.transform.scale(police[char],
                                             (7 * echelle, haut))
             screen.blit(sprite, (x, y))
             x += 7 * echelle + echelle
@@ -136,15 +138,19 @@ def draw_health(screen, player):
     _draw_hp_text(screen, f"{int(player.hp)}/{int(player.max_hp)}", cx, cy)
 
 def draw_level(screen, current_level, current_wave, game_state):
-    level_text = font.render(f"Niveau {current_level}", True, (255, 255, 255))
-    screen.blit(level_text, (screen.get_width() // 2 - level_text.get_width() // 2, 15))
-
+    # NIVEAU X en T3 blanc, puis SHOP en T6 ou VAGUE X / 3 en T4 jaune
+    _draw_hp_text(screen, f"NIVEAU {current_level}",
+                  screen.get_width() // 2, 24,
+                  echelle=3, centered=True, police=fonts.lettersT3)
     if game_state == "shop" or game_state == "house":
-        wave_text = font.render("SHOP", True, (0,255,255))
+        _draw_hp_text(screen, "SHOP",
+                      screen.get_width() // 2, 64,
+                      echelle=3, centered=True, police=fonts.lettersT6)
     else:
-        wave_text = font.render(f"Vague {current_wave} / 3", True, (255,220,0))
-
-    screen.blit(wave_text, (screen.get_width()//2-wave_text.get_width()//2, 55))
+        _draw_hp_text(screen, f"VAGUE {current_wave} / 3",
+                      screen.get_width() // 2, 64,
+                      echelle=3, centered=True, police=fonts.lettersT4,
+                      slash_couleur=(244, 219, 0))
 
 def draw_transition(screen, transition, current_level, current_wave, game_state):
     if not transition:
@@ -155,15 +161,17 @@ def draw_transition(screen, transition, current_level, current_wave, game_state)
     overlay.fill((0,0,0))
     screen.blit(overlay,(0,0))
 
-    txt1 = font.render(f"NIVEAU {current_level}", True, (255,255,255))
-
+    _draw_hp_text(screen, f"NIVEAU {current_level}",
+                  screen.get_width() // 2, 240,
+                  echelle=4, centered=True, police=fonts.lettersT3)
     if game_state == "shop":
-        txt2 = font.render("SHOP",True,(0,255,255))
+        _draw_hp_text(screen, "SHOP",
+                      screen.get_width() // 2, 290,
+                      echelle=4, centered=True, police=fonts.lettersT6)
     else:
-        txt2 = font.render(f"VAGUE {current_wave}", True, (255,220,0))
-
-    screen.blit(txt1, (screen.get_width()/2-txt1.get_width()/2, 220))
-    screen.blit(txt2,(screen.get_width()/2-txt2.get_width()/2,270))
+        _draw_hp_text(screen, f"VAGUE {current_wave}",
+                      screen.get_width() // 2, 290,
+                      echelle=4, centered=True, police=fonts.lettersT4)
 
 def draw_coins(screen, player):
     # "PIECES : N" entierement en jaune : lettres et chiffres de Text4
@@ -187,9 +195,10 @@ def draw_xp_bar(screen, player):
                   XP_BAR_POS[0] + XP_CADRE.get_width() // 2,
                   XP_BAR_POS[1] + XP_CADRE.get_height() // 2, echelle=2)
 def draw_player_level(screen, player):
-    # Compteur de niveau de personnage, sous le compteur de pieces
-    level_text = coin_font.render(f"Compétences : niv {player.level}", True, (170, 190, 255))
-    screen.blit(level_text, (20, 163))
+    # "COMPETENCES : NIV X" entierement en pixel art Text5
+    # (sans accent : la planche titre n'a pas de "e" accentue)
+    _draw_hp_text(screen, f"COMPETENCES : NIV {player.level}", 20, 169,
+                  echelle=2, centered=False, police=fonts.lettersT5)
 
 def draw_hotbar(screen, player):
     slot_size = 64

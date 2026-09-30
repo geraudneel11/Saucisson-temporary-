@@ -29,11 +29,11 @@ def load_librarian_ui():
 # vrai "Guide de certaines mécaniques" plus tard.
 librarian_books = [
 	Book(
-		"AAAAAAAAAA",
+		"Botanique : les pommes",
 		[
-			"1111111111111111111111111111",
-			"2222222222222222222222222222",
-			"3333333333333333333333333333",
+			"Les pommiers sont des arbres communs dans ce monde. On en trouve dans les villages, les vergers et parfois meme à l’etat sauvage. Pourtant, ils entretiennent un lien etrange avec la magie. Lorsqu’une ame s’envole pres d’un pommier, l’arbre semble en garder une trace, melee a sa seve. Mais lorsque trois", 
+			"ames s’envolent a proximite du meme arbre, il peut alors produire un fruit impregne de magie. Ces fruits sont rares et leur pouvoir varie selon les emes qui ont nourri l’arbre. Certains peuvent guerir, d’autres transmettre un pouvoir ou provoquer des phenomenes inexplicables. Ainsi, derriere leur apparence", 
+			"ordinaire, les pommiers cachent une capacite que peu de personnes connaissent."
 		]
 	)
 ]

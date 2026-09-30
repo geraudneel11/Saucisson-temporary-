@@ -13,6 +13,10 @@ def load_font():
 	corp_font_sheet = pygame.image.load("Text2.png").convert_alpha()
 	title3_font_sheet = pygame.image.load("Text3.png").convert_alpha()
 	title4_font_sheet = pygame.image.load("Text4.png").convert_alpha()
+	global title5_font_sheet, lettersT5
+	title5_font_sheet = pygame.image.load("Text5.png").convert_alpha()
+	global title6_font_sheet, lettersT6
+	title6_font_sheet = pygame.image.load("Text6.png").convert_alpha()
 
 
 	corp_font_chars = [
@@ -90,6 +94,8 @@ def load_font():
 		# Chiffres jaunes de Text4 : meme grille que Text3 (bloc C1)
 		# Text4 : TOUTES les lettres ET chiffres en jaune (bloc C1)
 	lettersT4 = build_title_font(title4_font_sheet, T3_OFFSET_Y)
+	lettersT5 = build_title_font(title5_font_sheet, T3_OFFSET_Y)
+	lettersT6 = build_title_font(title6_font_sheet, T3_OFFSET_Y)
 		
 	lettersC1 = build_body_font(
 	corp_font_sheet,
