@@ -7,8 +7,13 @@ coin_font = pygame.font.SysFont("Ebrima", 32, bold=True)
 
 def load_font():
 	global title_font_sheet, corp_font_sheet, lettersT1, lettersC1, lettersC6, glyph_width, lettersC4
+	global title3_font_sheet, lettersT3
+	global title4_font_sheet, lettersT4
 	title_font_sheet = pygame.image.load("Text1.png").convert_alpha()
 	corp_font_sheet = pygame.image.load("Text2.png").convert_alpha()
+	title3_font_sheet = pygame.image.load("Text3.png").convert_alpha()
+	title4_font_sheet = pygame.image.load("Text4.png").convert_alpha()
+
 
 	corp_font_chars = [
 	"A","B","C","D","E","F","G","H","I","J",
@@ -74,6 +79,18 @@ def load_font():
 			 "-" : title_font_sheet.subsurface((56, 36.8, 7, 9.2)),
 			 "=" : title_font_sheet.subsurface((63, 36.8, 7, 9.2)),
 }
+
+		# Chiffres blancs de Text3 : meme grille 7x9.2 que Text1, bloc C1
+	# (offset 0). Si un jour les chiffres blancs passent dans un autre
+	# bloc de la planche, il suffit de changer T3_OFFSET_Y de 46 en 46.
+	T3_OFFSET_Y = 0.0
+		# Text4 : TOUTES les lettres ET chiffres en jaune (bloc C1)
+	lettersT3 = build_title_font(title3_font_sheet, T3_OFFSET_Y)
+
+		# Chiffres jaunes de Text4 : meme grille que Text3 (bloc C1)
+		# Text4 : TOUTES les lettres ET chiffres en jaune (bloc C1)
+	lettersT4 = build_title_font(title4_font_sheet, T3_OFFSET_Y)
+		
 	lettersC1 = build_body_font(
 	corp_font_sheet,
 	corp_font_chars,
@@ -112,6 +129,17 @@ def build_body_font(sheet, chars, cols, cell_w, cell_h, offset_y=0):
 		y = (i // cols) * cell_h + offset_y
 		font[char] = sheet.subsurface(
 			(x, y, cell_w, cell_h))
+	return font
+
+def build_title_font(sheet, offset_y=0.0):
+	# dictionnaire complet de la police titre (meme grille 7x9.2 que
+	# Text1) : lettres, espace, chiffres et ponctuation d'un bloc
+	lignes = ["ABCDEFGHIJ", "KLMNOPQRST", "UVWXYZ ",
+			  "1234567890", ".,:?!()+-="]
+	font = {}
+	for r, ligne in enumerate(lignes):
+		for c, char in enumerate(ligne):
+			font[char] = sheet.subsurface((c * 7, r * 9.2 + offset_y, 7, 9.2))
 	return font
 
 def draw_text(surface, text, x, y, scale=1, spacing=0, centered=False):
