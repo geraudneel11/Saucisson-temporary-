@@ -406,3 +406,13 @@ APPLE_SPRITE_SCALE = 2
 COIN_MAGNET_RADIUS = 200   # distance (px) à laquelle une pièce est attirée par le joueur
                            # (sert aussi au nettoyage de fin de vague : hors de ce rayon,
                            #  une pièce immobile disparaît)
+                        
+# --- Déblocage des ennemis coincés ---
+ENEMY_STUCK_CHECK_FRAMES = 30     # fréquence du contrôle de progression
+ENEMY_STUCK_MIN_PROGRESS = 0.35   # moins de 35 % du trajet attendu = coincé
+ENEMY_UNSTICK_DURATION = 40       # frames passées à reculer
+ENEMY_UNSTICK_ANGLE_SPREAD = 45   # écart aléatoire (±°) autour de la direction opposée
+
+# --- Hitbox d'attaque du joueur (part du CENTRE du joueur) ---
+PLAYER_ATTACK_REACH = 150   # portée depuis le centre, dans la direction regardée
+PLAYER_ATTACK_WIDTH = 130   # largeur perpendiculaire à la direction

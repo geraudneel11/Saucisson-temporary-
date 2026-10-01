@@ -1,5 +1,5 @@
 import pygame
-from settings import PLAYER_SPRITE_OFFSET_Y, PLAYER_ATTACK_ANIM_SPEED
+from settings import *
 
 
 def movement(player, speed, walk_up, walk_down, walk_left, walk_right):
@@ -149,42 +149,22 @@ def start_attack(player, attacking, enemies):
     return attacking
 
 def create_attack_hitbox(player):
+    # La zone part du CENTRE du joueur et s'étend vers sa direction.
+    cx, cy = player.rect.center
+    reach = PLAYER_ATTACK_REACH
+    width = PLAYER_ATTACK_WIDTH
 
     if player.direction == "right":
-
-        return pygame.Rect(
-            player.rect.right - 155,
-            player.rect.centery - 50,
-            110,
-            125
-        )
+        return pygame.Rect(cx, cy - width // 2, reach, width)
 
     elif player.direction == "left":
-
-        return pygame.Rect(
-            player.rect.left + 45,
-            player.rect.centery - 50,
-            110,
-            125
-        )
+        return pygame.Rect(cx - reach, cy - width // 2, reach, width)
 
     elif player.direction == "up":
+        return pygame.Rect(cx - width // 2, cy - reach, width, reach)
 
-        return pygame.Rect(
-            player.rect.centerx - 62,
-            player.rect.top + 35,
-            120,
-            110
-        )
-
-    else:
-
-        return pygame.Rect(
-            player.rect.centerx - 62,
-            player.rect.bottom - 75,
-            120,
-            100
-        )
+    else:  # down
+        return pygame.Rect(cx - width // 2, cy, width, reach)
     
 def set_attack_animation(
     player,

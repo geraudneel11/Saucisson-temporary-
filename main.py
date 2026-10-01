@@ -119,7 +119,7 @@ merchant1_max_pages = 4
 goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
-DEV_START_GAME_STATE = "chapel"
+DEV_START_GAME_STATE = "wave"
 game_state = DEV_START_GAME_STATE
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
@@ -372,6 +372,8 @@ house_rect = pygame.Rect(
 	80,
 	55
 )
+
+
 
 Player.current_animation = idle_down
 Player.direction = "down"
@@ -785,12 +787,25 @@ projectiles = []
 explosions = []
 player.selected_slot = 0
 
+level_obstacle_hitboxes = (
+	[tree.rect for tree in level_trees]
+	+ [tree.rect for tree in apple_trees]
+	+ [rock.rect for rock in level_rocks]
+)
+
 # TEST : dynamites de depart, pour ne pas attendre le shop (voir settings.py)
 if DEV_GIVE_DYNAMITE:
 	for _ in range(5):
 		player.add_item_to_inventory(Dynamite(scaled_dynamite))
 coins_to_collect = 0
-
+def enemy_obstacle(obj):
+	# Arbre ou rocher : tant que le joueur est SOUS le sprite (sa hitbox
+	# touche le rect complet), le monstre n'est bloqué que par le tronc /
+	# la base (obj.hitbox), comme le joueur. Sinon, il doit contourner
+	# tout le sprite (obj.rect).
+	if player.hitbox.colliderect(obj.rect):
+		return obj.hitbox
+	return obj.rect 
 run = True
 while run == True :
 	colliders.clear()
@@ -1212,10 +1227,10 @@ while run == True :
 	
 	if game_state == "wave":
 		level_obstacle_hitboxes = (
-			[tree.rect for tree in level_trees]
-			+ [tree.rect for tree in apple_trees]
-			+ [rock.rect for rock in level_rocks]
-		)
+			[enemy_obstacle(tree) for tree in level_trees]
+			+ [enemy_obstacle(tree) for tree in apple_trees]
+			+ [enemy_obstacle(rock) for rock in level_rocks]
+	)
 	else:
 		level_obstacle_hitboxes = []
 
@@ -2011,6 +2026,9 @@ while run == True :
 			pygame.draw.rect(game_surface, (255, 0, 255), enemy.hitbox, 2)
 		for projectile in projectiles:
 			pygame.draw.rect(game_surface, (255, 255, 0), projectile.hitbox, 2)
+		pygame.draw.rect(game_surface, (0, 255, 0), player.hitbox, 2)
+		if attack_hitbox and attacking:
+			pygame.draw.rect(game_surface, (0, 255, 255), attack_hitbox, 2)
 	if debug_hitboxes and game_state == "chapel":
 		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
 		chapel_interior.draw_debug_hitboxes(chapel_interior.interior_surface)

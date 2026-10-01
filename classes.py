@@ -7,1500 +7,1564 @@ from pygame import surface
 
 class Player:
 
-	def __init__(self, x, y, width, height):
+    def __init__(self, x, y, width, height):
 
-		self.rect = pygame.Rect(x, y, width, height)
-		self.hp = 100
-		self.max_hp = 100
-		self.speed = 14
-		self.hitbox = pygame.Rect(0, 0, 70, 70)
-		self.hitbox.center = self.rect.center
-		self.max_targets = 5
-		self.state = "idle"
-		self.damage_timer = 0
-		self.current_frame = 0
-		self.frame_timer = 0
-		self.current_animation = None
-		self.direction = "down"
-		self.invicible_timer = 0
-		self.coins = 150
-		self.selected_slot = 0
-		self.met_healer = False
-		self.met_merchant = False
-		self.met_librarian = False
+        self.rect = pygame.Rect(x, y, width, height)
+        self.hp = 100
+        self.max_hp = 100
+        self.speed = 14
+        self.hitbox = pygame.Rect(0, 0, 70, 70)
+        self.hitbox.center = self.rect.center
+        self.max_targets = 5
+        self.state = "idle"
+        self.damage_timer = 0
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.current_animation = None
+        self.direction = "down"
+        self.invicible_timer = 0
+        self.coins = 150
+        self.selected_slot = 0
+        self.met_healer = False
+        self.met_merchant = False
+        self.met_librarian = False
 
-		self.knockback_x = 0
-		self.knockback_y = 0
+        self.knockback_x = 0
+        self.knockback_y = 0
 
-		self.base_damage = 10
-		self.damage_multiplier = 1.0
-		self.damage_boost_timer = 0
+        self.base_damage = 10
+        self.damage_multiplier = 1.0
+        self.damage_boost_timer = 0
 
-		self.base_max_hp = 100
-		self.bonus_hp = 0
+        self.base_max_hp = 100
+        self.bonus_hp = 0
 
-		self.regen_rate = 0
-		self.regen_timer = 0
-		self.regen_accumulator = 0.0
+        self.regen_rate = 0
+        self.regen_timer = 0
+        self.regen_accumulator = 0.0
 
-		self.inventory = [
-    	{"item": None, "quantity": 0},
-    	{"item": None, "quantity": 0},
-    	{"item": None, "quantity": 0},
-		]
+        self.inventory = [
+        {"item": None, "quantity": 0},
+        {"item": None, "quantity": 0},
+        {"item": None, "quantity": 0},
+        ]
 
-		self.xp = 0
-		self.level = 0           # niveau de personnage / competences (fige a 0 pour l'instant)
-		self.xp_level = 0        # niveau donne par la barre d'xp (sans lien avec level)
+        self.xp = 0
+        self.level = 0           # niveau de personnage / competences (fige a 0 pour l'instant)
+        self.xp_level = 0        # niveau donne par la barre d'xp (sans lien avec level)
 
-		self.xp_record = 0       # plus haut niveau d'xp jamais atteint (base du cout)
-		self.skill_levels = {"max_hp": 0, "strength": 0, "slot_capacity": 0, "slot_count": 0}
-		self.inventory_slots = 3    # slots de hotbar (etendus par la competence Slots)
-		self.equipment_level = 0    # armure equipee (0 = aucune, 1 ou 2)
+        self.xp_record = 0       # plus haut niveau d'xp jamais atteint (base du cout)
+        self.skill_levels = {"max_hp": 0, "strength": 0, "slot_capacity": 0, "slot_count": 0}
+        self.inventory_slots = 3    # slots de hotbar (etendus par la competence Slots)
+        self.equipment_level = 0    # armure equipee (0 = aucune, 1 ou 2)
 
-	def gain_xp(self, amount):
-		# Ajoute de l'xp et fait monter le NIVEAU D'XP (xp_level) :
-		# barre remplie -> retour a zero, niveau suivant (le surplus
-		# est conserve). Sans lien avec self.level (competences).
-		self.xp += amount
-		while self.xp >= self.xp_required():
-			self.xp -= self.xp_required()
-			self.xp_level += 1
-			if self.xp_level > self.xp_record:
-				self.xp_record = self.xp_level
+    def gain_xp(self, amount):
+        # Ajoute de l'xp et fait monter le NIVEAU D'XP (xp_level) :
+        # barre remplie -> retour a zero, niveau suivant (le surplus
+        # est conserve). Sans lien avec self.level (competences).
+        self.xp += amount
+        while self.xp >= self.xp_required():
+            self.xp -= self.xp_required()
+            self.xp_level += 1
+            if self.xp_level > self.xp_record:
+                self.xp_record = self.xp_level
 
-	def xp_required(self):
-		# Cout du prochain niveau d'xp : base sur le RECORD (plus haut
-		# niveau jamais atteint), croissance GEOMETRIQUE : chaque niveau
-		# coute base x croissance^niveau (100, 130, 169, 220, 286...).
-		# Depenser un niveau ne fait jamais baisser le prix.
-		return max(1, round(XP_LEVEL_BASE * XP_LEVEL_GROWTH ** self.xp_record))
+    def xp_required(self):
+        # Cout du prochain niveau d'xp : base sur le RECORD (plus haut
+        # niveau jamais atteint), croissance GEOMETRIQUE : chaque niveau
+        # coute base x croissance^niveau (100, 130, 169, 220, 286...).
+        # Depenser un niveau ne fait jamais baisser le prix.
+        return max(1, round(XP_LEVEL_BASE * XP_LEVEL_GROWTH ** self.xp_record))
 
-	def spend_xp_levels(self, amount):
-		# Depense des NIVEAUX d'xp (monnaie des competences pv/force).
-		if self.xp_level >= amount:
-			self.xp_level -= amount
-			return True
-		return False
+    def spend_xp_levels(self, amount):
+        # Depense des NIVEAUX d'xp (monnaie des competences pv/force).
+        if self.xp_level >= amount:
+            self.xp_level -= amount
+            return True
+        return False
 
-	def spend_xp_points(self, amount):
-		# Depense de l'xp brute de la barre (competences d'inventaire).
-		# Ne peut jamais entamer un niveau deja acquis.
-		if self.xp >= amount:
-			self.xp -= amount
-			return True
-		return False
+    def spend_xp_points(self, amount):
+        # Depense de l'xp brute de la barre (competences d'inventaire).
+        # Ne peut jamais entamer un niveau deja acquis.
+        if self.xp >= amount:
+            self.xp -= amount
+            return True
+        return False
 
-	def strength_factor(self):
-		# Degats x 1.15^niveau de force (compose).
-		return STRENGTH_DAMAGE_FACTOR ** self.skill_levels["strength"]
+    def strength_factor(self):
+        # Degats x 1.15^niveau de force (compose).
+        return STRENGTH_DAMAGE_FACTOR ** self.skill_levels["strength"]
 
-	def armor_hp_bonus(self):
-		# pv bonus de l'armure equipee (40 par niveau)
-		return ARMOR_HP_PER_TIER * self.equipment_level
+    def armor_hp_bonus(self):
+        # pv bonus de l'armure equipee (40 par niveau)
+        return ARMOR_HP_PER_TIER * self.equipment_level
 
-	def armor_damage_factor(self):
-		# multiplicateur de degats de l'armure (x1.15 / x1.30)
-		return 1 + ARMOR_DAMAGE_PER_TIER * self.equipment_level
+    def armor_damage_factor(self):
+        # multiplicateur de degats de l'armure (x1.15 / x1.30)
+        return 1 + ARMOR_DAMAGE_PER_TIER * self.equipment_level
 
-	def armor_attack_factor(self):
-		# multiplicateur de vitesse d'attaque (x1.25 / x1.50)
-		return 1 + ARMOR_ATTACK_PER_TIER * self.equipment_level
+    def armor_attack_factor(self):
+        # multiplicateur de vitesse d'attaque (x1.25 / x1.50)
+        return 1 + ARMOR_ATTACK_PER_TIER * self.equipment_level
 
-	def item_max_per_slot(self):
-		# Pile max par slot : 16 de base, +2 par achat.
-		return ITEM_MAX_PER_SLOT_BASE + ITEM_MAX_PER_SLOT_STEP * self.skill_levels["slot_capacity"]
+    def item_max_per_slot(self):
+        # Pile max par slot : 16 de base, +2 par achat.
+        return ITEM_MAX_PER_SLOT_BASE + ITEM_MAX_PER_SLOT_STEP * self.skill_levels["slot_capacity"]
 
-	def recompute_max_hp(self):
-		# pv max = base + competence PV max + armure equipee,
-		# puis bonus temporaires (pomme doree) : l'equipement
-		# s'applique APRES les stats mais AVANT les pommes.
-		self.max_hp = (self.base_max_hp
-			+ MAX_HP_SKILL_BONUS * self.skill_levels["max_hp"]
-			+ self.armor_hp_bonus()
-			+ self.bonus_hp)
+    def recompute_max_hp(self):
+        # pv max = base + competence PV max + armure equipee,
+        # puis bonus temporaires (pomme doree) : l'equipement
+        # s'applique APRES les stats mais AVANT les pommes.
+        self.max_hp = (self.base_max_hp
+            + MAX_HP_SKILL_BONUS * self.skill_levels["max_hp"]
+            + self.armor_hp_bonus()
+            + self.bonus_hp)
 
-	def update_hitbox(self):
-		self.hitbox.center = self.rect.center
+    def update_hitbox(self):
+        self.hitbox.center = self.rect.center
 
-	def apply_knockback(self):
-		self.rect.x += self.knockback_x
-		self.rect.y += self.knockback_y
-		self.update_hitbox()
-		self.knockback_x *= 0.7
-		self.knockback_y *= 0.7
+    def apply_knockback(self):
+        self.rect.x += self.knockback_x
+        self.rect.y += self.knockback_y
+        self.update_hitbox()
+        self.knockback_x *= 0.7
+        self.knockback_y *= 0.7
 
-	def clamp_to_map(self, map_width, map_height):
-		if self.hitbox.left < 0:
-			self.rect.x -= self.hitbox.left
-		if self.hitbox.right > map_width:
-			self.rect.x -= self.hitbox.right - map_width
-		if self.hitbox.top < 0:
-			self.rect.y -= self.hitbox.top
-		if self.hitbox.bottom > map_height:
-			self.rect.y -= self.hitbox.bottom - map_height
-		self.update_hitbox()
+    def clamp_to_map(self, map_width, map_height):
+        if self.hitbox.left < 0:
+            self.rect.x -= self.hitbox.left
+        if self.hitbox.right > map_width:
+            self.rect.x -= self.hitbox.right - map_width
+        if self.hitbox.top < 0:
+            self.rect.y -= self.hitbox.top
+        if self.hitbox.bottom > map_height:
+            self.rect.y -= self.hitbox.bottom - map_height
+        self.update_hitbox()
 
-	def take_damage(self, damage, enemy):
-		if self.invicible_timer <= 0:
-			self.hp -= damage
+    def take_damage(self, damage, enemy):
+        if self.invicible_timer <= 0:
+            self.hp -= damage
 
-			if self.bonus_hp > 0:
-				reduction = min(self.bonus_hp, damage)
-				self.bonus_hp -= reduction
-				self.recompute_max_hp()
-				if self.hp > self.max_hp:
-					self.hp = self.max_hp
+            if self.bonus_hp > 0:
+                reduction = min(self.bonus_hp, damage)
+                self.bonus_hp -= reduction
+                self.recompute_max_hp()
+                if self.hp > self.max_hp:
+                    self.hp = self.max_hp
 
-			self.state = "hurt"
-			self.current_frame = 0
-			self.frame_timer = 0
+            self.state = "hurt"
+            self.current_frame = 0
+            self.frame_timer = 0
 
-			self.damage_timer = 36
+            self.damage_timer = 36
 
-			dx = self.rect.centerx - enemy.rect.centerx
-			dy = self.rect.centery - enemy.rect.centery
+            dx = self.rect.centerx - enemy.rect.centerx
+            dy = self.rect.centery - enemy.rect.centery
 
-			distance = max(1, (dx**2 + dy**2) ** 0.5)
+            distance = max(1, (dx**2 + dy**2) ** 0.5)
 
-			self.knockback_x = dx / distance * 20
-			self.knockback_y = dy / distance * 20
+            self.knockback_x = dx / distance * 20
+            self.knockback_y = dy / distance * 20
 
-			if self.hp < 0:
-				self.hp = 0
+            if self.hp < 0:
+                self.hp = 0
 
-			self.invicible_timer = 40
+            self.invicible_timer = 40
 
-	def update_buffs(self):
-		if self.damage_boost_timer > 0:
-			self.damage_boost_timer -= 1
-			if self.damage_boost_timer == 0:
-				self.damage_multiplier = 1.0
+    def update_buffs(self):
+        if self.damage_boost_timer > 0:
+            self.damage_boost_timer -= 1
+            if self.damage_boost_timer == 0:
+                self.damage_multiplier = 1.0
 
-		if self.regen_timer > 0:
-			self.regen_timer -= 1
-			self.regen_accumulator += self.regen_rate / FPS_MAX
-			if self.regen_accumulator >= 1:
-				heal = int(self.regen_accumulator)
-				self.hp = min(self.max_hp, self.hp + heal)
-				self.regen_accumulator -= heal
-			if self.regen_timer == 0:
-				self.regen_rate = 0
-				self.regen_accumulator = 0.0
+        if self.regen_timer > 0:
+            self.regen_timer -= 1
+            self.regen_accumulator += self.regen_rate / FPS_MAX
+            if self.regen_accumulator >= 1:
+                heal = int(self.regen_accumulator)
+                self.hp = min(self.max_hp, self.hp + heal)
+                self.regen_accumulator -= heal
+            if self.regen_timer == 0:
+                self.regen_rate = 0
+                self.regen_accumulator = 0.0
 
-	def add_item_to_inventory(self, item):
+    def add_item_to_inventory(self, item):
 
 
-		# Pile max par slot (competence "Items par slot" du menu divinite)
-		max_stack = self.item_max_per_slot()
+        # Pile max par slot (competence "Items par slot" du menu divinite)
+        max_stack = self.item_max_per_slot()
 
-	# Chercher une pile existante
-		for slot in self.inventory:
+    # Chercher une pile existante
+        for slot in self.inventory:
 
-			if slot["item"] is not None:
+            if slot["item"] is not None:
 
-				if slot["item"].name == item.name:
+                if slot["item"].name == item.name:
 
-					if slot["quantity"] >= max_stack:
-						continue
+                    if slot["quantity"] >= max_stack:
+                        continue
 
-					slot["quantity"] += 1
-					return True
+                    slot["quantity"] += 1
+                    return True
 
-	# Sinon créer une nouvelle pile
-		for slot in self.inventory:
+    # Sinon créer une nouvelle pile
+        for slot in self.inventory:
 
-			if slot["item"] is None:
+            if slot["item"] is None:
 
-				slot["item"] = item.copy()
-				slot["quantity"] = 1
-				return True
+                slot["item"] = item.copy()
+                slot["quantity"] = 1
+                return True
 
-		return False
+        return False
 _monster_level_font = None   # font du label de niveau (creee a la demande)
 _monster_level_font_size = None   # taille pour laquelle la font a ete creee
 
 
 class Enemy:
 
-	@classmethod
-	def from_orc_data(cls, x, y, orc_data, level=1):
-		return cls(
-			x,
-			y,
-			orc_data["walk"],
-			orc_data["hurt"],
-			orc_data["death"],
-			orc_data["attack"],
-			orc_data["idle"],
-			level=level
-		)
+    @classmethod
+    def from_orc_data(cls, x, y, orc_data, level=1):
+        return cls(
+            x,
+            y,
+            orc_data["walk"],
+            orc_data["hurt"],
+            orc_data["death"],
+            orc_data["attack"],
+            orc_data["idle"],
+            level=level
+        )
 
-	def __init__(self, x, y, orc_animations, orc_hurt_animations, orc_death_animations, orc_attack_animations, orc_idle_animations, level=1):
+    def __init__(self, x, y, orc_animations, orc_hurt_animations, orc_death_animations, orc_attack_animations, orc_idle_animations, level=1):
 
-		self.rect = pygame.Rect(x, y, 64, 64)
-		self.hitbox = pygame.Rect(0, 0, 40, 40)
-		self.hitbox.center = self.rect.center
+        self.rect = pygame.Rect(x, y, 64, 64)
+        self.hitbox = pygame.Rect(0, 0, 40, 40)
+        self.hitbox.center = self.rect.center
 
-				# --- Niveau du monstre : pv, degats, vitesse (par palier de 5),
-		# cooldown d'attaque. Les autres stats ne bougent pas.
-		self.level = max(1, int(level))
-		self.is_elite = False            # pose par waves.spawn_enemy
-		self.max_hp = 20 + MONSTER_HP_PER_LEVEL * (self.level - 1)
-		self.hp = self.max_hp
-		self.damage = 5 + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
-		_speed_tier = self.level // MONSTER_SPEED_STEP_LEVELS
-		_speed = 4 * (MONSTER_SPEED_FACTOR_PER_TIER ** _speed_tier)
-		self.speedx = _speed
-		self.speedy = _speed
-		self.base_attack_cooldown = max(
-			MONSTER_COOLDOWN_MIN,
-			120 - MONSTER_COOLDOWN_PER_LEVEL * (self.level - 1)
-		)
-		self.attack_range = 75
-		self.attack_cooldown = 0
-		self.attack_hit_done = False
-		self.attack_hitbox = None
-		self.hit_this_attack = False
+                # --- Niveau du monstre : pv, degats, vitesse (par palier de 5),
+        # cooldown d'attaque. Les autres stats ne bougent pas.
+        self.level = max(1, int(level))
+        self.is_elite = False            # pose par waves.spawn_enemy
+        self.max_hp = 20 + MONSTER_HP_PER_LEVEL * (self.level - 1)
+        self.hp = self.max_hp
+        self.damage = 5 + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
+        _speed_tier = self.level // MONSTER_SPEED_STEP_LEVELS
+        _speed = 4 * (MONSTER_SPEED_FACTOR_PER_TIER ** _speed_tier)
+        self.speedx = _speed
+        self.speedy = _speed
+        self.base_attack_cooldown = max(
+            MONSTER_COOLDOWN_MIN,
+            120 - MONSTER_COOLDOWN_PER_LEVEL * (self.level - 1)
+        )
+        self.attack_range = 75
+        self.attack_cooldown = 0
+        self.attack_hit_done = False
+        self.attack_hitbox = None
+        self.hit_this_attack = False
 
-		self.animations = orc_animations
-		self.hurt_animations = orc_hurt_animations
-		self.death_animations = orc_death_animations
-		self.attack_animations = orc_attack_animations
-		self.idle_animations = orc_idle_animations
+        self.animations = orc_animations
+        self.hurt_animations = orc_hurt_animations
+        self.death_animations = orc_death_animations
+        self.attack_animations = orc_attack_animations
+        self.idle_animations = orc_idle_animations
 
-		self.direction = "down"
-		self.state = "walk"
-		self.current_animation = orc_animations["down"]
-		self.current_frame = 0
-		self.frame_timer = 0
-		self.damage_timer = 0
-		self.health_bar_timer = 0
+        self.direction = "down"
+        self.state = "walk"
+        self.current_animation = orc_animations["down"]
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.damage_timer = 0
+        self.health_bar_timer = 0
 
-		self.knockback_x = 0
-		self.knockback_y = 0
+        self.knockback_x = 0
+        self.knockback_y = 0
 
-		self.dead = False
-		self.dead_finished = False
-		self.dead_timer = 0
+        self.dead = False
+        self.dead_finished = False
+        self.dead_timer = 0
 
-		self.spawn_point = (x, y)
-		self.detection_radius = ENEMY_DETECTION_RADIUS
+        self.spawn_point = (x, y)
+        self.detection_radius = ENEMY_DETECTION_RADIUS
 
-		self.patrol_target = None
-		self.patrol_timer = 0
-		self.patrol_moving = False
+        self.patrol_target = None
+        self.patrol_timer = 0
+        self.patrol_moving = False
+
+                # --- Détection de blocage ---
+        self.stuck_check_timer = 0
+        self.stuck_ref_pos = self.rect.center
+        self.unstick_timer = 0
+        self.unstick_dx = 0.0
+        self.unstick_dy = 0.0
 
 
 
-	def take_damage(self, damage, player):
-		if self.dead:
-			return
+    def take_damage(self, damage, player):
+        if self.dead:
+            return
 
-		self.hp = max(self.hp - damage, 0)
-		self.health_bar_timer = 120
-		self.attack_cooldown = self.base_attack_cooldown
-		self.state = "hurt"
-		self.current_frame = 0
-		self.frame_timer = 0
-		self.damage_timer = len(self.hurt_animations[self.direction]) * 6
+        self.hp = max(self.hp - damage, 0)
+        self.health_bar_timer = 120
+        self.attack_cooldown = self.base_attack_cooldown
+        self.unstick_timer = 0   # touché : on arrête de reculer, on refait face au joueur
+        self.state = "hurt"
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.damage_timer = len(self.hurt_animations[self.direction]) * 6
 
-		if self.hp == 0:
-			self.dead = True
-			self.state = "dead"
-			self.current_frame = 0
-			self.frame_timer = 0
-			self.coin_dropped = True
+        if self.hp == 0:
+            self.dead = True
+            self.state = "dead"
+            self.current_frame = 0
+            self.frame_timer = 0
+            self.coin_dropped = True
 
-		self._apply_knockback_from(player)
+        self._apply_knockback_from(player)
 
-	def draw_health_bar(self, surface, sprite_rect):
-		if self.health_bar_timer <= 0:
-			return
+    def draw_health_bar(self, surface, sprite_rect):
+        if self.health_bar_timer <= 0:
+            return
 
-		health_ratio = self.hp / self.max_hp
-		bar_width = 48
-		bar_height = 6
-		bar_x = sprite_rect.centerx - bar_width // 2
-		bar_y = sprite_rect.top - 10
-		pygame.draw.rect(surface, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
-		pygame.draw.rect(surface, (0, 220, 0), (bar_x, bar_y, bar_width * health_ratio, bar_height))
+        health_ratio = self.hp / self.max_hp
+        bar_width = 48
+        bar_height = 6
+        bar_x = sprite_rect.centerx - bar_width // 2
+        bar_y = sprite_rect.top - 10
+        pygame.draw.rect(surface, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(surface, (0, 220, 0), (bar_x, bar_y, bar_width * health_ratio, bar_height))
 
-	def update(self, player, obstacles=None):
-		self._apply_knockback()
+    def update(self, player, obstacles=None):
+        self._apply_knockback()
 
-		if self.dead:
-			self._update_dead()
-			return
+        if self.dead:
+            self._update_dead()
+            return
 
-		# En patrouille, l'orientation est gérée par le déplacement
-		# lui-même (_apply_move) — pas besoin de faire face au joueur
-		# tant qu'il n'est pas détecté.
-		if self.state != "patrol":
-			self._update_direction(player)
+        # En patrouille, l'orientation est gérée par le déplacement
+        # lui-même (_apply_move) — pas besoin de faire face au joueur
+        # tant qu'il n'est pas détecté.
+                # Pas de regard vers le joueur : en patrouille (direction gérée par
+        # le déplacement) ni pendant un déblocage (le monstre regarde
+        # où il va, pas vers sa cible).
+        unsticking = (self.state == "walk" and self.unstick_timer > 0)
+        if self.state != "patrol" and not unsticking:
+            self._update_direction(player)
 
-		if self.state == "hurt":
-			self._update_hurt()
-		elif self.state == "attack":
-			self._update_attack(player)
-		else:
-			self._update_movement(player, obstacles or [])
+        if self.state == "hurt":
+            self._update_hurt()
+        elif self.state == "attack":
+            self._update_attack(player)
+        else:
+            self._update_movement(player, obstacles or [])
 
-		self._advance_frame()
-		self._update_cooldowns()
+        self._advance_frame()
+        self._update_cooldowns()
 
-	def _apply_knockback_from(self, player):
-		dx = self.rect.centerx - player.rect.centerx
-		dy = self.rect.centery - player.rect.centery
-		distance = max(1, math.hypot(dx, dy))
-		self.knockback_x = dx / distance * 20
-		self.knockback_y = dy / distance * 20
+    def _apply_knockback_from(self, player):
+        dx = self.rect.centerx - player.rect.centerx
+        dy = self.rect.centery - player.rect.centery
+        distance = max(1, math.hypot(dx, dy))
+        self.knockback_x = dx / distance * 20
+        self.knockback_y = dy / distance * 20
 
-	def _apply_knockback(self):
-		self.rect.x += self.knockback_x
-		self.rect.y += self.knockback_y
-		self.knockback_x *= 0.7
-		self.knockback_y *= 0.7
-		self.hitbox.center = self.rect.center
+    def _apply_knockback(self):
+        self.rect.x += self.knockback_x
+        self.rect.y += self.knockback_y
+        self.knockback_x *= 0.7
+        self.knockback_y *= 0.7
+        self.hitbox.center = self.rect.center
 
-	def _update_direction(self, player):
-		dx = player.rect.centerx - self.rect.centerx
-		dy = player.rect.centery - self.rect.centery
-		if abs(dx) > abs(dy):
-			self.direction = "right" if dx > 0 else "left"
-		else:
-			self.direction = "down" if dy > 0 else "up"
+    def _update_direction(self, player):
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        if abs(dx) > abs(dy):
+            self.direction = "right" if dx > 0 else "left"
+        else:
+            self.direction = "down" if dy > 0 else "up"
 
-	def _set_animation(self, animation):
-		self.current_animation = animation
-		self.current_frame = min(self.current_frame, len(animation) - 1)
+    def _set_animation(self, animation):
+        self.current_animation = animation
+        self.current_frame = min(self.current_frame, len(animation) - 1)
 
-	def _update_dead(self):
-		self._set_animation(self.death_animations[self.direction])
-		self.frame_timer += 1
-		if self.frame_timer >= 6:
-			self.frame_timer = 0
-			if self.current_frame < len(self.current_animation) - 1:
-				self.current_frame += 1
-		if self.current_frame == len(self.current_animation) - 1:
-			self.dead_timer += 1
-		if self.dead_timer >= 30:
-			self.dead_finished = True
+    def _update_dead(self):
+        self._set_animation(self.death_animations[self.direction])
+        self.frame_timer += 1
+        if self.frame_timer >= 6:
+            self.frame_timer = 0
+            if self.current_frame < len(self.current_animation) - 1:
+                self.current_frame += 1
+        if self.current_frame == len(self.current_animation) - 1:
+            self.dead_timer += 1
+        if self.dead_timer >= 30:
+            self.dead_finished = True
 
-	def _update_hurt(self):
-		self._set_animation(self.hurt_animations[self.direction])
-		self.damage_timer -= 1
-		if self.damage_timer <= 0:
-			self.state = "walk"
+    def _update_hurt(self):
+        self._set_animation(self.hurt_animations[self.direction])
+        self.damage_timer -= 1
+        if self.damage_timer <= 0:
+            self.state = "walk"
 
-	def _update_attack(self, player):
-		self._set_animation(self.attack_animations[self.direction])
-		if 3 <= self.current_frame <= 5 and not self.attack_hit_done:
-			self._create_attack_hitbox()
-			if self.attack_hitbox.colliderect(player.hitbox):
-				player.take_damage(self.damage, self)
-				self.attack_hit_done = True
+    def _update_attack(self, player):
+        self._set_animation(self.attack_animations[self.direction])
+        if 3 <= self.current_frame <= 5 and not self.attack_hit_done:
+            self._create_attack_hitbox()
+            if self.attack_hitbox.colliderect(player.hitbox):
+                player.take_damage(self.damage, self)
+                self.attack_hit_done = True
 
-	def _update_movement(self, player, obstacles):
-		dx = player.rect.centerx - self.rect.centerx
-		dy = player.rect.centery - self.rect.centery
-		distance = math.hypot(dx, dy)
+    def _update_movement(self, player, obstacles):
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        distance = math.hypot(dx, dy)
 
-		detected = distance <= self.detection_radius
+        detected = distance <= self.detection_radius
 
-		if not detected:
-			self.state = "patrol"
-		elif distance <= self.attack_range and self.attack_cooldown <= 0:
-			self.state = "attack"
-			self.current_frame = 0
-			self.frame_timer = 0
-			self.attack_hit_done = False
-		elif distance <= 45:
-			self.state = "idle"
-		else:
-			self.state = "walk"
+        if not detected:
+            self.state = "patrol"
+        elif distance <= self.attack_range and self.attack_cooldown <= 0:
+            self.state = "attack"
+            self.current_frame = 0
+            self.frame_timer = 0
+            self.attack_hit_done = False
+        elif distance <= 45:
+            self.state = "idle"
+        else:
+            self.state = "walk"
 
-		if self.state == "walk":
-			self._set_animation(self.animations[self.direction])
-			speed = math.hypot(self.speedx, self.speedy)
-			move_x, move_y = self._find_open_direction(dx, dy, obstacles, speed)
-			self._apply_move(move_x, move_y)
-		elif self.state == "idle":
-			self._set_animation(self.idle_animations[self.direction])
-		elif self.state == "patrol":
-			self._update_patrol(obstacles)
+        if self.state == "walk":
+            speed = math.hypot(self.speedx, self.speedy)
 
-		self.hitbox.center = self.rect.center
+            if self.unstick_timer > 0:
+                # Mode déblocage : on s'éloigne de l'obstacle
+                self.unstick_timer -= 1
+                move_x, move_y = self._find_open_direction(
+                    self.unstick_dx, self.unstick_dy, obstacles, speed
+                )
+                self._apply_move(move_x, move_y)
+                # Animation choisie APRÈS le déplacement : elle suit la
+                # direction réelle du mouvement (le monstre se tourne).
+                self._set_animation(self.animations[self.direction])
+                self._reset_stuck_check()
+            else:
+                self._set_animation(self.animations[self.direction])
+                move_x, move_y = self._find_open_direction(dx, dy, obstacles, speed)
+                self._apply_move(move_x, move_y)
+                if self._check_stuck(speed):
+                    self._start_unstick(dx, dy)
+        elif self.state == "idle":
+            self._set_animation(self.idle_animations[self.direction])
+        elif self.state == "patrol":
+            self._update_patrol(obstacles)
 
-	def _move_towards(self, player, speed):
-		if self.rect.centerx < player.rect.centerx:
-			self.rect.x += self.speedx
-		elif self.rect.centerx > player.rect.centerx:
-			self.rect.x -= self.speedx
-		if self.rect.centery < player.rect.centery:
-			self.rect.y += self.speedy
-		elif self.rect.centery > player.rect.centery:
-			self.rect.y -= self.speedy
+        if self.state not in ("walk", "patrol"):
+            # Attaque, pause... : on repart de zéro au prochain "walk"
+            self.unstick_timer = 0
+            self._reset_stuck_check()
 
-		self.hitbox.center = self.rect.center
+        self.hitbox.center = self.rect.center
 
-	def _apply_move(self, move_x, move_y):
-		self.rect.x += move_x
-		self.rect.y += move_y
+    def _move_towards(self, player, speed):
+        if self.rect.centerx < player.rect.centerx:
+            self.rect.x += self.speedx
+        elif self.rect.centerx > player.rect.centerx:
+            self.rect.x -= self.speedx
+        if self.rect.centery < player.rect.centery:
+            self.rect.y += self.speedy
+        elif self.rect.centery > player.rect.centery:
+            self.rect.y -= self.speedy
 
-		if abs(move_x) > abs(move_y):
-			self.direction = "right" if move_x > 0 else "left"
-		elif move_y != 0:
-			self.direction = "down" if move_y > 0 else "up"
+        self.hitbox.center = self.rect.center
 
-		self.hitbox.center = self.rect.center
+    def _apply_move(self, move_x, move_y):
+        self.rect.x += move_x
+        self.rect.y += move_y
 
-	def _find_open_direction(self, target_dx, target_dy, obstacles, speed):
-		"""
-		Renvoie un vecteur de déplacement (dx, dy) à la vitesse
-		'speed'. Essaie d'abord la direction directe vers la cible ;
-		si un obstacle bloque, essaie des angles de plus en plus
-		déviés de chaque côté jusqu'à trouver un passage libre —
-		l'ennemi contourne alors naturellement l'obstacle.
-		"""
-		if target_dx == 0 and target_dy == 0:
-			return 0, 0
+        if abs(move_x) > abs(move_y):
+            self.direction = "right" if move_x > 0 else "left"
+        elif move_y != 0:
+            self.direction = "down" if move_y > 0 else "up"
 
-		base_angle = math.atan2(target_dy, target_dx)
-		offsets = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100]
+        self.hitbox.center = self.rect.center
 
-		for offset_deg in offsets:
-			angle = base_angle + math.radians(offset_deg)
-			step_x = math.cos(angle) * speed
-			step_y = math.sin(angle) * speed
+    def _find_open_direction(self, target_dx, target_dy, obstacles, speed):
+        """
+        Renvoie un vecteur de déplacement (dx, dy) à la vitesse
+        'speed'. Essaie d'abord la direction directe vers la cible ;
+        si un obstacle bloque, essaie des angles de plus en plus
+        déviés de chaque côté jusqu'à trouver un passage libre —
+        l'ennemi contourne alors naturellement l'obstacle.
+        """
+        if target_dx == 0 and target_dy == 0:
+            return 0, 0
 
-			test_rect = self.hitbox.copy()
-			test_rect.x += step_x
-			test_rect.y += step_y
+        base_angle = math.atan2(target_dy, target_dx)
+        offsets = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100]
 
-			if not any(test_rect.colliderect(o) for o in obstacles):
-				return step_x, step_y
+        for offset_deg in offsets:
+            angle = base_angle + math.radians(offset_deg)
+            step_x = math.cos(angle) * speed
+            step_y = math.sin(angle) * speed
 
-		# Aucune direction libre trouvée : l'ennemi est probablement
-		# déjà À L'INTÉRIEUR d'un obstacle (poussé par un coup, par un
-		# autre ennemi, spawn malchanceux...). Dans ce cas précis, on
-		# s'échappe directement à l'opposé du centre de l'obstacle,
-		# sans revérifier de collision cette fois — pour garantir la
-		# sortie plutôt que de rester figé indéfiniment.
-		stuck_in = None
-		for o in obstacles:
-			if self.hitbox.colliderect(o):
-				stuck_in = o
-				break
+            test_rect = self.hitbox.copy()
+            test_rect.x += step_x
+            test_rect.y += step_y
 
-		if stuck_in is not None:
-			escape_dx = self.hitbox.centerx - stuck_in.centerx
-			escape_dy = self.hitbox.centery - stuck_in.centery
-			distance = max(1, math.hypot(escape_dx, escape_dy))
-			return escape_dx / distance * speed, escape_dy / distance * speed
+            if not any(test_rect.colliderect(o) for o in obstacles):
+                return step_x, step_y
 
-		return 0, 0
+        # Aucune direction libre trouvée : l'ennemi est probablement
+        # déjà À L'INTÉRIEUR d'un obstacle (poussé par un coup, par un
+        # autre ennemi, spawn malchanceux...). Dans ce cas précis, on
+        # s'échappe directement à l'opposé du centre de l'obstacle,
+        # sans revérifier de collision cette fois — pour garantir la
+        # sortie plutôt que de rester figé indéfiniment.
+        stuck_in = None
+        for o in obstacles:
+            if self.hitbox.colliderect(o):
+                stuck_in = o
+                break
 
-	def _update_patrol(self, obstacles):
-		if self.patrol_timer > 0:
-			self.patrol_timer -= 1
-			self.patrol_moving = False
-			self._set_animation(self.idle_animations[self.direction])
-			return
+        if stuck_in is not None:
+            escape_dx = self.hitbox.centerx - stuck_in.centerx
+            escape_dy = self.hitbox.centery - stuck_in.centery
+            distance = max(1, math.hypot(escape_dx, escape_dy))
+            return escape_dx / distance * speed, escape_dy / distance * speed
 
-		if self.patrol_target is None:
-			angle = random.uniform(0, 2 * math.pi)
-			dist = random.uniform(50, ENEMY_PATROL_RADIUS)
-			self.patrol_target = (
-				self.spawn_point[0] + math.cos(angle) * dist,
-				self.spawn_point[1] + math.sin(angle) * dist
-			)
+        return 0, 0
 
-		tx, ty = self.patrol_target
-		dx = tx - self.rect.centerx
-		dy = ty - self.rect.centery
-		distance = math.hypot(dx, dy)
+    def _update_patrol(self, obstacles):
+        if self.patrol_timer > 0:
+            self.patrol_timer -= 1
+            self.patrol_moving = False
+            self._set_animation(self.idle_animations[self.direction])
+            self._reset_stuck_check()
+            return
 
-		if distance <= 6:
-			self.patrol_target = None
-			self.patrol_timer = random.randint(ENEMY_PATROL_PAUSE_MIN, ENEMY_PATROL_PAUSE_MAX)
-			self.patrol_moving = False
-			self._set_animation(self.idle_animations[self.direction])
-			return
+        if self.patrol_target is None:
+            angle = random.uniform(0, 2 * math.pi)
+            dist = random.uniform(50, ENEMY_PATROL_RADIUS)
+            self.patrol_target = (
+                self.spawn_point[0] + math.cos(angle) * dist,
+                self.spawn_point[1] + math.sin(angle) * dist
+            )
 
-		self.patrol_moving = True
-		self._set_animation(self.animations[self.direction])
-		move_x, move_y = self._find_open_direction(dx, dy, obstacles, ENEMY_PATROL_SPEED)
-		self._apply_move(move_x, move_y)
+        tx, ty = self.patrol_target
+        dx = tx - self.rect.centerx
+        dy = ty - self.rect.centery
+        distance = math.hypot(dx, dy)
 
-	def _create_attack_hitbox(self):
-		if self.direction == "right":
-			self.attack_hitbox = pygame.Rect(self.rect.right - 10, self.rect.centery - 40, 90, 80)
-		elif self.direction == "left":
-			self.attack_hitbox = pygame.Rect(self.rect.left - 80, self.rect.centery - 40, 90, 80)
-		elif self.direction == "up":
-			self.attack_hitbox = pygame.Rect(self.rect.centerx - 40, self.rect.top - 80, 80, 90)
-		else:
-			self.attack_hitbox = pygame.Rect(self.rect.centerx - 40, self.rect.bottom - 10, 80, 90)
+        if distance <= 6:
+            self.patrol_target = None
+            self.patrol_timer = random.randint(ENEMY_PATROL_PAUSE_MIN, ENEMY_PATROL_PAUSE_MAX)
+            self.patrol_moving = False
+            self._set_animation(self.idle_animations[self.direction])
+            self._reset_stuck_check()
+            return
 
-	def _advance_frame(self):
-		self.frame_timer += 1
-		if self.frame_timer >= 6:
-			self.frame_timer = 0
-			self.current_frame += 1
-			if self.current_frame >= len(self.current_animation):
-				self.current_frame = 0
-				if self.state == "attack":
-					self.state = "walk"
-					self.attack_cooldown = self.base_attack_cooldown
-					self.attack_hit_done = False
+        self.patrol_moving = True
+        self.patrol_moving = True
+        self._set_animation(self.animations[self.direction])
+        move_x, move_y = self._find_open_direction(dx, dy, obstacles, ENEMY_PATROL_SPEED)
+        self._apply_move(move_x, move_y)
+        if self._check_stuck(ENEMY_PATROL_SPEED):
+            self.patrol_target = None   # cible inaccessible : on en tire une autre
+    def _create_attack_hitbox(self):
+        if self.direction == "right":
+            self.attack_hitbox = pygame.Rect(self.rect.right - 10, self.rect.centery - 40, 90, 80)
+        elif self.direction == "left":
+            self.attack_hitbox = pygame.Rect(self.rect.left - 80, self.rect.centery - 40, 90, 80)
+        elif self.direction == "up":
+            self.attack_hitbox = pygame.Rect(self.rect.centerx - 40, self.rect.top - 80, 80, 90)
+        else:
+            self.attack_hitbox = pygame.Rect(self.rect.centerx - 40, self.rect.bottom - 10, 80, 90)
 
-	def _update_cooldowns(self):
-		if self.attack_cooldown > 0:
-			self.attack_cooldown -= 1
-		if self.health_bar_timer > 0:
-			self.health_bar_timer -= 1
+    def _advance_frame(self):
+        self.frame_timer += 1
+        if self.frame_timer >= 6:
+            self.frame_timer = 0
+            self.current_frame += 1
+            if self.current_frame >= len(self.current_animation):
+                self.current_frame = 0
+                if self.state == "attack":
+                    self.state = "walk"
+                    self.attack_cooldown = self.base_attack_cooldown
+                    self.attack_hit_done = False
 
-	def draw_level_label(self, surface, sprite_rect):
-		# "Niv. X" a cote de la barre de vie (au-dessus du monstre),
-		# meme quand celle-ci n'est pas affichee. Les elites ont un
-		# label d'une autre couleur (MONSTER_ELITE_LABEL_COLOR).
-		# Taille, position (sous/au-dessus de la barre) et ecart se
-		# reglent dans settings.py (MONSTER_LABEL_*).
-		global _monster_level_font, _monster_level_font_size
-		if (_monster_level_font is None
-				or _monster_level_font_size != MONSTER_LABEL_FONT_SIZE):
-			_monster_level_font_size = MONSTER_LABEL_FONT_SIZE
-			_monster_level_font = pygame.font.SysFont(
-				"Ebrima", MONSTER_LABEL_FONT_SIZE, bold=True)
-		color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
-		text = _monster_level_font.render(f"Niv. {self.level}", True, color)
-		if MONSTER_LABEL_BELOW_BAR:
-			# Sous la barre de vie : la barre occupe top-10 -> top-4,
-			# le label commence juste en dessous (+ l'ecart reglable).
-			label_rect = text.get_rect(midtop=(
-				sprite_rect.centerx,
-				sprite_rect.top - 4 + MONSTER_LABEL_OFFSET_Y
-			))
-		else:
-			label_rect = text.get_rect(midbottom=(
-				sprite_rect.centerx,
-				sprite_rect.top - 12 - MONSTER_LABEL_OFFSET_Y
-			))
-		surface.blit(text, label_rect)
+    def _update_cooldowns(self):
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
+        if self.health_bar_timer > 0:
+            self.health_bar_timer -= 1
 
-	
+    def draw_level_label(self, surface, sprite_rect):
+        # "Niv. X" a cote de la barre de vie (au-dessus du monstre),
+        # meme quand celle-ci n'est pas affichee. Les elites ont un
+        # label d'une autre couleur (MONSTER_ELITE_LABEL_COLOR).
+        # Taille, position (sous/au-dessus de la barre) et ecart se
+        # reglent dans settings.py (MONSTER_LABEL_*).
+        global _monster_level_font, _monster_level_font_size
+        if (_monster_level_font is None
+                or _monster_level_font_size != MONSTER_LABEL_FONT_SIZE):
+            _monster_level_font_size = MONSTER_LABEL_FONT_SIZE
+            _monster_level_font = pygame.font.SysFont(
+                "Ebrima", MONSTER_LABEL_FONT_SIZE, bold=True)
+        color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
+        text = _monster_level_font.render(f"Niv. {self.level}", True, color)
+        if MONSTER_LABEL_BELOW_BAR:
+            # Sous la barre de vie : la barre occupe top-10 -> top-4,
+            # le label commence juste en dessous (+ l'ecart reglable).
+            label_rect = text.get_rect(midtop=(
+                sprite_rect.centerx,
+                sprite_rect.top - 4 + MONSTER_LABEL_OFFSET_Y
+            ))
+        else:
+            label_rect = text.get_rect(midbottom=(
+                sprite_rect.centerx,
+                sprite_rect.top - 12 - MONSTER_LABEL_OFFSET_Y
+            ))
+        surface.blit(text, label_rect)
+
+    def _reset_stuck_check(self):
+        self.stuck_check_timer = 0
+        self.stuck_ref_pos = self.rect.center
+
+    def _check_stuck(self, expected_speed):
+        # Appelée à chaque frame où le monstre CHERCHE à avancer.
+        # Renvoie True si, sur la période de contrôle, il a parcouru
+        # beaucoup moins que prévu (obstacle, oscillation...).
+        self.stuck_check_timer += 1
+        if self.stuck_check_timer < ENEMY_STUCK_CHECK_FRAMES:
+            return False
+        moved = math.hypot(
+            self.rect.centerx - self.stuck_ref_pos[0],
+            self.rect.centery - self.stuck_ref_pos[1]
+        )
+        expected = expected_speed * self.stuck_check_timer
+        self._reset_stuck_check()
+        return moved < expected * ENEMY_STUCK_MIN_PROGRESS
+
+    def _start_unstick(self, target_dx, target_dy):
+        # Direction OPPOSÉE à la cible, légèrement déviée au hasard
+        angle = math.atan2(-target_dy, -target_dx) + math.radians(
+            random.uniform(-ENEMY_UNSTICK_ANGLE_SPREAD, ENEMY_UNSTICK_ANGLE_SPREAD)
+        )
+        self.unstick_dx = math.cos(angle)
+        self.unstick_dy = math.sin(angle)
+        self.unstick_timer = ENEMY_UNSTICK_DURATION
+
+    
 
 class Coin:
 
-	def __init__(self, x, y, animation):
-		self.animation = animation
-		self.current_frame = 0
-		self.frame_timer = 0
-		self.rect = pygame.Rect(x, y, 24, 24)
-		self.rect.center = (x, y)
-		self.auto_collect = False
-		self.value = 1
+    def __init__(self, x, y, animation):
+        self.animation = animation
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.rect = pygame.Rect(x, y, 24, 24)
+        self.rect.center = (x, y)
+        self.auto_collect = False
+        self.value = 1
 
-	def update(self):
-		self.frame_timer += 1
-		if self.frame_timer >= 6:
-			self.frame_timer = 0
-			self.current_frame += 1
-			if self.current_frame >= len(self.animation):
-				self.current_frame = 0
+    def update(self):
+        self.frame_timer += 1
+        if self.frame_timer >= 6:
+            self.frame_timer = 0
+            self.current_frame += 1
+            if self.current_frame >= len(self.animation):
+                self.current_frame = 0
 
-	def draw(self, surface):
-		sprite = self.animation[self.current_frame]
-		rect = sprite.get_rect(centerx=self.rect.centerx, centery=self.rect.centery + 25)
-		surface.blit(sprite, rect)
+    def draw(self, surface):
+        sprite = self.animation[self.current_frame]
+        rect = sprite.get_rect(centerx=self.rect.centerx, centery=self.rect.centery + 25)
+        surface.blit(sprite, rect)
 
-	def move_towards_player(self, player):
-		dx = player.rect.centerx - self.rect.centerx
-		dy = player.rect.centery - self.rect.centery
-		distance = math.hypot(dx, dy)
-		if distance < COIN_MAGNET_RADIUS and distance > 1:
-			speed = 8
-			self.rect.x += dx / distance * speed
-			self.rect.y += dy / distance * speed
+    def move_towards_player(self, player):
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        distance = math.hypot(dx, dy)
+        if distance < COIN_MAGNET_RADIUS and distance > 1:
+            speed = 8
+            self.rect.x += dx / distance * speed
+            self.rect.y += dy / distance * speed
 
-	def move_auto(self, player):
-		dx = player.rect.centerx - self.rect.centerx
-		dy = player.rect.centery - self.rect.centery
-		distance = math.hypot(dx, dy)
-		if distance > 1:
-			speed = 12
-			self.rect.x += dx / distance * speed
-			self.rect.y += dy / distance * speed
+    def move_auto(self, player):
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        distance = math.hypot(dx, dy)
+        if distance > 1:
+            speed = 12
+            self.rect.x += dx / distance * speed
+            self.rect.y += dy / distance * speed
 
 class NPC:
 
-	def __init__(
-		self,
-		x, y,
-		idle_animation,
-		walk_animations,
-		npc_type,
-		hitbox_width=40,
-		hitbox_height=40,
-		hitbox_for_players_width=30,
-		hitbox_for_players_height=5,
-		hitbox_offset_x=0,
-		hitbox_offset_y=0,
-		hitbox_for_furniture_width=30,
-		hitbox_for_furniture_height=5,
-		movement_points=None,
-		stop_point_indices=None,
-		stop_look_directions=None,
-		speed=1.5,
-		stop_duration_min_seconds=2,
-		stop_duration_max_seconds=10,
-		turn_pause_min_seconds=2,
-		turn_pause_max_seconds=4,
-		stop_duration_overrides=None,
-		sequential_stops=False,
-		idle_at_stops=False,
-		idle_animations=None,
-		messe_index=None,
-		messe_speech=None,
-		messe_spell=None,
-		messe_chance=0.5,
-		messe_extra_seconds=10,
-		messe_speech_seconds=3,
-		messe_spell_effect=None,
-		messe_spell_effect_offset_y=-60,
-		pray_animations=None,
-		pray_indices=None,
-		leave_target=None,
-		leave_when=None,
-		dodge_target=None,
-		messe_replace_indices=None,
-		home_index=0,
-		home_pray_direction="right",
-		watch_target=None,
-		watch_stop_index=None,
-		watch_default_direction="down"
-	):
+    def __init__(
+        self,
+        x, y,
+        idle_animation,
+        walk_animations,
+        npc_type,
+        hitbox_width=40,
+        hitbox_height=40,
+        hitbox_for_players_width=30,
+        hitbox_for_players_height=5,
+        hitbox_offset_x=0,
+        hitbox_offset_y=0,
+        hitbox_for_furniture_width=30,
+        hitbox_for_furniture_height=5,
+        movement_points=None,
+        stop_point_indices=None,
+        stop_look_directions=None,
+        speed=1.5,
+        stop_duration_min_seconds=2,
+        stop_duration_max_seconds=10,
+        turn_pause_min_seconds=2,
+        turn_pause_max_seconds=4,
+        stop_duration_overrides=None,
+        sequential_stops=False,
+        idle_at_stops=False,
+        idle_animations=None,
+        messe_index=None,
+        messe_speech=None,
+        messe_spell=None,
+        messe_chance=0.5,
+        messe_extra_seconds=10,
+        messe_speech_seconds=3,
+        messe_spell_effect=None,
+        messe_spell_effect_offset_y=-60,
+        pray_animations=None,
+        pray_indices=None,
+        leave_target=None,
+        leave_when=None,
+        dodge_target=None,
+        messe_replace_indices=None,
+        home_index=0,
+        home_pray_direction="right",
+        watch_target=None,
+        watch_stop_index=None,
+        watch_default_direction="down"
+    ):
 
-		self.rect = pygame.Rect(x, y, 64, 64)
+        self.rect = pygame.Rect(x, y, 64, 64)
 
-		self.idle_animation = idle_animation
-		self.walk_animations = walk_animations
-		self.current_animation = idle_animation
-		self.stop_duration_overrides = stop_duration_overrides or {},
-		self.sequential_stops = sequential_stops
-		self.current_frame = 0
-		self.frame_timer = 0
-		self.messe_spell_effect = messe_spell_effect
-		self.messe_spell_effect_offset_y = messe_spell_effect_offset_y
-		self.idle_at_stops = idle_at_stops
-		self.idle_animations = idle_animations
-		self.messe_index = messe_index
-		self.messe_speech = messe_speech
-		self.messe_spell = messe_spell
-		self.messe_chance = messe_chance
-		self.messe_extra = int(messe_extra_seconds * FPS_MAX)
-		self.messe_speech_time = int(messe_speech_seconds * FPS_MAX)
-		self.messe_active = False
-		self.messe_phase = "speech"
-		self.messe_phase_timer = 0
-		self.direction = "down"
-		self.pray_animations = pray_animations
-		self.pray_indices = pray_indices or set()
-		self.leave_target = leave_target
-		self.leave_when = leave_when or {}
-		self.dodge_target = dodge_target
-		self.messe_replace_indices = messe_replace_indices or set()
-		self.home_index = home_index
-		self.home_pray_direction = home_pray_direction
-		self.watch_target = watch_target
-		self.watch_stop_index = watch_stop_index
-		self.watch_default_direction = watch_default_direction
+        self.idle_animation = idle_animation
+        self.walk_animations = walk_animations
+        self.current_animation = idle_animation
+        self.stop_duration_overrides = stop_duration_overrides or {},
+        self.sequential_stops = sequential_stops
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.messe_spell_effect = messe_spell_effect
+        self.messe_spell_effect_offset_y = messe_spell_effect_offset_y
+        self.idle_at_stops = idle_at_stops
+        self.idle_animations = idle_animations
+        self.messe_index = messe_index
+        self.messe_speech = messe_speech
+        self.messe_spell = messe_spell
+        self.messe_chance = messe_chance
+        self.messe_extra = int(messe_extra_seconds * FPS_MAX)
+        self.messe_speech_time = int(messe_speech_seconds * FPS_MAX)
+        self.messe_active = False
+        self.messe_phase = "speech"
+        self.messe_phase_timer = 0
+        self.direction = "down"
+        self.pray_animations = pray_animations
+        self.pray_indices = pray_indices or set()
+        self.leave_target = leave_target
+        self.leave_when = leave_when or {}
+        self.dodge_target = dodge_target
+        self.messe_replace_indices = messe_replace_indices or set()
+        self.home_index = home_index
+        self.home_pray_direction = home_pray_direction
+        self.watch_target = watch_target
+        self.watch_stop_index = watch_stop_index
+        self.watch_default_direction = watch_default_direction
 
-		self.type = npc_type
+        self.type = npc_type
 
-		self.interaction_rect = pygame.Rect(
-			self.rect.x - 30,
-			self.rect.y - 30,
-			self.rect.width + 60,
-			self.rect.height + 60
-		)
+        self.interaction_rect = pygame.Rect(
+            self.rect.x - 30,
+            self.rect.y - 30,
+            self.rect.width + 60,
+            self.rect.height + 60
+        )
 
-		self.hitbox_offset_x = hitbox_offset_x
-		self.hitbox_offset_y = hitbox_offset_y
+        self.hitbox_offset_x = hitbox_offset_x
+        self.hitbox_offset_y = hitbox_offset_y
 
-		self.hitbox = pygame.Rect(0, 0, hitbox_width, hitbox_height)
-		self.hitbox_for_players = pygame.Rect(0, 0, hitbox_for_players_width, hitbox_for_players_height)
+        self.hitbox = pygame.Rect(0, 0, hitbox_width, hitbox_height)
+        self.hitbox_for_players = pygame.Rect(0, 0, hitbox_for_players_width, hitbox_for_players_height)
 
-		# Hitbox dédiée aux collisions NPC-vs-meubles/murs pendant le
-		# déplacement, à la même taille que celle du joueur (70x70).
-		# self.hitbox reste inchangée et disponible pour un usage futur.
-		self.hitbox_for_furniture = pygame.Rect(0, 0, hitbox_for_furniture_width, hitbox_for_furniture_height)
+        # Hitbox dédiée aux collisions NPC-vs-meubles/murs pendant le
+        # déplacement, à la même taille que celle du joueur (70x70).
+        # self.hitbox reste inchangée et disponible pour un usage futur.
+        self.hitbox_for_furniture = pygame.Rect(0, 0, hitbox_for_furniture_width, hitbox_for_furniture_height)
 
-		self._update_hitbox_position()
+        self._update_hitbox_position()
 
-		# --- Circuit : movement_points est la liste ORDONNÉE de tous les
-		# points (passage + arrêt). stop_point_indices = index des points
-		# d'ARRÊT (éligibles au tirage au sort) ; les autres index ne sont
-		# que des points de passage, traversés sans pause.
-		self.movement_points = movement_points or []
-		if stop_point_indices is None:
-			self.stop_point_indices = list(range(len(self.movement_points)))
-		else:
-			self.stop_point_indices = stop_point_indices
+        # --- Circuit : movement_points est la liste ORDONNÉE de tous les
+        # points (passage + arrêt). stop_point_indices = index des points
+        # d'ARRÊT (éligibles au tirage au sort) ; les autres index ne sont
+        # que des points de passage, traversés sans pause.
+        self.movement_points = movement_points or []
+        if stop_point_indices is None:
+            self.stop_point_indices = list(range(len(self.movement_points)))
+        else:
+            self.stop_point_indices = stop_point_indices
 
-		# Direction à regarder pour un point d'arrêt donné, ex :
-		# {2: "up"} -> en s'arrêtant au point d'index 2, le NPC regarde
-		# vers le haut. Un index absent = pas de consigne (idle générique).
-		self.stop_look_directions = stop_look_directions or {}
+        # Direction à regarder pour un point d'arrêt donné, ex :
+        # {2: "up"} -> en s'arrêtant au point d'index 2, le NPC regarde
+        # vers le haut. Un index absent = pas de consigne (idle générique).
+        self.stop_look_directions = stop_look_directions or {}
 
-		self.speed = speed
-		self.stop_duration_min = int(stop_duration_min_seconds * FPS_MAX)
-		self.stop_duration_max = int(stop_duration_max_seconds * FPS_MAX)
-		# Dict optionnel {index_du_point: (min_secondes, max_secondes)} :
-		# remplace stop_duration_min/max UNIQUEMENT pour les index listés
-		# ici -- pratique quand un NPC doit s'attarder plus longtemps à
-		# un arrêt précis (l'autel) qu'aux autres (les statues).
-		self.stop_duration_overrides = stop_duration_overrides or {}
-		self.turn_pause_min = int(turn_pause_min_seconds * FPS_MAX)
-		self.turn_pause_max = int(turn_pause_max_seconds * FPS_MAX)
+        self.speed = speed
+        self.stop_duration_min = int(stop_duration_min_seconds * FPS_MAX)
+        self.stop_duration_max = int(stop_duration_max_seconds * FPS_MAX)
+        # Dict optionnel {index_du_point: (min_secondes, max_secondes)} :
+        # remplace stop_duration_min/max UNIQUEMENT pour les index listés
+        # ici -- pratique quand un NPC doit s'attarder plus longtemps à
+        # un arrêt précis (l'autel) qu'aux autres (les statues).
+        self.stop_duration_overrides = stop_duration_overrides or {}
+        self.turn_pause_min = int(turn_pause_min_seconds * FPS_MAX)
+        self.turn_pause_max = int(turn_pause_max_seconds * FPS_MAX)
 
-		self.path_index = 0
-		self.path_direction = 1
-		self.target_stop_index = None
-		self.resting_at_index = None
-		self.current_target = self.movement_points[0] if self.movement_points else None
+        self.path_index = 0
+        self.path_direction = 1
+        self.target_stop_index = None
+        self.resting_at_index = None
+        self.current_target = self.movement_points[0] if self.movement_points else None
 
-		self.state = "idle"              # "idle" (à l'arrêt) ou "moving"
-		self.idle_timer = random.randint(60, 180)  # attente avant le tout premier départ
-		self.stuck_timer = 0
-		self.conversation_target = None
-		self.face_target_point = None
-		self.approach_stuck_timer = 0
-		self.talk_delay_timer = 0
+        self.state = "idle"              # "idle" (à l'arrêt) ou "moving"
+        self.idle_timer = random.randint(60, 180)  # attente avant le tout premier départ
+        self.stuck_timer = 0
+        self.conversation_target = None
+        self.face_target_point = None
+        self.approach_stuck_timer = 0
+        self.talk_delay_timer = 0
 
-	def _dodge_blocked(self, colliders):
-		# Vrai si la hitbox de deplacement touche un obstacle (hors sa
-		# propre hitbox joueur) -- utilisee pour choisir le cote d'esquive.
-		for collider in colliders:
-			if collider is self.hitbox_for_players:
-				continue
-			if self.hitbox_for_furniture.colliderect(collider):
-				return True
-		return False
+    def _dodge_blocked(self, colliders):
+        # Vrai si la hitbox de deplacement touche un obstacle (hors sa
+        # propre hitbox joueur) -- utilisee pour choisir le cote d'esquive.
+        for collider in colliders:
+            if collider is self.hitbox_for_players:
+                continue
+            if self.hitbox_for_furniture.colliderect(collider):
+                return True
+        return False
 
-	def _update_monk_rest(self):
-		# Priorites pendant un repos (moine de la chapelle) : regard du
-		# moine du bureau, replacement messe, priere coupee par le
-		# pretre, animation de priere. Sans effet pour les autres NPC.
-		if (self.messe_speech is not None and self.messe_active
-				and self.resting_at_index != self.messe_index):
-			# La messe est terminee des qu'on quitte l'autel
-			self.messe_active = False
-		if self.state == "moving":
-			return
-		if (self.watch_target is not None and not self.movement_points):
-			if (self.watch_target.state == "idle"
-					and self.watch_target.resting_at_index == self.watch_stop_index):
-				self.direction = self._direction_towards(
-					self.watch_target.rect.centerx, self.watch_target.rect.centery)
-			else:
-				self.direction = self.watch_default_direction
-			self._set_animation(self._get_idle_animation())
-			return
-		if self.resting_at_index is None:
-			return
-		if (self.messe_replace_indices
-				and self.resting_at_index in self.messe_replace_indices
-				and self.leave_target is not None
-				and getattr(self.leave_target, "messe_active", False)):
-			# Le pretre commence une messe : coupe la priere et file au poste
-			if self.target_stop_index is None:
-				self.target_stop_index = self.home_index
-				self.path_direction = -1 if self.path_index > self.home_index else 1
-				self.resting_at_index = None
-				self.state = "moving"
-			return
-		if (self.resting_at_index == self.home_index
-				and self.leave_target is not None
-				and getattr(self.leave_target, "messe_active", False)):
-			# Poste tenu EN PRIERE jusqu'a la fin de la messe
-			self.direction = self.home_pray_direction
-			if self.pray_animations:
-				self._set_animation(self.pray_animations.get(
-					self.direction, next(iter(self.pray_animations.values()))))
-			self.idle_timer = max(self.idle_timer, 30)
-			return
-		if (self.leave_when and self.leave_target is not None
-				and self.resting_at_index in self.leave_when
-				and self.leave_target.resting_at_index == self.leave_when[self.resting_at_index]):
-			# Le pretre prie sur la meme statue : on corte la priere
-			self.idle_timer = min(self.idle_timer, 15)
-		if (self.pray_indices and self.pray_animations
-				and self.resting_at_index in self.pray_indices):
-			self._set_animation(self.pray_animations.get(
-				self.direction, next(iter(self.pray_animations.values()))))
+    def _update_monk_rest(self):
+        # Priorites pendant un repos (moine de la chapelle) : regard du
+        # moine du bureau, replacement messe, priere coupee par le
+        # pretre, animation de priere. Sans effet pour les autres NPC.
+        if (self.messe_speech is not None and self.messe_active
+                and self.resting_at_index != self.messe_index):
+            # La messe est terminee des qu'on quitte l'autel
+            self.messe_active = False
+        if self.state == "moving":
+            return
+        if (self.watch_target is not None and not self.movement_points):
+            if (self.watch_target.state == "idle"
+                    and self.watch_target.resting_at_index == self.watch_stop_index):
+                self.direction = self._direction_towards(
+                    self.watch_target.rect.centerx, self.watch_target.rect.centery)
+            else:
+                self.direction = self.watch_default_direction
+            self._set_animation(self._get_idle_animation())
+            return
+        if self.resting_at_index is None:
+            return
+        if (self.messe_replace_indices
+                and self.resting_at_index in self.messe_replace_indices
+                and self.leave_target is not None
+                and getattr(self.leave_target, "messe_active", False)):
+            # Le pretre commence une messe : coupe la priere et file au poste
+            if self.target_stop_index is None:
+                self.target_stop_index = self.home_index
+                self.path_direction = -1 if self.path_index > self.home_index else 1
+                self.resting_at_index = None
+                self.state = "moving"
+            return
+        if (self.resting_at_index == self.home_index
+                and self.leave_target is not None
+                and getattr(self.leave_target, "messe_active", False)):
+            # Poste tenu EN PRIERE jusqu'a la fin de la messe
+            self.direction = self.home_pray_direction
+            if self.pray_animations:
+                self._set_animation(self.pray_animations.get(
+                    self.direction, next(iter(self.pray_animations.values()))))
+            self.idle_timer = max(self.idle_timer, 30)
+            return
+        if (self.leave_when and self.leave_target is not None
+                and self.resting_at_index in self.leave_when
+                and self.leave_target.resting_at_index == self.leave_when[self.resting_at_index]):
+            # Le pretre prie sur la meme statue : on corte la priere
+            self.idle_timer = min(self.idle_timer, 15)
+        if (self.pray_indices and self.pray_animations
+                and self.resting_at_index in self.pray_indices):
+            self._set_animation(self.pray_animations.get(
+                self.direction, next(iter(self.pray_animations.values()))))
 
-	def _update_hitbox_position(self):
-		self.hitbox.center = self.rect.center
-		self.hitbox_for_players.center = self.rect.center
-		self.hitbox_for_players.x += self.hitbox_offset_x
-		self.hitbox_for_players.y += self.hitbox_offset_y
-		self.hitbox_for_furniture.center = self.rect.center
+    def _update_hitbox_position(self):
+        self.hitbox.center = self.rect.center
+        self.hitbox_for_players.center = self.rect.center
+        self.hitbox_for_players.x += self.hitbox_offset_x
+        self.hitbox_for_players.y += self.hitbox_offset_y
+        self.hitbox_for_furniture.center = self.rect.center
 
-	def _pick_new_stop_target(self):
-		if not self.stop_point_indices:
-			return
-		if self.sequential_stops:
-			# Circuit DANS L'ORDRE (ping-pong) : prochain arret dans le
-			# sens courant, demi-tour au bout de la liste. Les points de
-			# passage ne sont jamais des cibles d'arret.
-			stops = sorted(self.stop_point_indices)
-			if self.path_direction >= 0:
-				nxt = [i for i in stops if i > self.path_index]
-				if nxt:
-					self.target_stop_index = nxt[0]
-				else:
-					self.path_direction = -1
-					prv = [i for i in stops if i < self.path_index]
-					self.target_stop_index = prv[-1]
-			else:
-				prv = [i for i in stops if i < self.path_index]
-				if prv:
-					self.target_stop_index = prv[-1]
-				else:
-					self.path_direction = 1
-					nxt = [i for i in stops if i > self.path_index]
-					self.target_stop_index = nxt[0]
-			self.resting_at_index = None
-			self.state = "moving"
-			return
-		candidates = [i for i in self.stop_point_indices if i != self.path_index]
-		if not candidates:
-			candidates = self.stop_point_indices
-		self.target_stop_index = random.choice(candidates)
+    def _pick_new_stop_target(self):
+        if not self.stop_point_indices:
+            return
+        if self.sequential_stops:
+            # Circuit DANS L'ORDRE (ping-pong) : prochain arret dans le
+            # sens courant, demi-tour au bout de la liste. Les points de
+            # passage ne sont jamais des cibles d'arret.
+            stops = sorted(self.stop_point_indices)
+            if self.path_direction >= 0:
+                nxt = [i for i in stops if i > self.path_index]
+                if nxt:
+                    self.target_stop_index = nxt[0]
+                else:
+                    self.path_direction = -1
+                    prv = [i for i in stops if i < self.path_index]
+                    self.target_stop_index = prv[-1]
+            else:
+                prv = [i for i in stops if i < self.path_index]
+                if prv:
+                    self.target_stop_index = prv[-1]
+                else:
+                    self.path_direction = 1
+                    nxt = [i for i in stops if i > self.path_index]
+                    self.target_stop_index = nxt[0]
+            self.resting_at_index = None
+            self.state = "moving"
+            return
+        candidates = [i for i in self.stop_point_indices if i != self.path_index]
+        if not candidates:
+            candidates = self.stop_point_indices
+        self.target_stop_index = random.choice(candidates)
 
-		new_direction = 1 if self.target_stop_index > self.path_index else -1
-		reversing = new_direction != self.path_direction
-		self.path_direction = new_direction
-		self.resting_at_index = None
+        new_direction = 1 if self.target_stop_index > self.path_index else -1
+        reversing = new_direction != self.path_direction
+        self.path_direction = new_direction
+        self.resting_at_index = None
 
-		if reversing:
-			# Elle change de sens : petite pause supplémentaire avant de
-			# repartir, quel que soit le type de point (arrêt ou passage)
-			# où elle se trouve actuellement. target_stop_index reste
-			# fixé : au prochain réveil, elle partira directement,
-			# sans retirer une nouvelle destination.
-			self.idle_timer = random.randint(self.turn_pause_min, self.turn_pause_max)
-		else:
-			self.state = "moving"
+        if reversing:
+            # Elle change de sens : petite pause supplémentaire avant de
+            # repartir, quel que soit le type de point (arrêt ou passage)
+            # où elle se trouve actuellement. target_stop_index reste
+            # fixé : au prochain réveil, elle partira directement,
+            # sans retirer une nouvelle destination.
+            self.idle_timer = random.randint(self.turn_pause_min, self.turn_pause_max)
+        else:
+            self.state = "moving"
 
-	def _advance_to_next_point(self):
-		if len(self.movement_points) <= 1:
-			return
+    def _advance_to_next_point(self):
+        if len(self.movement_points) <= 1:
+            return
 
-		# ARRIVEE sur le point courant : repos ICI si c'est la cible
-		# d'arret, AVANT d'incrementer path_index.
-		if self.path_index == self.target_stop_index:
-			self.state = "idle"
-			if self.target_stop_index in self.stop_duration_overrides:
-				dur_min_s, dur_max_s = self.stop_duration_overrides[self.target_stop_index]
-				idle_min = int(dur_min_s * FPS_MAX)
-				idle_max = int(dur_max_s * FPS_MAX)
-			else:
-				idle_min, idle_max = self.stop_duration_min, self.stop_duration_max
-			self.idle_timer = random.randint(idle_min, idle_max)
-			self.resting_at_index = self.target_stop_index
-			look_direction = self.stop_look_directions.get(self.target_stop_index)
-			if look_direction:
-				self.direction = look_direction
-			# --- Messe : tirage a l'arrivee sur l'autel (une chance
-			# sur deux) ; si succes, le repos dure messe_extra de plus
-			self.messe_active = False
-			if (self.messe_index is not None and self.messe_speech is not None
-					and self.path_index == self.messe_index):
-				# Phase reinitialisee a CHAQUE arrivee (evite un residu
-				# "effect" d'une messe precedente)
-				self.messe_phase = "speech"
-				self.messe_phase_timer = self.messe_speech_time
-				self.messe_active = random.random() < self.messe_chance
-				if self.messe_active:
-					self.idle_timer += self.messe_extra
-			self.target_stop_index = None
-			return
+        # ARRIVEE sur le point courant : repos ICI si c'est la cible
+        # d'arret, AVANT d'incrementer path_index.
+        if self.path_index == self.target_stop_index:
+            self.state = "idle"
+            if self.target_stop_index in self.stop_duration_overrides:
+                dur_min_s, dur_max_s = self.stop_duration_overrides[self.target_stop_index]
+                idle_min = int(dur_min_s * FPS_MAX)
+                idle_max = int(dur_max_s * FPS_MAX)
+            else:
+                idle_min, idle_max = self.stop_duration_min, self.stop_duration_max
+            self.idle_timer = random.randint(idle_min, idle_max)
+            self.resting_at_index = self.target_stop_index
+            look_direction = self.stop_look_directions.get(self.target_stop_index)
+            if look_direction:
+                self.direction = look_direction
+            # --- Messe : tirage a l'arrivee sur l'autel (une chance
+            # sur deux) ; si succes, le repos dure messe_extra de plus
+            self.messe_active = False
+            if (self.messe_index is not None and self.messe_speech is not None
+                    and self.path_index == self.messe_index):
+                # Phase reinitialisee a CHAQUE arrivee (evite un residu
+                # "effect" d'une messe precedente)
+                self.messe_phase = "speech"
+                self.messe_phase_timer = self.messe_speech_time
+                self.messe_active = random.random() < self.messe_chance
+                if self.messe_active:
+                    self.idle_timer += self.messe_extra
+            self.target_stop_index = None
+            return
 
-		# Point de passage franchi : on vise le suivant, en faisant
-		# demi-tour si on est au bout du circuit (sinon on boucle sur
-		# place et plus aucun arret ne serait honore).
-		nxt = self.path_index + self.path_direction
-		if nxt < 0 or nxt >= len(self.movement_points):
-			self.path_direction = -self.path_direction
-			nxt = self.path_index + self.path_direction
-		self.path_index = nxt
-		self.current_target = self.movement_points[self.path_index]
+        # Point de passage franchi : on vise le suivant, en faisant
+        # demi-tour si on est au bout du circuit (sinon on boucle sur
+        # place et plus aucun arret ne serait honore).
+        nxt = self.path_index + self.path_direction
+        if nxt < 0 or nxt >= len(self.movement_points):
+            self.path_direction = -self.path_direction
+            nxt = self.path_index + self.path_direction
+        self.path_index = nxt
+        self.current_target = self.movement_points[self.path_index]
 
-	def _direction_towards(self, target_x, target_y):
-		dx = target_x - self.rect.centerx
-		dy = target_y - self.rect.centery
-		if abs(dx) > abs(dy):
-			return "right" if dx > 0 else "left"
-		else:
-			return "down" if dy > 0 else "up"
+    def _direction_towards(self, target_x, target_y):
+        dx = target_x - self.rect.centerx
+        dy = target_y - self.rect.centery
+        if abs(dx) > abs(dy):
+            return "right" if dx > 0 else "left"
+        else:
+            return "down" if dy > 0 else "up"
 
-	def _update_direction_towards_target(self):
-		target_x, target_y = self.current_target
-		self.direction = self._direction_towards(target_x, target_y)
-		
-	def begin_conversation(self, player):
-		self.conversation_target = self._compute_approach_target(player)
-		self.face_target_point = (player.hitbox.centerx, player.hitbox.centery)
-		self.state = "approaching"
-		self.approach_stuck_timer = 0
+    def _update_direction_towards_target(self):
+        target_x, target_y = self.current_target
+        self.direction = self._direction_towards(target_x, target_y)
+        
+    def begin_conversation(self, player):
+        self.conversation_target = self._compute_approach_target(player)
+        self.face_target_point = (player.hitbox.centerx, player.hitbox.centery)
+        self.state = "approaching"
+        self.approach_stuck_timer = 0
 
-	def begin_conversation(self, player):
-		self.direction = self._direction_towards(player.hitbox.centerx, player.hitbox.centery)
-		self.state = "talking"
-		self.talk_delay_timer = 20  # ~1/3 de seconde à 60 FPS, pour laisser voir l'orientation
-		
-	def end_conversation(self):
-		self.state = "idle"
-		self.idle_timer = random.randint(30, 90)  # petite pause avant de reprendre le circuit
+    def begin_conversation(self, player):
+        self.direction = self._direction_towards(player.hitbox.centerx, player.hitbox.centery)
+        self.state = "talking"
+        self.talk_delay_timer = 20  # ~1/3 de seconde à 60 FPS, pour laisser voir l'orientation
+        
+    def end_conversation(self):
+        self.state = "idle"
+        self.idle_timer = random.randint(30, 90)  # petite pause avant de reprendre le circuit
 
-	def _get_idle_animation(self):
-		# Idle DIRECTIONNEL si le NPC possède un dict d'idles (4 rangées),
-		# sinon l'idle unique (compatibilité healer/merchant).
-		if self.idle_animations:
-			return self.idle_animations.get(self.direction, next(iter(self.idle_animations.values())))
-		return self.idle_animation
+    def _get_idle_animation(self):
+        # Idle DIRECTIONNEL si le NPC possède un dict d'idles (4 rangées),
+        # sinon l'idle unique (compatibilité healer/merchant).
+        if self.idle_animations:
+            return self.idle_animations.get(self.direction, next(iter(self.idle_animations.values())))
+        return self.idle_animation
 
-	def _set_animation(self, animation):
-		self.current_animation = animation
-		self.current_frame = min(self.current_frame, len(animation) - 1)
+    def _set_animation(self, animation):
+        self.current_animation = animation
+        self.current_frame = min(self.current_frame, len(animation) - 1)
 
-	def _resolve_movement_collisions(self, colliders, old_pos):
-		self._update_hitbox_position()
-		for collider in colliders:
-			if collider is self.hitbox_for_players:   # <-- nouvelle ligne
-				continue  
-			if self.hitbox_for_furniture.colliderect(collider):
-				self.rect = old_pos
-				self._update_hitbox_position()
-				return True
-		return False
+    def _resolve_movement_collisions(self, colliders, old_pos):
+        self._update_hitbox_position()
+        for collider in colliders:
+            if collider is self.hitbox_for_players:   # <-- nouvelle ligne
+                continue  
+            if self.hitbox_for_furniture.colliderect(collider):
+                self.rect = old_pos
+                self._update_hitbox_position()
+                return True
+        return False
 
-	def _move_towards_target(self, colliders):
-		self._update_direction_towards_target()
+    def _move_towards_target(self, colliders):
+        self._update_direction_towards_target()
 
-		target_x, target_y = self.current_target
-		dx = target_x - self.rect.centerx
-		dy = target_y - self.rect.centery
-		distance = math.hypot(dx, dy)
+        target_x, target_y = self.current_target
+        dx = target_x - self.rect.centerx
+        dy = target_y - self.rect.centery
+        distance = math.hypot(dx, dy)
 
-		if distance <= 1:
-			self.stuck_timer = 0
-			self._advance_to_next_point()
-			return
+        if distance <= 1:
+            self.stuck_timer = 0
+            self._advance_to_next_point()
+            return
 
-		old_pos = self.rect.copy()
+        old_pos = self.rect.copy()
 
-		step = min(self.speed, distance)
-		self.rect.x += dx / distance * step
-		self.rect.y += dy / distance * step
+        step = min(self.speed, distance)
+        self.rect.x += dx / distance * step
+        self.rect.y += dy / distance * step
 
-				# Esquive : se DECALE pour laisser passer dodge_target (le
-		# pretre). Glisse lateralement, du cote de sa destination, en
-		# testant chaque deplacement : premier cote LIBRE retenu
-		# (destination, autre cote, petit recul). Jamais dans un mur.
-		if self.dodge_target is not None:
-			ddx = self.rect.centerx - self.dodge_target.rect.centerx
-			ddy = self.rect.centery - self.dodge_target.rect.centery
-			ddist = (ddx ** 2 + ddy ** 2) ** 0.5
-			if 0 < ddist < 45:
-				# Glisse lateralement pour laisser passer : on essaie le
-				# cote de la destination, puis l'autre cote, puis un
-				# petit recul -- premier deplacement LIBRE retenu.
-				px = -ddy / ddist
-				py = ddx / ddist
-				dot = (px * (self.current_target[0] - self.rect.centerx)
-					+ py * (self.current_target[1] - self.rect.centery))
-				if dot < 0:
-					px, py = -px, -py
-				pre_dodge = self.rect.copy()
-				for vx, vy in ((px, py), (-px, -py),
-						(ddx / ddist, ddy / ddist)):
-					self.rect.x += vx * 4
-					self.rect.y += vy * 4
-					self._update_hitbox_position()
-					if not self._dodge_blocked(colliders):
-						break
-					self.rect.topleft = pre_dodge.topleft
-					self._update_hitbox_position()
+                # Esquive : se DECALE pour laisser passer dodge_target (le
+        # pretre). Glisse lateralement, du cote de sa destination, en
+        # testant chaque deplacement : premier cote LIBRE retenu
+        # (destination, autre cote, petit recul). Jamais dans un mur.
+        if self.dodge_target is not None:
+            ddx = self.rect.centerx - self.dodge_target.rect.centerx
+            ddy = self.rect.centery - self.dodge_target.rect.centery
+            ddist = (ddx ** 2 + ddy ** 2) ** 0.5
+            if 0 < ddist < 45:
+                # Glisse lateralement pour laisser passer : on essaie le
+                # cote de la destination, puis l'autre cote, puis un
+                # petit recul -- premier deplacement LIBRE retenu.
+                px = -ddy / ddist
+                py = ddx / ddist
+                dot = (px * (self.current_target[0] - self.rect.centerx)
+                    + py * (self.current_target[1] - self.rect.centery))
+                if dot < 0:
+                    px, py = -px, -py
+                pre_dodge = self.rect.copy()
+                for vx, vy in ((px, py), (-px, -py),
+                        (ddx / ddist, ddy / ddist)):
+                    self.rect.x += vx * 4
+                    self.rect.y += vy * 4
+                    self._update_hitbox_position()
+                    if not self._dodge_blocked(colliders):
+                        break
+                    self.rect.topleft = pre_dodge.topleft
+                    self._update_hitbox_position()
 
-		blocked = self._resolve_movement_collisions(colliders, old_pos)
+        blocked = self._resolve_movement_collisions(colliders, old_pos)
 
-		if blocked:
-			self.stuck_timer += 1
-			if self.stuck_timer >= 30:
-				self.stuck_timer = 0
-				if self.stuck_timer >= 30:
-					self.stuck_timer = 0
-					# a) Bloque A PROXIMITE de l'arret vise (le coin de
-					# l'autel pour le pretre) : l'arret est considere
-					# atteint, on pose sur place. Reserve aux NPC de messe
-					# : pour les autres (moines), mieux vaut passer et
-					# revenir que de poser a un endroit bancal.
-					idx_vise = None
-					if self.messe_speech is None:
-						idx_vise = None
-					elif (self.target_stop_index is not None
-							and self.path_index == self.target_stop_index):
-						idx_vise = self.path_index
-					else:
-						nxt = self.path_index + self.path_direction
-						if (0 <= nxt < len(self.movement_points)
-								and nxt == self.target_stop_index):
-							idx_vise = nxt
-					if idx_vise is not None:
-						cible = self.movement_points[idx_vise]
-						dist_target = ((cible[0] - self.rect.centerx) ** 2
-							+ (cible[1] - self.rect.centery) ** 2) ** 0.5
-						if dist_target <= 48:
-							self.path_index = idx_vise
-							self.current_target = self.movement_points[self.path_index]
-							self._advance_to_next_point()
-							return
-					# b) Sinon : on avance d'UN point (relais). Si ce point
-					# EST l'arret vise (toujours injoignable), on passe
-					# au-dela et on re-cible le prochain arret dans le sens
-					# courant : il sera honore au retour.
-					nxt = self.path_index + self.path_direction
-					if 0 <= nxt < len(self.movement_points):
-						self.path_index = nxt
-						if nxt == self.target_stop_index:
-							apres = nxt + self.path_direction
-							if 0 <= apres < len(self.movement_points):
-								self.path_index = apres
-							self.target_stop_index = None
-							self._pick_new_stop_target()
-							return
-						self.current_target = self.movement_points[self.path_index]
-					else:
-						self.target_stop_index = None
-						self._pick_new_stop_target()
-		else:
-			self.stuck_timer = 0
+        if blocked:
+            self.stuck_timer += 1
+            if self.stuck_timer >= 30:
+                self.stuck_timer = 0
+                if self.stuck_timer >= 30:
+                    self.stuck_timer = 0
+                    # a) Bloque A PROXIMITE de l'arret vise (le coin de
+                    # l'autel pour le pretre) : l'arret est considere
+                    # atteint, on pose sur place. Reserve aux NPC de messe
+                    # : pour les autres (moines), mieux vaut passer et
+                    # revenir que de poser a un endroit bancal.
+                    idx_vise = None
+                    if self.messe_speech is None:
+                        idx_vise = None
+                    elif (self.target_stop_index is not None
+                            and self.path_index == self.target_stop_index):
+                        idx_vise = self.path_index
+                    else:
+                        nxt = self.path_index + self.path_direction
+                        if (0 <= nxt < len(self.movement_points)
+                                and nxt == self.target_stop_index):
+                            idx_vise = nxt
+                    if idx_vise is not None:
+                        cible = self.movement_points[idx_vise]
+                        dist_target = ((cible[0] - self.rect.centerx) ** 2
+                            + (cible[1] - self.rect.centery) ** 2) ** 0.5
+                        if dist_target <= 48:
+                            self.path_index = idx_vise
+                            self.current_target = self.movement_points[self.path_index]
+                            self._advance_to_next_point()
+                            return
+                    # b) Sinon : on avance d'UN point (relais). Si ce point
+                    # EST l'arret vise (toujours injoignable), on passe
+                    # au-dela et on re-cible le prochain arret dans le sens
+                    # courant : il sera honore au retour.
+                    nxt = self.path_index + self.path_direction
+                    if 0 <= nxt < len(self.movement_points):
+                        self.path_index = nxt
+                        if nxt == self.target_stop_index:
+                            apres = nxt + self.path_direction
+                            if 0 <= apres < len(self.movement_points):
+                                self.path_index = apres
+                            self.target_stop_index = None
+                            self._pick_new_stop_target()
+                            return
+                        self.current_target = self.movement_points[self.path_index]
+                    else:
+                        self.target_stop_index = None
+                        self._pick_new_stop_target()
+        else:
+            self.stuck_timer = 0
 
-	def update(self, colliders=None, player=None):
+    def update(self, colliders=None, player=None):
 
-		if colliders is not None:
-			if self.state == "idle":
-				if self.movement_points:
-					self.idle_timer -= 1
-					if self.idle_timer <= 0:
-						if self.target_stop_index is None:
-							self._pick_new_stop_target()
-						else:
-							# Destination déjà choisie : la pause de
-							# demi-tour vient de se terminer, on part.
-							self.state = "moving"
-							self.is_turn_pause = False
-			elif self.state == "moving":
-				self._move_towards_target(colliders)
-			elif self.state == "talking":
-				# NPC totalement figé, seul le délai avant ouverture du
-				# dialogue continue de décompter.
-				if self.talk_delay_timer > 0:
-					self.talk_delay_timer -= 1
-			# "talking" : aucune mise à jour de position, NPC totalement figé.
+        if colliders is not None:
+            if self.state == "idle":
+                if self.movement_points:
+                    self.idle_timer -= 1
+                    if self.idle_timer <= 0:
+                        if self.target_stop_index is None:
+                            self._pick_new_stop_target()
+                        else:
+                            # Destination déjà choisie : la pause de
+                            # demi-tour vient de se terminer, on part.
+                            self.state = "moving"
+                            self.is_turn_pause = False
+            elif self.state == "moving":
+                self._move_towards_target(colliders)
+            elif self.state == "talking":
+                # NPC totalement figé, seul le délai avant ouverture du
+                # dialogue continue de décompter.
+                if self.talk_delay_timer > 0:
+                    self.talk_delay_timer -= 1
+            # "talking" : aucune mise à jour de position, NPC totalement figé.
 
-		frozen_pose = False
+        frozen_pose = False
 
-		if self.state == "moving":
-			self._set_animation(self.walk_animations[self.direction])
-		elif self.state == "talking":
-			# Idle normal, animé, pendant que le NPC est orienté vers le
-			# joueur (l'orientation elle-même est gérée séparément via
-			# self.direction, fixée dans begin_conversation).
-			self._set_animation(self._get_idle_animation())
-		elif self.resting_at_index is not None and self.resting_at_index in self.stop_look_directions:
-			# Direction du regard RE-appliquee a CHAQUE frame de repos
-			# (pas seulement a l'arrivee) -> impossible de finir fige
-			# oriente dans une mauvaise direction.
-			self.direction = self.stop_look_directions[self.resting_at_index]
-			if self.messe_speech is not None and self.resting_at_index == self.messe_index:
-				# Sur l'autel : speech en continu ; si une messe a ete
-				# tiree : cast (le pretre leve les bras) PUIS effect
-				# (effet magique DESSINE PAR-DESSUS le pretre, qui
-				# reste visible en idle), puis retour speech.
-				if self.messe_active and self.messe_spell:
-					if self.messe_phase == "speech":
-						self._set_animation(self.messe_speech)
-						self.messe_phase_timer -= 1
-						if self.messe_phase_timer <= 0:
-							self.messe_phase = "cast"
-							self.messe_phase_timer = len(self.messe_spell) * 8
-					elif self.messe_phase == "cast":
-						self._set_animation(self.messe_spell)
-						self.messe_phase_timer -= 1
-						if self.messe_phase_timer <= 0:
-							self.messe_phase = "effect"
-							self.messe_phase_timer = (len(self.messe_spell_effect) * 8
-								if self.messe_spell_effect else self.messe_speech_time)
-					else:  # effect : le pretre reste visible (idle)
-						self._set_animation(self._get_idle_animation())
-						self.messe_phase_timer -= 1
-						if self.messe_phase_timer <= 0:
-							self.messe_phase = "speech"
-							self.messe_phase_timer = self.messe_speech_time
-				else:
-					self._set_animation(self.messe_speech)
-			elif self.idle_at_stops:
-			
-				# Idle anime a l'arret (mode du pretre de la chapelle)
-				self._set_animation(self._get_idle_animation())
-			else:
-				# Ancien comportement (healer/merchant de House) :
-				# pose de marche figee frame 0
-				self.current_animation = self.walk_animations[self.direction]
-				self.current_frame = 0
-				frozen_pose = True
-		else:
-			self._set_animation(self._get_idle_animation())
+        if self.state == "moving":
+            self._set_animation(self.walk_animations[self.direction])
+        elif self.state == "talking":
+            # Idle normal, animé, pendant que le NPC est orienté vers le
+            # joueur (l'orientation elle-même est gérée séparément via
+            # self.direction, fixée dans begin_conversation).
+            self._set_animation(self._get_idle_animation())
+        elif self.resting_at_index is not None and self.resting_at_index in self.stop_look_directions:
+            # Direction du regard RE-appliquee a CHAQUE frame de repos
+            # (pas seulement a l'arrivee) -> impossible de finir fige
+            # oriente dans une mauvaise direction.
+            self.direction = self.stop_look_directions[self.resting_at_index]
+            if self.messe_speech is not None and self.resting_at_index == self.messe_index:
+                # Sur l'autel : speech en continu ; si une messe a ete
+                # tiree : cast (le pretre leve les bras) PUIS effect
+                # (effet magique DESSINE PAR-DESSUS le pretre, qui
+                # reste visible en idle), puis retour speech.
+                if self.messe_active and self.messe_spell:
+                    if self.messe_phase == "speech":
+                        self._set_animation(self.messe_speech)
+                        self.messe_phase_timer -= 1
+                        if self.messe_phase_timer <= 0:
+                            self.messe_phase = "cast"
+                            self.messe_phase_timer = len(self.messe_spell) * 8
+                    elif self.messe_phase == "cast":
+                        self._set_animation(self.messe_spell)
+                        self.messe_phase_timer -= 1
+                        if self.messe_phase_timer <= 0:
+                            self.messe_phase = "effect"
+                            self.messe_phase_timer = (len(self.messe_spell_effect) * 8
+                                if self.messe_spell_effect else self.messe_speech_time)
+                    else:  # effect : le pretre reste visible (idle)
+                        self._set_animation(self._get_idle_animation())
+                        self.messe_phase_timer -= 1
+                        if self.messe_phase_timer <= 0:
+                            self.messe_phase = "speech"
+                            self.messe_phase_timer = self.messe_speech_time
+                else:
+                    self._set_animation(self.messe_speech)
+            elif self.idle_at_stops:
+            
+                # Idle anime a l'arret (mode du pretre de la chapelle)
+                self._set_animation(self._get_idle_animation())
+            else:
+                # Ancien comportement (healer/merchant de House) :
+                # pose de marche figee frame 0
+                self.current_animation = self.walk_animations[self.direction]
+                self.current_frame = 0
+                frozen_pose = True
+        else:
+            self._set_animation(self._get_idle_animation())
 
-		if not frozen_pose:
-			self.frame_timer += 1
+        if not frozen_pose:
+            self.frame_timer += 1
 
-			if self.frame_timer >= 8:
+            if self.frame_timer >= 8:
 
-				self.frame_timer = 0
+                self.frame_timer = 0
 
-				self.current_frame += 1
+                self.current_frame += 1
 
-				if self.current_frame >= len(self.current_animation):
-					self.current_frame = 0
+                if self.current_frame >= len(self.current_animation):
+                    self.current_frame = 0
 
-		self.interaction_rect.center = self.rect.center
-		self._update_hitbox_position()
-		self._update_monk_rest()
+        self.interaction_rect.center = self.rect.center
+        self._update_hitbox_position()
+        self._update_monk_rest()
 
-	def draw(self, surface):
+    def draw(self, surface):
 
-		sprite = self.current_animation[self.current_frame]
+        sprite = self.current_animation[self.current_frame]
 
-		sprite_rect = sprite.get_rect(
-			midbottom=self.rect.midbottom
-		)
+        sprite_rect = sprite.get_rect(
+            midbottom=self.rect.midbottom
+        )
 
-		surface.blit(sprite, sprite_rect)
+        surface.blit(sprite, sprite_rect)
 
-		# Effet de sortilege DESSINE PAR-DESSUS le pretre (phase
-		# "effect" d'une messe) : superpose les frames de
-		# Priest_spell.png ancrees au-dessus de lui, sans jamais le
-		# remplacer.
-		if (self.messe_active and self.messe_phase == "effect"
-				and self.messe_spell_effect):
-			elapsed = len(self.messe_spell_effect) * 8 - self.messe_phase_timer
-			fx_index = max(0, min(len(self.messe_spell_effect) - 1, elapsed // 8))
-			fx = self.messe_spell_effect[fx_index]
-			fx_rect = fx.get_rect(
-				midbottom=(self.rect.midbottom[0],
-						   self.rect.midbottom[1] + self.messe_spell_effect_offset_y)
-			)
-			surface.blit(fx, fx_rect)
+        # Effet de sortilege DESSINE PAR-DESSUS le pretre (phase
+        # "effect" d'une messe) : superpose les frames de
+        # Priest_spell.png ancrees au-dessus de lui, sans jamais le
+        # remplacer.
+        if (self.messe_active and self.messe_phase == "effect"
+                and self.messe_spell_effect):
+            elapsed = len(self.messe_spell_effect) * 8 - self.messe_phase_timer
+            fx_index = max(0, min(len(self.messe_spell_effect) - 1, elapsed // 8))
+            fx = self.messe_spell_effect[fx_index]
+            fx_rect = fx.get_rect(
+                midbottom=(self.rect.midbottom[0],
+                           self.rect.midbottom[1] + self.messe_spell_effect_offset_y)
+            )
+            surface.blit(fx, fx_rect)
 class DynamiteProjectile:
-	"""
-	Dynamite lancee : trois etats.
-	  "moving"    : elle glisse (friction), rebondit sur les obstacles
-	                (arbres, rochers, bords de carte) et un peu sur les
-	                monstres, et tourne sur elle-meme.
-	  "stopped"   : vitesse sous le seuil -> elle reste au sol, la meche
-	                clignote (rouge), les monstres passent dessus.
-	  "exploding" : la meche est finie -> update() renvoie False et
-	                main.py cree l'Explosion.
-	"""
+    """
+    Dynamite lancee : trois etats.
+      "moving"    : elle glisse (friction), rebondit sur les obstacles
+                    (arbres, rochers, bords de carte) et un peu sur les
+                    monstres, et tourne sur elle-meme.
+      "stopped"   : vitesse sous le seuil -> elle reste au sol, la meche
+                    clignote (rouge), les monstres passent dessus.
+      "exploding" : la meche est finie -> update() renvoie False et
+                    main.py cree l'Explosion.
+    """
 
-	def __init__(self, x, y, vx, vy, sprite):
-		self.x = float(x)
-		self.y = float(y)
-		self.vx = float(vx)
-		self.vy = float(vy)
+    def __init__(self, x, y, vx, vy, sprite):
+        self.x = float(x)
+        self.y = float(y)
+        self.vx = float(vx)
+        self.vy = float(vy)
 
-		self.sprite = sprite
-		self.rotation = random.uniform(0, 360)
-		# Vitesse de rotation (degres/frame), signe aleatoire ; elle
-		# decroit avec la vitesse de la dynamite.
-		self.spin = random.choice((-1, 1)) * DYNAMITE_ROTATION_SPEED
+        self.sprite = sprite
+        self.rotation = random.uniform(0, 360)
+        # Vitesse de rotation (degres/frame), signe aleatoire ; elle
+        # decroit avec la vitesse de la dynamite.
+        self.spin = random.choice((-1, 1)) * DYNAMITE_ROTATION_SPEED
 
-		self.hitbox = pygame.Rect(0, 0, DYNAMITE_SIZE, DYNAMITE_SIZE)
-		self._sync_hitbox()
+        self.hitbox = pygame.Rect(0, 0, DYNAMITE_SIZE, DYNAMITE_SIZE)
+        self._sync_hitbox()
 
-		self.state = "moving"
-		self.stopped_timer = 0
-		self.blink_timer = 0
-		self.blink_on = False
+        self.state = "moving"
+        self.stopped_timer = 0
+        self.blink_timer = 0
+        self.blink_on = False
 
-		# ids des monstres actuellement au contact : un choc = UN rebond,
-		# pas un rebond par frame tant qu'ils se touchent.
-		self.touching_enemies = set()
+        # ids des monstres actuellement au contact : un choc = UN rebond,
+        # pas un rebond par frame tant qu'ils se touchent.
+        self.touching_enemies = set()
 
-	def _sync_hitbox(self):
-		self.hitbox.center = (int(round(self.x)), int(round(self.y)))
+    def _sync_hitbox(self):
+        self.hitbox.center = (int(round(self.x)), int(round(self.y)))
 
-	def _blocked(self, colliders):
-		# Bords de la carte
-		if self.x < 0 or self.x > MAP_WIDTH or self.y < 0 or self.y > MAP_HEIGHT:
-			return True
-		for collider in colliders:
-			if self.hitbox.colliderect(collider):
-				return True
-		return False
+    def _blocked(self, colliders):
+        # Bords de la carte
+        if self.x < 0 or self.x > MAP_WIDTH or self.y < 0 or self.y > MAP_HEIGHT:
+            return True
+        for collider in colliders:
+            if self.hitbox.colliderect(collider):
+                return True
+        return False
 
-	def _kick_spin(self):
-		# Nouvelle rotation apres un choc, proportionnelle a la vitesse
-		speed = math.hypot(self.vx, self.vy)
-		ratio = min(1.0, speed / max(1, DYNAMITE_THROW_SPEED))
-		self.spin = random.choice((-1, 1)) * DYNAMITE_ROTATION_SPEED * ratio
+    def _kick_spin(self):
+        # Nouvelle rotation apres un choc, proportionnelle a la vitesse
+        speed = math.hypot(self.vx, self.vy)
+        ratio = min(1.0, speed / max(1, DYNAMITE_THROW_SPEED))
+        self.spin = random.choice((-1, 1)) * DYNAMITE_ROTATION_SPEED * ratio
 
-	def _scatter_velocity(self):
-		# Fait pivoter le vecteur vitesse d'un petit angle aleatoire
-		angle = math.radians(random.uniform(-DYNAMITE_BOUNCE_SCATTER_DEG, DYNAMITE_BOUNCE_SCATTER_DEG))
-		cos_a, sin_a = math.cos(angle), math.sin(angle)
-		self.vx, self.vy = (
-			self.vx * cos_a - self.vy * sin_a,
-			self.vx * sin_a + self.vy * cos_a
-		)
+    def _scatter_velocity(self):
+        # Fait pivoter le vecteur vitesse d'un petit angle aleatoire
+        angle = math.radians(random.uniform(-DYNAMITE_BOUNCE_SCATTER_DEG, DYNAMITE_BOUNCE_SCATTER_DEG))
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        self.vx, self.vy = (
+            self.vx * cos_a - self.vy * sin_a,
+            self.vx * sin_a + self.vy * cos_a
+        )
 
-	def _move_axis(self, axis, amount, colliders):
-		"""
-		Deplace la dynamite sur UN axe. Si elle entre dans un obstacle :
-		on annule le deplacement, on inverse la vitesse de cet axe
-		(reduite d'un facteur aleatoire), puis on devie legerement.
-		"""
-		if axis == "x":
-			self.x += amount
-		else:
-			self.y += amount
-		self._sync_hitbox()
+    def _move_axis(self, axis, amount, colliders):
+        """
+        Deplace la dynamite sur UN axe. Si elle entre dans un obstacle :
+        on annule le deplacement, on inverse la vitesse de cet axe
+        (reduite d'un facteur aleatoire), puis on devie legerement.
+        """
+        if axis == "x":
+            self.x += amount
+        else:
+            self.y += amount
+        self._sync_hitbox()
 
-		if self._blocked(colliders):
-			if axis == "x":
-				self.x -= amount
-				self.vx = -self.vx * random.uniform(DYNAMITE_WALL_BOUNCE_MIN, DYNAMITE_WALL_BOUNCE_MAX)
-			else:
-				self.y -= amount
-				self.vy = -self.vy * random.uniform(DYNAMITE_WALL_BOUNCE_MIN, DYNAMITE_WALL_BOUNCE_MAX)
-			self._sync_hitbox()
-			self._scatter_velocity()
-			self._kick_spin()
+        if self._blocked(colliders):
+            if axis == "x":
+                self.x -= amount
+                self.vx = -self.vx * random.uniform(DYNAMITE_WALL_BOUNCE_MIN, DYNAMITE_WALL_BOUNCE_MAX)
+            else:
+                self.y -= amount
+                self.vy = -self.vy * random.uniform(DYNAMITE_WALL_BOUNCE_MIN, DYNAMITE_WALL_BOUNCE_MAX)
+            self._sync_hitbox()
+            self._scatter_velocity()
+            self._kick_spin()
 
-	def _check_enemies(self, enemies):
-		# Petit rebond sur les monstres vivants, uniquement au PREMIER
-		# contact (le set touching_enemies memorise ceux deja en contact).
-		now_touching = set()
-		for enemy in enemies:
-			if enemy.dead or not self.hitbox.colliderect(enemy.hitbox):
-				continue
-			now_touching.add(id(enemy))
-			if id(enemy) in self.touching_enemies:
-				continue
+    def _check_enemies(self, enemies):
+        # Petit rebond sur les monstres vivants, uniquement au PREMIER
+        # contact (le set touching_enemies memorise ceux deja en contact).
+        now_touching = set()
+        for enemy in enemies:
+            if enemy.dead or not self.hitbox.colliderect(enemy.hitbox):
+                continue
+            now_touching.add(id(enemy))
+            if id(enemy) in self.touching_enemies:
+                continue
 
-			# Direction "en s'eloignant du monstre"
-			dx = self.x - enemy.hitbox.centerx
-			dy = self.y - enemy.hitbox.centery
-			distance = max(1, math.hypot(dx, dy))
-			speed = max(
-				math.hypot(self.vx, self.vy) * DYNAMITE_ENEMY_BOUNCE,
-				DYNAMITE_ENEMY_BOUNCE_MIN_SPEED
-			)
-			self.vx = dx / distance * speed
-			self.vy = dy / distance * speed
-			self._kick_spin()
+            # Direction "en s'eloignant du monstre"
+            dx = self.x - enemy.hitbox.centerx
+            dy = self.y - enemy.hitbox.centery
+            distance = max(1, math.hypot(dx, dy))
+            speed = max(
+                math.hypot(self.vx, self.vy) * DYNAMITE_ENEMY_BOUNCE,
+                DYNAMITE_ENEMY_BOUNCE_MIN_SPEED
+            )
+            self.vx = dx / distance * speed
+            self.vy = dy / distance * speed
+            self._kick_spin()
 
-		self.touching_enemies = now_touching
+        self.touching_enemies = now_touching
 
-	def update(self, colliders, enemies):
-		"""
-		Renvoie True tant que la dynamite est active, False quand elle
-		doit exploser (main.py cree alors l'Explosion et la retire).
-		"""
-		if self.state == "exploding":
-			return False
+    def update(self, colliders, enemies):
+        """
+        Renvoie True tant que la dynamite est active, False quand elle
+        doit exploser (main.py cree alors l'Explosion et la retire).
+        """
+        if self.state == "exploding":
+            return False
 
-		if self.state == "moving":
-			# Sous-etapes : a haute vitesse, on avance par petits pas
-			# pour ne jamais "sauter" par-dessus un obstacle.
-			steps = int(math.hypot(self.vx, self.vy) // DYNAMITE_MAX_STEP) + 1
-			for _ in range(steps):
-				self._move_axis("x", self.vx / steps, colliders)
-				self._move_axis("y", self.vy / steps, colliders)
+        if self.state == "moving":
+            # Sous-etapes : a haute vitesse, on avance par petits pas
+            # pour ne jamais "sauter" par-dessus un obstacle.
+            steps = int(math.hypot(self.vx, self.vy) // DYNAMITE_MAX_STEP) + 1
+            for _ in range(steps):
+                self._move_axis("x", self.vx / steps, colliders)
+                self._move_axis("y", self.vy / steps, colliders)
 
-			self._check_enemies(enemies)
+            self._check_enemies(enemies)
 
-			# Friction (glissement) et rotation qui ralentit avec elle
-			self.vx *= DYNAMITE_FRICTION
-			self.vy *= DYNAMITE_FRICTION
-			self.spin *= DYNAMITE_FRICTION
-			self.rotation = (self.rotation + self.spin) % 360
+            # Friction (glissement) et rotation qui ralentit avec elle
+            self.vx *= DYNAMITE_FRICTION
+            self.vy *= DYNAMITE_FRICTION
+            self.spin *= DYNAMITE_FRICTION
+            self.rotation = (self.rotation + self.spin) % 360
 
-			# Arret : la meche s'allume
-			if math.hypot(self.vx, self.vy) < DYNAMITE_MIN_VELOCITY:
-				self.vx = 0.0
-				self.vy = 0.0
-				self.spin = 0.0
-				self.state = "stopped"
-				self.stopped_timer = 0
-				self.blink_timer = 0
-				self.blink_on = True
-				self.touching_enemies = set()
-			return True
+            # Arret : la meche s'allume
+            if math.hypot(self.vx, self.vy) < DYNAMITE_MIN_VELOCITY:
+                self.vx = 0.0
+                self.vy = 0.0
+                self.spin = 0.0
+                self.state = "stopped"
+                self.stopped_timer = 0
+                self.blink_timer = 0
+                self.blink_on = True
+                self.touching_enemies = set()
+            return True
 
-		# --- etat "stopped" : meche allumee, les monstres passent dessus ---
-		self.stopped_timer += 1
+        # --- etat "stopped" : meche allumee, les monstres passent dessus ---
+        self.stopped_timer += 1
 
-		# Clignotement de plus en plus rapide (periode : BLINK_SPEED -> 3 frames)
-		progress = self.stopped_timer / DYNAMITE_EXPLOSION_DELAY
-		period = max(3, int(DYNAMITE_BLINK_SPEED * (1 - progress)))
-		self.blink_timer += 1
-		if self.blink_timer >= period:
-			self.blink_timer = 0
-			self.blink_on = not self.blink_on
+        # Clignotement de plus en plus rapide (periode : BLINK_SPEED -> 3 frames)
+        progress = self.stopped_timer / DYNAMITE_EXPLOSION_DELAY
+        period = max(3, int(DYNAMITE_BLINK_SPEED * (1 - progress)))
+        self.blink_timer += 1
+        if self.blink_timer >= period:
+            self.blink_timer = 0
+            self.blink_on = not self.blink_on
 
-		if self.stopped_timer >= DYNAMITE_EXPLOSION_DELAY:
-			self.state = "exploding"
-			return False
-		return True
+        if self.stopped_timer >= DYNAMITE_EXPLOSION_DELAY:
+            self.state = "exploding"
+            return False
+        return True
 
-	def draw(self, surface):
-		"""surface = game_surface (coordonnees MONDE, pas d'ecran)."""
-		rotated = pygame.transform.rotate(self.sprite, self.rotation)
+    def draw(self, surface):
+        """surface = game_surface (coordonnees MONDE, pas d'ecran)."""
+        rotated = pygame.transform.rotate(self.sprite, self.rotation)
 
-		if self.state == "stopped" and self.blink_on:
-			# Flash rouge : on ajoute du rouge aux pixels visibles
-			# (l'alpha n'est pas touche, le fond transparent reste invisible)
-			rotated = rotated.copy()
-			rotated.fill((120, 0, 0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        if self.state == "stopped" and self.blink_on:
+            # Flash rouge : on ajoute du rouge aux pixels visibles
+            # (l'alpha n'est pas touche, le fond transparent reste invisible)
+            rotated = rotated.copy()
+            rotated.fill((120, 0, 0, 0), special_flags=pygame.BLEND_RGB_ADD)
 
-		rect = rotated.get_rect(center=(int(self.x), int(self.y)))
-		surface.blit(rotated, rect)
+        rect = rotated.get_rect(center=(int(self.x), int(self.y)))
+        surface.blit(rotated, rect)
 
-		# Anneau de danger : montre le rayon du souffle une fois arretee
-		if self.state == "stopped":
-			color = (255, 100, 0) if self.blink_on else (200, 80, 0)
-			pygame.draw.circle(surface, color, (int(self.x), int(self.y)), DYNAMITE_EXPLOSION_RADIUS, 2)
+        # Anneau de danger : montre le rayon du souffle une fois arretee
+        if self.state == "stopped":
+            color = (255, 100, 0) if self.blink_on else (200, 80, 0)
+            pygame.draw.circle(surface, color, (int(self.x), int(self.y)), DYNAMITE_EXPLOSION_RADIUS, 2)
 
 
 class Explosion:
-	"""
-	Souffle d'une dynamite. Sert a deux choses :
-	  - source des degats (elle a un .rect, comme un ennemi, donc
-	    Enemy.take_damage / Player.take_damage l'utilisent pour calculer
-	    la direction du recul) ;
-	  - effet visuel PROVISOIRE (cercles). Quand tu auras un sprite
-	    d'explosion, seule la methode draw() sera a remplacer.
-	"""
+    """
+    Souffle d'une dynamite. Sert a deux choses :
+      - source des degats (elle a un .rect, comme un ennemi, donc
+        Enemy.take_damage / Player.take_damage l'utilisent pour calculer
+        la direction du recul) ;
+      - effet visuel PROVISOIRE (cercles). Quand tu auras un sprite
+        d'explosion, seule la methode draw() sera a remplacer.
+    """
 
-	def __init__(self, x, y, radius, damage, duration=None):
-		self.x = float(x)
-		self.y = float(y)
-		self.radius = radius
-		self.damage = damage
-		self.duration = DYNAMITE_EXPLOSION_DURATION if duration is None else duration
-		self.timer = 0
-		self.rect = pygame.Rect(0, 0, 1, 1)
-		self.rect.center = (int(x), int(y))
+    def __init__(self, x, y, radius, damage, duration=None):
+        self.x = float(x)
+        self.y = float(y)
+        self.radius = radius
+        self.damage = damage
+        self.duration = DYNAMITE_EXPLOSION_DURATION if duration is None else duration
+        self.timer = 0
+        self.rect = pygame.Rect(0, 0, 1, 1)
+        self.rect.center = (int(x), int(y))
 
-	def update(self):
-		# Renvoie False quand l'effet est termine
-		self.timer += 1
-		return self.timer < self.duration
+    def update(self):
+        # Renvoie False quand l'effet est termine
+        self.timer += 1
+        return self.timer < self.duration
 
-	def draw(self, surface):
-		t = self.timer / self.duration
-		grow = 1 - (1 - t) ** 3                       # grossit vite puis ralentit
-		r = max(4, int(self.radius * (0.25 + 0.75 * grow)))
-		alpha = int(255 * (1 - t))
+    def draw(self, surface):
+        t = self.timer / self.duration
+        grow = 1 - (1 - t) ** 3                       # grossit vite puis ralentit
+        r = max(4, int(self.radius * (0.25 + 0.75 * grow)))
+        alpha = int(255 * (1 - t))
 
-		layer = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-		pygame.draw.circle(layer, (255, 120, 20, int(alpha * 0.6)), (r, r), r)
-		pygame.draw.circle(layer, (255, 210, 80, alpha), (r, r), max(1, int(r * 0.65)))
-		if t < 0.25:
-			pygame.draw.circle(layer, (255, 255, 255, alpha), (r, r), max(1, int(r * 0.35)))
-		surface.blit(layer, layer.get_rect(center=(int(self.x), int(self.y))))
+        layer = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(layer, (255, 120, 20, int(alpha * 0.6)), (r, r), r)
+        pygame.draw.circle(layer, (255, 210, 80, alpha), (r, r), max(1, int(r * 0.65)))
+        if t < 0.25:
+            pygame.draw.circle(layer, (255, 255, 255, alpha), (r, r), max(1, int(r * 0.35)))
+        surface.blit(layer, layer.get_rect(center=(int(self.x), int(self.y))))
 
-		
+        
 class Potion:
 
-	def __init__(self, sprite):
-		self.name = "Potion de soin"
-		self.price = 15
-		self.heal = 30
+    def __init__(self, sprite):
+        self.name = "Potion de soin"
+        self.price = 15
+        self.heal = 30
 
-		self.stock = HEAL_POTION_QUANTITY          # quantité chez le marchand
-		self.max_stock = HEAL_POTION_MAX_QUANTITY
+        self.stock = HEAL_POTION_QUANTITY          # quantité chez le marchand
+        self.max_stock = HEAL_POTION_MAX_QUANTITY
 
-		self.sprite = sprite     # chargé plus tard
-		self.rect = None         # utilisé pour le clic
-	def copy(self):
-		return Potion(self.sprite)
+        self.sprite = sprite     # chargé plus tard
+        self.rect = None         # utilisé pour le clic
+    def copy(self):
+        return Potion(self.sprite)
 
-	def use(self, player):
-		player.hp = min(player.max_hp, player.hp + self.heal)
+    def use(self, player):
+        player.hp = min(player.max_hp, player.hp + self.heal)
 
 class Dynamite:
 
-	def __init__(self, sprite):
-		self.name = "Dynamite"
-		self.price = DYNAMITE_PRICE
-		self.damage = DYNAMITE_DAMAGE
-		self.explosion_radius = DYNAMITE_EXPLOSION_RADIUS
-		self.throw_range = DYNAMITE_THROW_RANGE
-		self.throw_speed = DYNAMITE_THROW_SPEED
-		self.size = DYNAMITE_SIZE
-		self.scale = DYNAMITE_SCALE
-		self.explosion_delay = DYNAMITE_EXPLOSION_DELAY
-		#self.bounce_min = DYNAMITE_BOUNCE_MIN
-		#self.bounce_max = DYNAMITE_BOUNCE_MAX
-		self.tree_hit_apple_boost = DYNAMITE_TREE_HIT_APPLE_BOOST
+    def __init__(self, sprite):
+        self.name = "Dynamite"
+        self.price = DYNAMITE_PRICE
+        self.damage = DYNAMITE_DAMAGE
+        self.explosion_radius = DYNAMITE_EXPLOSION_RADIUS
+        self.throw_range = DYNAMITE_THROW_RANGE
+        self.throw_speed = DYNAMITE_THROW_SPEED
+        self.size = DYNAMITE_SIZE
+        self.scale = DYNAMITE_SCALE
+        self.explosion_delay = DYNAMITE_EXPLOSION_DELAY
+        #self.bounce_min = DYNAMITE_BOUNCE_MIN
+        #self.bounce_max = DYNAMITE_BOUNCE_MAX
+        self.tree_hit_apple_boost = DYNAMITE_TREE_HIT_APPLE_BOOST
 
-		self.stock = DYNAMITE_QUANTITY          # quantité chez le marchand
-		self.max_stock = DYNAMITE_MAX_QUANTITY
+        self.stock = DYNAMITE_QUANTITY          # quantité chez le marchand
+        self.max_stock = DYNAMITE_MAX_QUANTITY
 
-		self.sprite = sprite     # chargé plus tard
-		self.rect = None         # utilisé pour le clic
+        self.sprite = sprite     # chargé plus tard
+        self.rect = None         # utilisé pour le clic
 
-	def copy(self):
-		return Dynamite(self.sprite)
+    def copy(self):
+        return Dynamite(self.sprite)
 
 
-	def use(self, player, target_x, target_y, projectiles, scaled_dynamite_sprite):
-		"""
-		Lance la dynamite vers la souris (target_x/target_y en coordonnees
-		MONDE). Elle est concue pour atterrir pres du curseur, dans la
-		limite de throw_range.
-		"""
-		dx = target_x - player.rect.centerx
-		dy = target_y - player.rect.centery
-		distance = math.hypot(dx, dy)
+    def use(self, player, target_x, target_y, projectiles, scaled_dynamite_sprite):
+        """
+        Lance la dynamite vers la souris (target_x/target_y en coordonnees
+        MONDE). Elle est concue pour atterrir pres du curseur, dans la
+        limite de throw_range.
+        """
+        dx = target_x - player.rect.centerx
+        dy = target_y - player.rect.centery
+        distance = math.hypot(dx, dy)
 
-		# Souris pile sur le joueur : on lance vers le bas plutot que rien
-		if distance < 1:
-			dx, dy, distance = 0, 1, 1
+        # Souris pile sur le joueur : on lance vers le bas plutot que rien
+        if distance < 1:
+            dx, dy, distance = 0, 1, 1
 
-		# Distance visee, bornee entre le minimum et la portee max
-		aim_distance = max(DYNAMITE_THROW_MIN_DISTANCE, min(distance, self.throw_range))
+        # Distance visee, bornee entre le minimum et la portee max
+        aim_distance = max(DYNAMITE_THROW_MIN_DISTANCE, min(distance, self.throw_range))
 
-		# Distance parcourue par glissement ~ (v0 - vitesse_min) / (1 - friction)
-		# -> on en deduit la vitesse de depart pour s'arreter a aim_distance.
-		speed = aim_distance * (1 - DYNAMITE_FRICTION) + DYNAMITE_MIN_VELOCITY
-		speed = min(speed, self.throw_speed)
+        # Distance parcourue par glissement ~ (v0 - vitesse_min) / (1 - friction)
+        # -> on en deduit la vitesse de depart pour s'arreter a aim_distance.
+        speed = aim_distance * (1 - DYNAMITE_FRICTION) + DYNAMITE_MIN_VELOCITY
+        speed = min(speed, self.throw_speed)
 
-		projectiles.append(DynamiteProjectile(
-			player.rect.centerx,
-			player.rect.centery,
-			dx / distance * speed,
-			dy / distance * speed,
-			scaled_dynamite_sprite
-		))
+        projectiles.append(DynamiteProjectile(
+            player.rect.centerx,
+            player.rect.centery,
+            dx / distance * speed,
+            dy / distance * speed,
+            scaled_dynamite_sprite
+        ))
 
 
 
@@ -1695,70 +1759,70 @@ class Rock:
 
 class Book:
 
-	def __init__(self, title, pages):
-		self.title = title      # str
-		self.pages = pages      # liste de str, une par page
-		self.rect = None        # utilisé pour détecter le clic sur le titre
+    def __init__(self, title, pages):
+        self.title = title      # str
+        self.pages = pages      # liste de str, une par page
+        self.rect = None        # utilisé pour détecter le clic sur le titre
 
 class XpOrb:
 
-	# Boule d'xp bleu fonce qui clignote (pulsation douce) et vole
-	# IMMEDIATEMENT vers le joueur. value = xp rendue a la collecte :
-	# XP_ORB_VALUE (10) -> petite boule, 1 -> tres petite boule.
-	def __init__(self, x, y, value=XP_ORB_VALUE):
-		self.value = value
-		self.radius = XP_ORB_RADIUS_BIG if value >= 10 else XP_ORB_RADIUS_SMALL
-		self.rect = pygame.Rect(0, 0, self.radius * 2, self.radius * 2)
-		self.rect.center = (x, y)
-		self.pulse_timer = random.randint(0, XP_ORB_PULSE_FRAMES - 1)
-		# Legere dispersion a l'apparition (facon Minecraft), amortie
-		angle = random.uniform(0, math.tau)
-		speed = random.uniform(1.0, XP_ORB_SCATTER_SPEED)
-		self.vx = math.cos(angle) * speed
-		self.vy = math.sin(angle) * speed
-		# Sprite pre-calcule : disque bleu fonce + coeur clair
-		d = self.radius * 2
-		self.sprite = pygame.Surface((d, d), pygame.SRCALPHA)
-		pygame.draw.circle(self.sprite, XP_ORB_COLOR, (self.radius, self.radius), self.radius)
-		pygame.draw.circle(self.sprite, XP_ORB_COLOR_LIGHT,
-			(self.radius - self.radius // 3, self.radius - self.radius // 3),
-			max(1, self.radius // 3))
+    # Boule d'xp bleu fonce qui clignote (pulsation douce) et vole
+    # IMMEDIATEMENT vers le joueur. value = xp rendue a la collecte :
+    # XP_ORB_VALUE (10) -> petite boule, 1 -> tres petite boule.
+    def __init__(self, x, y, value=XP_ORB_VALUE):
+        self.value = value
+        self.radius = XP_ORB_RADIUS_BIG if value >= 10 else XP_ORB_RADIUS_SMALL
+        self.rect = pygame.Rect(0, 0, self.radius * 2, self.radius * 2)
+        self.rect.center = (x, y)
+        self.pulse_timer = random.randint(0, XP_ORB_PULSE_FRAMES - 1)
+        # Legere dispersion a l'apparition (facon Minecraft), amortie
+        angle = random.uniform(0, math.tau)
+        speed = random.uniform(1.0, XP_ORB_SCATTER_SPEED)
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        # Sprite pre-calcule : disque bleu fonce + coeur clair
+        d = self.radius * 2
+        self.sprite = pygame.Surface((d, d), pygame.SRCALPHA)
+        pygame.draw.circle(self.sprite, XP_ORB_COLOR, (self.radius, self.radius), self.radius)
+        pygame.draw.circle(self.sprite, XP_ORB_COLOR_LIGHT,
+            (self.radius - self.radius // 3, self.radius - self.radius // 3),
+            max(1, self.radius // 3))
 
-	def update(self, player):
-		# Dispersion amortie puis attraction IMMEDIATE vers le joueur
-		self.rect.x += self.vx
-		self.rect.y += self.vy
-		self.vx *= 0.9
-		self.vy *= 0.9
-		dx = player.rect.centerx - self.rect.centerx
-		dy = player.rect.centery - self.rect.centery
-		distance = max(1, math.hypot(dx, dy))
-		self.rect.x += dx / distance * XP_ORB_MAGNET_SPEED
-		self.rect.y += dy / distance * XP_ORB_MAGNET_SPEED
-		self.pulse_timer = (self.pulse_timer + 1) % XP_ORB_PULSE_FRAMES
+    def update(self, player):
+        # Dispersion amortie puis attraction IMMEDIATE vers le joueur
+        self.rect.x += self.vx
+        self.rect.y += self.vy
+        self.vx *= 0.9
+        self.vy *= 0.9
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        distance = max(1, math.hypot(dx, dy))
+        self.rect.x += dx / distance * XP_ORB_MAGNET_SPEED
+        self.rect.y += dy / distance * XP_ORB_MAGNET_SPEED
+        self.pulse_timer = (self.pulse_timer + 1) % XP_ORB_PULSE_FRAMES
 
-	def draw(self, surface):
-		# Pulsation douce : l'opacite oscille sans jamais disparaitre
-		phase = math.sin(2 * math.pi * self.pulse_timer / XP_ORB_PULSE_FRAMES)
-		alpha = int(XP_ORB_ALPHA_MIN + (255 - XP_ORB_ALPHA_MIN) * (0.5 + 0.5 * phase))
-		self.sprite.set_alpha(alpha)
-		surface.blit(self.sprite, self.rect)
+    def draw(self, surface):
+        # Pulsation douce : l'opacite oscille sans jamais disparaitre
+        phase = math.sin(2 * math.pi * self.pulse_timer / XP_ORB_PULSE_FRAMES)
+        alpha = int(XP_ORB_ALPHA_MIN + (255 - XP_ORB_ALPHA_MIN) * (0.5 + 0.5 * phase))
+        self.sprite.set_alpha(alpha)
+        surface.blit(self.sprite, self.rect)
 
 class ArmorOffer:
-	# Offre d'armure du marchand : objet special de boutique qui
-	# equipe le joueur au lieu d'aller dans l'inventaire.
-	def __init__(self, tier, icon=None):
-		self.tier = tier
-		self.name = f"Armure niv {tier}"
-		self.price = ARMOR1_PRICE if tier == 1 else ARMOR2_PRICE
-		self.stock = 1
-		self.sprite = icon
-		self.rect = None
-		# Icone : celle du marchand, sinon un cercle gris par defaut
-		# (jamais None : le dessin de la boutique doit pouvoir blitter)
-		if icon is not None:
-			self.sprite = icon
-		else:
-			self.sprite = pygame.Surface((40, 40), pygame.SRCALPHA)
-			pygame.draw.circle(self.sprite, (130, 130, 135), (20, 20), 17)
-			pygame.draw.circle(self.sprite, (90, 90, 95), (20, 20), 17, 2)
+    # Offre d'armure du marchand : objet special de boutique qui
+    # equipe le joueur au lieu d'aller dans l'inventaire.
+    def __init__(self, tier, icon=None):
+        self.tier = tier
+        self.name = f"Armure niv {tier}"
+        self.price = ARMOR1_PRICE if tier == 1 else ARMOR2_PRICE
+        self.stock = 1
+        self.sprite = icon
+        self.rect = None
+        # Icone : celle du marchand, sinon un cercle gris par defaut
+        # (jamais None : le dessin de la boutique doit pouvoir blitter)
+        if icon is not None:
+            self.sprite = icon
+        else:
+            self.sprite = pygame.Surface((40, 40), pygame.SRCALPHA)
+            pygame.draw.circle(self.sprite, (130, 130, 135), (20, 20), 17)
+            pygame.draw.circle(self.sprite, (90, 90, 95), (20, 20), 17, 2)
