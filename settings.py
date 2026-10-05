@@ -416,3 +416,67 @@ ENEMY_UNSTICK_ANGLE_SPREAD = 45   # écart aléatoire (±°) autour de la direct
 # --- Hitbox d'attaque du joueur (part du CENTRE du joueur) ---
 PLAYER_ATTACK_REACH = 150   # portée depuis le centre, dans la direction regardée
 PLAYER_ATTACK_WIDTH = 130   # largeur perpendiculaire à la direction
+
+# --- Audio -------------------------------------------------------
+AUDIO_ENABLED = True
+AUDIO_SFX_DIR = ""#"sons/effets"
+AUDIO_MUSIC_DIR = ""#"sons/musiques"
+AUDIO_CHANNELS = 32              # nombre de sons jouables en même temps
+
+SFX_MASTER_VOLUME = 0.7          # volume global des bruitages (0 à 1)
+MUSIC_VOLUME = 0.4               # volume global de la musique (0 à 1)
+MUSIC_FADE_FRAMES = 60           # durée du fondu entre deux musiques (60 = 1 s)
+MUSIC_DUCK_VOLUME = 0.4          # part du volume musique pendant un menu PNJ
+AUDIO_HEARING_RADIUS = 1000      # distance (px) au-delà de laquelle un son d'ennemi est inaudible
+FOOTSTEP_INTERVAL = 22           # frames entre deux pas
+
+# Musique par game_state : fichier dans AUDIO_MUSIC_DIR (absent = silence)
+MUSIC_TRACKS = {
+	"shop": "shop.ogg",
+	"wave": "wave.ogg",
+	"house": "house.ogg",
+	"chapel": "chapel.ogg",
+}
+
+# Catalogue des bruitages : "nom": {"volume": gain propre, "cooldown": ms mini entre 2 lectures}
+SFX_CONFIG = {
+	# Combat
+	"attack":          {"volume": 0.6, "cooldown": 0},
+	"hit_enemy":       {"volume": 0.8, "cooldown": 60},
+	"player_hurt":     {"volume": 1.0, "cooldown": 150},
+	"enemy_hurt":      {"volume": 0.6, "cooldown": 80},
+	"enemy_death":     {"volume": 0.8, "cooldown": 80},
+	"enemy_attack":    {"volume": 0.5, "cooldown": 120},
+	# Dynamite
+	"dynamite_throw":  {"volume": 0.8, "cooldown": 0},
+	"dynamite_bounce": {"volume": 0.6, "cooldown": 120},
+	"fuse":            {"volume": 0.7, "cooldown": 0},
+	"explosion":       {"volume": 1.0, "cooldown": 0},
+	# Récompenses / objets
+	"coin":            {"volume": 0.6, "cooldown": 40},
+	"xp_orb":          {"volume": 0.4, "cooldown": 60},
+	"level_up":        {"volume": 0.9, "cooldown": 300},
+	"item_pickup":     {"volume": 0.7, "cooldown": 50},
+	"potion":          {"volume": 0.8, "cooldown": 0},
+	"eat":             {"volume": 0.8, "cooldown": 0},
+	# Déplacements / monde
+	"step_grass":      {"volume": 0.25, "cooldown": 0},
+	"step_wood":       {"volume": 0.35, "cooldown": 0},
+	"step_stone":      {"volume": 0.35, "cooldown": 0},
+	"door":            {"volume": 0.8, "cooldown": 200},
+	"portal":          {"volume": 0.9, "cooldown": 500},
+	"wave_start":      {"volume": 0.8, "cooldown": 500},
+	"wave_clear":      {"volume": 0.8, "cooldown": 500},
+	# Interface / PNJ
+	"ui_click":        {"volume": 0.5, "cooldown": 40},
+	"ui_error":        {"volume": 0.6, "cooldown": 150},
+	"buy":             {"volume": 0.8, "cooldown": 100},
+	"equip":           {"volume": 0.8, "cooldown": 100},
+	"heal":            {"volume": 0.9, "cooldown": 100},
+	"skill_buy":       {"volume": 0.9, "cooldown": 100},
+	"page_turn":       {"volume": 0.6, "cooldown": 80},
+}
+MONSTER_BASE_HP = 20              # pv du monstre niveau 1
+MONSTER_BASE_DAMAGE = 5           # degats du monstre niveau 1
+MONSTER_BASE_SPEED = 4            # vitesse de base (x paliers de niveau)
+MONSTER_HP_PER_LEVEL = 5          # + pv par niveau (base MONSTER_BASE_HP)

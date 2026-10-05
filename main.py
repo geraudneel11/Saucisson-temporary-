@@ -2,6 +2,8 @@ import os
 import pygame 
 import random  
 import math
+import json
+import time
 
 from pygame import key
 
@@ -820,6 +822,161 @@ menu_fond.blit(chapel.base, (chapel.rect.x, chapel.rect.y + chapel.roof_height))
 boutons_menu = ui.calculer_boutons_menu(screen)
 intro_debut = pygame.time.get_ticks()
 
+# ---------- SAUVEGARDES + MODE DEV + HITBOXES (F1) ----------
+slot_sauvegarde_actif = None      # 1..10 quand on joue AVEC sauvegarde
+chargement_action = ("nouveau", None)   # ou ("sauvegarde", slot)
+hitboxes_config = []              # [{"type": i, "couleur": j}] max 15
+hitboxes_visibles = False
+_f1_precedent = False
+_etat_precedent = game_state
+DEFAUTS_REGLAGES = {
+    "vitesse_joueur": 14, "force_joueur": 10,
+    "pv_ennemis": 20, "degats_ennemis": 5, "vitesse_ennemis": 4,
+    "or_depart": 150, "niveau_competences": 0, "potions_depart": 0,
+    "lieu": "wave", "pommes_pct": 33, "pommes_dorees_pct": 20,
+}
+dev_reglages = dict(DEFAUTS_REGLAGES)
+
+def restaurer_defauts_dev():
+    dev_reglages.clear()
+    dev_reglages.update(DEFAUTS_REGLAGES)
+
+def lancer_chargement(action):
+    global chargement_action, game_state
+    global chargement_debut, chargement_duree
+    chargement_action = action
+    game_state = "chargement"
+    chargement_debut = pygame.time.get_ticks()
+    chargement_duree = random.randint(500, 2000)
+
+def appliquer_reglages_dev():
+    # applique les reglages du menu dev : player (vitesse, force, or,
+    # competences, items), constantes monstres (module classes, qui
+    # capture ses valeurs a l'import), taux de pommes (module main)
+    # et lieu d'apparition
+    import classes as _classes
+    r = dev_reglages
+    player.speed = r["vitesse_joueur"]
+    player.base_damage = r["force_joueur"]
+    for module in (globals().get("settings"), _classes):
+        if module is None:
+            continue
+        setattr(module, "MONSTER_BASE_HP", r["pv_ennemis"])
+        setattr(module, "MONSTER_BASE_DAMAGE", r["degats_ennemis"])
+        setattr(module, "MONSTER_BASE_SPEED", r["vitesse_ennemis"])
+    player.coins = r["or_depart"]
+    player.level = r["niveau_competences"]
+    if r["potions_depart"] > 0:
+        player.inventory[0] = {"item": fabriquer_item("Potion"),
+                               "quantity": r["potions_depart"]}
+    else:
+        player.inventory[0] = {"item": None, "quantity": 0}
+    globals()["DEV_START_GAME_STATE"] = r["lieu"]
+    globals()["APPLE_DROP_CHANCE"] = r["pommes_pct"] / 100.0
+    globals()["GOLDEN_APPLE_DROP_CHANCE"] = r["pommes_dorees_pct"] / 100.0
+    points = {"chapel": chapel_interior.entrance_point,
+              "house": getattr(house, "entrance_point", None),
+              "shop": plaza_center}
+    point = points.get(r["lieu"])
+    if point:
+        player.rect.center = (int(point[0]), int(point[1]))
+        player.update_hitbox()
+
+def fabriquer_item(nom):
+    # reconstruit un item d'inventaire d'apres son nom de classe
+    # (les classes d'items exigent leur sprite en argument)
+    import classes as _classes
+    if nom == "Potion":
+        img = pygame.image.load("Fiole_de_soin.png").convert_alpha()
+        return _classes.Potion(pygame.transform.scale(img, (48, 51)))
+    if nom == "Dynamite":
+        img = pygame.image.load("Dynamite.png").convert_alpha()
+        return _classes.Dynamite(pygame.transform.scale(img, (48, 48)))
+    return None
+
+def sauvegarder_partie(slot):
+    # ecrit l'etat de progression dans saves/slot_<n>.json (appele a
+    # chaque entree et sortie du niveau shop)
+    donnees = {
+        "niveau": current_level,
+        "vague": current_wave,
+        "or": player.coins,
+        "hp": player.hp,
+        "xp": player.xp,
+        "xp_level": player.xp_level,
+        "niveau_competences": player.level,
+        "skills": dict(player.skill_levels),
+        "equipement": player.equipment_level,
+        "inventaire": [
+            {"item": (it["item"].__class__.__name__ if it["item"] else None),
+             "quantite": it["quantity"]}
+            for it in player.inventory
+        ],
+        "position": [player.rect.centerx, player.rect.centery],
+        "lieu": game_state if game_state in ("wave", "shop", "house",
+                                             "chapel") else "shop",
+        "date": time.strftime("%d/%m %H:%M"),
+    }
+    os.makedirs("saves", exist_ok=True)
+    with open(os.path.join("saves", f"slot_{slot}.json"), "w",
+              encoding="utf-8") as f:
+        json.dump(donnees, f, indent=2, ensure_ascii=False)
+
+def charger_partie(slot):
+    # restaure la progression d'un slot ; reprise dans le lieu sauvegarde
+    global current_level, current_wave, game_state
+    with open(os.path.join("saves", f"slot_{slot}.json"),
+              encoding="utf-8") as f:
+        d = json.load(f)
+    current_level = int(d.get("niveau", 1))
+    current_wave = int(d.get("vague", 1))
+    player.coins = int(d.get("or", 150))
+    player.xp = int(d.get("xp", 0))
+    player.xp_level = int(d.get("xp_level", 0))
+    player.level = int(d.get("niveau_competences", 0))
+    for cle, val in d.get("skills", {}).items():
+        if cle in player.skill_levels:
+            player.skill_levels[cle] = int(val)
+    player.equipment_level = int(d.get("equipement", 0))
+    for i, sac in enumerate(d.get("inventaire", [])):
+        if i >= len(player.inventory):
+            break
+        nom = sac.get("item")
+        player.inventory[i] = {
+            "item": fabriquer_item(nom),
+            "quantity": int(sac.get("quantite", 0)),
+        }
+    player.recompute_max_hp()
+    player.hp = max(1, min(int(d.get("hp", player.max_hp)), player.max_hp))
+    if d.get("position"):
+        player.rect.center = (int(d["position"][0]), int(d["position"][1]))
+        player.update_hitbox()
+    game_state = d.get("lieu", "shop")
+    if game_state == "shop":
+        # reprise directe dans le shop : le portail n'existe pas encore
+        # (il nait de la vague precedante), on en pose un au plaza
+        global portal_rect
+        portal_rect = pygame.Rect(int(plaza_center[0]) - 32,
+                                  int(plaza_center[1]) - 32, 64, 64)
+
+def cibles_hitbox(indice):
+    # liste (rect monde, nom) pour le type de hitbox demande
+    if indice == 0:
+        return [(player.hitbox, "JOUEUR")]
+    if indice == 1:
+        return [(e.hitbox, f"ENNEMI {e.level}") for e in enemies]
+    if indice == 2:
+        return [(c.rect, "PIECE") for c in coins]
+    if indice == 3:
+        return [(n.interaction_rect, str(getattr(n, "type", "PNJ")).upper())
+                for n in npcs]
+    if indice == 4:
+        return [(o.rect, "XP") for o in xp_orbs]
+    if indice == 5:
+        return [(portal_rect, "PORTAIL")] if portal_rect else []
+    return []
+
+
 
 run = True
 while run == True :
@@ -866,10 +1023,154 @@ while run == True :
 		                   pygame.time.get_ticks() - chargement_debut,
 		                   chargement_duree)
 		if pygame.time.get_ticks() - chargement_debut >= chargement_duree:
-			game_state = DEV_START_GAME_STATE
+			if chargement_action[0] == "sauvegarde":
+				charger_partie(chargement_action[1])
+			else:
+				game_state = DEV_START_GAME_STATE
 		pygame.display.update()
 		clock.tick(FPS_MAX)
 		continue
+	if game_state in ("menu_jouer", "menu_sauvegardes", "menu_dev",
+	                  "menu_hitboxes", "menu_settings"):
+		# sous-menus : ni monde ni entites, juste les clics
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+				if game_state == "menu_jouer":
+					for rect, action in ui.calculer_menu_jouer(screen):
+						if rect.collidepoint(event.pos):
+							if action == "sauvegarde":
+								game_state = "menu_sauvegardes"
+							elif action == "sans":
+								restaurer_defauts_dev()
+								appliquer_reglages_dev()
+								slot_sauvegarde_actif = None
+								lancer_chargement(("nouveau", None))
+							elif action == "dev":
+								game_state = "menu_dev"
+							elif action == "retour":
+								game_state = "menu"
+							break
+				elif game_state == "menu_sauvegardes":
+					for rect, action in ui.calculer_menu_sauvegardes(screen):
+						if rect.collidepoint(event.pos):
+							if action[0] == "retour":
+								game_state = "menu_jouer"
+							else:
+								slot_sauvegarde_actif = action[1]
+								restaurer_defauts_dev()
+								appliquer_reglages_dev()
+								existant = os.path.exists(os.path.join(
+									"saves", f"slot_{action[1]}.json"))
+								if existant:
+									lancer_chargement(
+										("sauvegarde", action[1]))
+								else:
+									lancer_chargement(("nouveau", None))
+							break
+				elif game_state == "menu_dev":
+					for rect, action in ui.calculer_menu_dev(screen):
+						if rect.collidepoint(event.pos):
+							if action == "hitboxes":
+								game_state = "menu_hitboxes"
+							elif action == "settings":
+								game_state = "menu_settings"
+							elif action == "jouer":
+								appliquer_reglages_dev()
+								slot_sauvegarde_actif = None
+								lancer_chargement(("nouveau", None))
+							elif action == "retour":
+								game_state = "menu_jouer"
+							break
+				elif game_state == "menu_hitboxes":
+					lignes, rect_ajouter, rect_enlever, rect_retour = \
+						ui.calculer_menu_hitboxes(screen, hitboxes_config)
+					for rect, i in lignes:
+						if rect.collidepoint(event.pos):
+							pastille = ui.rect_pastille_hitbox(rect)
+							if pastille.collidepoint(event.pos):
+								e = hitboxes_config[i]
+								e["couleur"] = ((e["couleur"] + 1)
+									% len(ui.HITBOX_COULEURS))
+							else:
+								e = hitboxes_config[i]
+								e["type"] = ((e["type"] + 1)
+									% len(ui.HITBOX_TYPES))
+							break
+					else:
+						if rect_ajouter.collidepoint(event.pos):
+							if len(hitboxes_config) < 15:
+								hitboxes_config.append({"type": 0,
+								                        "couleur": 0})
+						elif rect_enlever.collidepoint(event.pos):
+							if hitboxes_config:
+								hitboxes_config.pop()
+						elif rect_retour.collidepoint(event.pos):
+							game_state = "menu_dev"
+				elif game_state == "menu_settings":
+					lignes, rect_retour, rect_jouer = \
+						ui.calculer_menu_settings(screen)
+					for rect, cle in lignes:
+						if not rect.collidepoint(event.pos):
+							continue
+						definition = next(
+							d for d in ui.SETTINGS_LIGNES if d[0] == cle)
+						_cle, _label, pas, mini, maxi, genre = definition
+						rm, rp = ui._zone_plus_moins(
+							rect, cle, dev_reglages[cle], UI_SCALE * 0.5)
+						if genre == "cycle":
+							i = ui.LIEUX.index(dev_reglages[cle])
+							if rm.collidepoint(event.pos):
+								i = (i - 1) % len(ui.LIEUX)
+							elif rp.collidepoint(event.pos):
+								i = (i + 1) % len(ui.LIEUX)
+							dev_reglages[cle] = ui.LIEUX[i]
+						elif rm.collidepoint(event.pos):
+							dev_reglages[cle] = max(mini,
+								dev_reglages[cle] - pas)
+						elif rp.collidepoint(event.pos):
+							dev_reglages[cle] = min(maxi,
+								dev_reglages[cle] + pas)
+						break
+					else:
+						if rect_retour.collidepoint(event.pos):
+							game_state = "menu_dev"
+						elif rect_jouer.collidepoint(event.pos):
+							appliquer_reglages_dev()
+							slot_sauvegarde_actif = None
+							lancer_chargement(("nouveau", None))
+		if game_state == "menu_jouer":
+			ui.draw_menu_jouer(screen, ui.calculer_menu_jouer(screen),
+			                   menu_fond)
+		elif game_state == "menu_sauvegardes":
+			ui.draw_menu_sauvegardes(screen,
+			                         ui.calculer_menu_sauvegardes(screen),
+			                         menu_fond)
+		elif game_state == "menu_dev":
+			ui.draw_menu_dev(screen, ui.calculer_menu_dev(screen),
+			                 menu_fond)
+		elif game_state == "menu_hitboxes":
+			ui.draw_menu_hitboxes(screen, menu_fond, hitboxes_config)
+		elif game_state == "menu_settings":
+			ui.draw_menu_settings(screen, menu_fond, dev_reglages)
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
+		# --- sauvegarde automatique a l'entree et a la sortie du shop ---
+	if game_state != _etat_precedent:
+		if slot_sauvegarde_actif is not None and \
+				"shop" in (game_state, _etat_precedent):
+			sauvegarder_partie(slot_sauvegarde_actif)
+	_etat_precedent = game_state
+
+	# --- F1 : afficher/masquer les hitboxes de debug configurees ---
+	_f1 = pygame.key.get_pressed()[pygame.K_F1]
+	if _f1 and not _f1_precedent:
+		hitboxes_visibles = not hitboxes_visibles
+	_f1_precedent = _f1
+
+	colliders.clear()
 	colliders.clear()
 	if game_state == "house":
 		screen.fill((0, 0, 0))

@@ -1,7 +1,8 @@
 import pygame
 import random
 import math
-from settings import * 
+from settings import *
+import audio
 
 from pygame import surface
 
@@ -66,6 +67,7 @@ class Player:
         while self.xp >= self.xp_required():
             self.xp -= self.xp_required()
             self.xp_level += 1
+            audio.play("level_up")
             if self.xp_level > self.xp_record:
                 self.xp_record = self.xp_level
 
@@ -153,6 +155,7 @@ class Player:
                     self.hp = self.max_hp
 
             self.state = "hurt"
+            audio.play("player_hurt")
             self.current_frame = 0
             self.frame_timer = 0
 
@@ -246,11 +249,11 @@ class Enemy:
         # cooldown d'attaque. Les autres stats ne bougent pas.
         self.level = max(1, int(level))
         self.is_elite = False            # pose par waves.spawn_enemy
-        self.max_hp = 20 + MONSTER_HP_PER_LEVEL * (self.level - 1)
+        self.max_hp = MONSTER_BASE_HP + MONSTER_HP_PER_LEVEL * (self.level - 1)
         self.hp = self.max_hp
-        self.damage = 5 + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
+        self.damage = MONSTER_BASE_DAMAGE + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
         _speed_tier = self.level // MONSTER_SPEED_STEP_LEVELS
-        _speed = 4 * (MONSTER_SPEED_FACTOR_PER_TIER ** _speed_tier)
+        _speed = MONSTER_BASE_SPEED * (MONSTER_SPEED_FACTOR_PER_TIER ** _speed_tier)
         self.speedx = _speed
         self.speedy = _speed
         self.base_attack_cooldown = max(
@@ -319,6 +322,9 @@ class Enemy:
             self.current_frame = 0
             self.frame_timer = 0
             self.coin_dropped = True
+            audio.play("enemy_death", source=self.rect.center)
+        else:
+            audio.play("enemy_hurt", source=self.rect.center)
 
         self._apply_knockback_from(player)
 
@@ -427,6 +433,7 @@ class Enemy:
             self.current_frame = 0
             self.frame_timer = 0
             self.attack_hit_done = False
+            audio.play("enemy_attack", source=self.rect.center)
         elif distance <= 45:
             self.state = "idle"
         else:
@@ -653,7 +660,7 @@ class Enemy:
         self.unstick_dy = math.sin(angle)
         self.unstick_timer = ENEMY_UNSTICK_DURATION
 
-    
+
 
 class Coin:
 
@@ -1014,7 +1021,7 @@ class NPC:
     def _update_direction_towards_target(self):
         target_x, target_y = self.current_target
         self.direction = self._direction_towards(target_x, target_y)
-        
+
     def begin_conversation(self, player):
         self.conversation_target = self._compute_approach_target(player)
         self.face_target_point = (player.hitbox.centerx, player.hitbox.centery)
@@ -1025,7 +1032,7 @@ class NPC:
         self.direction = self._direction_towards(player.hitbox.centerx, player.hitbox.centery)
         self.state = "talking"
         self.talk_delay_timer = 20  # ~1/3 de seconde à 60 FPS, pour laisser voir l'orientation
-        
+
     def end_conversation(self):
         self.state = "idle"
         self.idle_timer = random.randint(30, 90)  # petite pause avant de reprendre le circuit
@@ -1045,7 +1052,7 @@ class NPC:
         self._update_hitbox_position()
         for collider in colliders:
             if collider is self.hitbox_for_players:   # <-- nouvelle ligne
-                continue  
+                continue
             if self.hitbox_for_furniture.colliderect(collider):
                 self.rect = old_pos
                 self._update_hitbox_position()
@@ -1219,7 +1226,7 @@ class NPC:
                 else:
                     self._set_animation(self.messe_speech)
             elif self.idle_at_stops:
-            
+
                 # Idle anime a l'arret (mode du pretre de la chapelle)
                 self._set_animation(self._get_idle_animation())
             else:
@@ -1356,6 +1363,7 @@ class DynamiteProjectile:
             self._sync_hitbox()
             self._scatter_velocity()
             self._kick_spin()
+            audio.play("dynamite_bounce", source=(self.x, self.y))
 
     def _check_enemies(self, enemies):
         # Petit rebond sur les monstres vivants, uniquement au PREMIER
@@ -1412,6 +1420,7 @@ class DynamiteProjectile:
                 self.vy = 0.0
                 self.spin = 0.0
                 self.state = "stopped"
+                audio.play("fuse", source=(self.x, self.y))
                 self.stopped_timer = 0
                 self.blink_timer = 0
                 self.blink_on = True
@@ -1491,7 +1500,7 @@ class Explosion:
             pygame.draw.circle(layer, (255, 255, 255, alpha), (r, r), max(1, int(r * 0.35)))
         surface.blit(layer, layer.get_rect(center=(int(self.x), int(self.y))))
 
-        
+
 class Potion:
 
     def __init__(self, sprite):

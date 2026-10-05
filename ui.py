@@ -1,6 +1,8 @@
 import pygame
 import math
 import random
+import os
+import json
 from classes import Player
 from fonts import *
 import fonts
@@ -348,3 +350,273 @@ def draw_chargement(screen, t_ms, duree):
     screen.blit(_remplissage_barre(XP_ZONE, XP_SPANS, ratio,
                                    (30, 30, 45), XP_ORB_COLOR), pos)
     screen.blit(XP_CADRE, pos)
+
+# ---------- SOUS-MENUS : JOUER / SAUVEGARDES / DEV / HITBOXES / REGLAGES ----------
+HITBOX_TYPES = ["JOUEUR", "ENNEMIS", "PIECES", "PNJ", "ORBES XP", "PORTAIL"]
+HITBOX_COULEURS = [(255, 60, 60), (60, 255, 90), (70, 140, 255),
+                   (255, 220, 0), (0, 255, 255), (255, 0, 255),
+                   (255, 255, 255), (255, 140, 0)]
+SETTINGS_LIGNES = [
+    ("vitesse_joueur", "VITESSE JOUEUR", 1, 1, 60, "int"),
+    ("force_joueur", "FORCE JOUEUR", 1, 1, 200, "int"),
+    ("pv_ennemis", "PV ENNEMIS (BASE)", 5, 5, 500, "int"),
+    ("degats_ennemis", "DEGATS ENNEMIS (BASE)", 1, 0, 100, "int"),
+    ("vitesse_ennemis", "VITESSE ENNEMIS (BASE)", 1, 1, 20, "int"),
+    ("or_depart", "OR DE DEPART", 50, 0, 100000, "int"),
+    ("niveau_competences", "NIV. COMPETENCES", 1, 0, 50, "int"),
+    ("potions_depart", "POTIONS DE DEPART", 1, 0, 99, "int"),
+    ("lieu", "LIEU D'APPARITION", None, None, None, "cycle"),
+    ("pommes_pct", "TAUX POMMES (%)", 5, 0, 100, "int"),
+    ("pommes_dorees_pct", "TAUX POMMES DOREES (%)", 5, 0, 100, "int"),
+]
+LIEUX = ["wave", "shop", "house", "chapel"]
+NOMS_LIEUX = {"wave": "VAGUES", "shop": "BOUTIQUE",
+              "house": "MAISON", "chapel": "CHAPELLE"}
+
+def dessiner_barre_pnj(screen, x, y, scale):
+    # barre de bouton des interfaces PNJ, a n'importe quelle echelle
+    o1, o2 = int(22.22 * scale), int(33.33 * scale)
+    for sprite, dx in ((MENU_BOUTON_GAUCHE, 0), (MENU_BOUTON_SUITE, o1),
+                       (MENU_BOUTON_SUITE, o2)):
+        img = pygame.transform.scale(
+            sprite,
+            (int(sprite.get_width() * scale),
+             int(sprite.get_height() * scale)))
+        screen.blit(img, (x + dx, y))
+
+def dims_barre_pnj(scale):
+    return int(33.33 * scale) + int(29 * scale), int(17 * scale)
+
+def _label_pnj(screen, texte, rect, scale, survol):
+    # texte du bouton : lettersC1, lettersC6 au survol (comme le marchand)
+    police = fonts.lettersC6 if survol else fonts.lettersC1
+    body = max(1, scale * 0.75)
+    fonts.draw_body_text(
+        screen, texte,
+        rect.centerx - fonts.get_text_width(texte, body, police) // 2,
+        rect.centery - int(3 * body),
+        rect.width, font_dict=police, scale=body
+    )
+
+def _sous_menu_base(screen, fond, titre, alpha=185):
+    screen.blit(fond, (0, 0))
+    voile = pygame.Surface(screen.get_size())
+    voile.set_alpha(alpha)
+    voile.fill((8, 8, 14))
+    screen.blit(voile, (0, 0))
+    _draw_hp_text(screen, titre, screen.get_width() // 2,
+                  int(screen.get_height() * 0.10),
+                  echelle=4, centered=True, police=fonts.lettersT3)
+
+def lire_slots():
+    # contenu resume des 10 slots : dict JSON ou None si vide
+    slots = []
+    for k in range(1, 11):
+        chemin = os.path.join("saves", f"slot_{k}.json")
+        try:
+            with open(chemin, encoding="utf-8") as f:
+                slots.append(json.load(f))
+        except (OSError, ValueError):
+            slots.append(None)
+    return slots
+
+def calculer_menu_jouer(screen):
+    scale = UI_SCALE
+    l, h = dims_barre_pnj(scale)
+    cx = screen.get_width() // 2
+    y0 = int(screen.get_height() * 0.30)
+    pas = h + int(16 * UI_SCALE)
+    return [(pygame.Rect(cx - l // 2, y0 + i * pas, l, h), a)
+            for i, a in enumerate(("sauvegarde", "sans", "dev", "retour"))]
+
+def draw_menu_jouer(screen, boutons, fond):
+    _sous_menu_base(screen, fond, "JOUER")
+    survol = pygame.mouse.get_pos()
+    for rect, action in boutons:
+        labels = {"sauvegarde": "AVEC SAUVEGARDE", "sans": "SANS SAUVEGARDE",
+                  "dev": "MODE DEV", "retour": "RETOUR"}
+        dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE)
+        _label_pnj(screen, labels[action], rect, UI_SCALE,
+                   rect.collidepoint(survol))
+
+def calculer_menu_sauvegardes(screen):
+    scale = UI_SCALE * 0.7
+    l, h = dims_barre_pnj(scale)
+    cx = screen.get_width() // 2
+    ecart = int(24 * UI_SCALE)
+    dy = h + int(12 * UI_SCALE)
+    y0 = int(screen.get_height() * 0.20)
+    x_gauche = cx - (2 * l + ecart) // 2
+    boutons = []
+    for k in range(10):
+        col, row = k % 2, k // 2
+        boutons.append((pygame.Rect(x_gauche + col * (l + ecart),
+                                    y0 + row * dy, l, h), ("slot", k + 1)))
+    boutons.append((pygame.Rect(cx - l // 2,
+                                y0 + 5 * dy + int(8 * UI_SCALE), l, h),
+                    ("retour", None)))
+    return boutons
+
+def draw_menu_sauvegardes(screen, boutons, fond):
+    _sous_menu_base(screen, fond, "SAUVEGARDES")
+    survol = pygame.mouse.get_pos()
+    slots = lire_slots()
+    scale = UI_SCALE * 0.6
+    for rect, action in boutons:
+        dessiner_barre_pnj(screen, rect.x, rect.y, scale)
+        survole = rect.collidepoint(survol)
+        if action[0] == "retour":
+            _label_pnj(screen, "RETOUR", rect, scale, survole)
+            continue
+        k = action[1]
+        d = slots[k - 1]
+        if d:
+            label = f"SLOT {k} - NIV {d.get('niveau', '?')}"
+        else:
+            label = f"SLOT {k} - VIDE"
+        _label_pnj(screen, label, rect, scale, survole)
+
+def calculer_menu_dev(screen):
+    scale = UI_SCALE
+    l, h = dims_barre_pnj(scale)
+    cx = screen.get_width() // 2
+    y0 = int(screen.get_height() * 0.30)
+    pas = h + int(16 * UI_SCALE)
+    return [(pygame.Rect(cx - l // 2, y0 + i * pas, l, h), a)
+            for i, a in enumerate(("hitboxes", "settings", "jouer",
+                                   "retour"))]
+
+def draw_menu_dev(screen, boutons, fond):
+    _sous_menu_base(screen, fond, "MODE DEV")
+    survol = pygame.mouse.get_pos()
+    for rect, action in boutons:
+        labels = {"hitboxes": "HITBOXES", "settings": "REGLAGES",
+                  "jouer": "JOUER", "retour": "RETOUR"}
+        dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE)
+        _label_pnj(screen, labels[action], rect, UI_SCALE,
+                   rect.collidepoint(survol))
+
+def calculer_menu_hitboxes(screen, config):
+    scale = UI_SCALE * 0.75
+    l, h = dims_barre_pnj(scale)
+    cx = screen.get_width() // 2
+    y0 = int(screen.get_height() * 0.20)
+    dy = h + int(5 * UI_SCALE)
+    lignes = [(pygame.Rect(cx - l // 2, y0 + i * dy, l, h), i)
+              for i in range(len(config))]
+    y_fin = y0 + max(len(config), 1) * dy
+    rect_ajouter = pygame.Rect(cx - l // 2, y_fin + int(6 * UI_SCALE), l, h)
+    rect_enlever = pygame.Rect(cx - l // 2,
+                               rect_ajouter.y + h + int(6 * UI_SCALE), l, h)
+    rect_retour = pygame.Rect(cx - l // 2,
+                              rect_enlever.y + h + int(7 * UI_SCALE), l, h)
+    return lignes, rect_ajouter, rect_enlever, rect_retour
+
+def rect_pastille_hitbox(rect):
+    # pastille de couleur a droite d'une ligne de hitbox (bornée par
+    # la hauteur de la ligne pour ne pas déborder sur les voisines)
+    cote = max(10, int(rect.h * 0.55))
+    return pygame.Rect(rect.right - cote - int(6 * UI_SCALE * 0.5),
+                       rect.centery - cote // 2, cote, cote)
+
+def draw_menu_hitboxes(screen, fond, config):
+    _sous_menu_base(screen, fond, "HITBOXES")
+    _draw_hp_text(screen, "F1 POUR AFFICHER EN JEU - MAX 15",
+                  screen.get_width() // 2, int(screen.get_height() * 0.155),
+                  echelle=1, centered=True, police=fonts.lettersT4)
+    lignes, rect_ajouter, rect_enlever, rect_retour = \
+        calculer_menu_hitboxes(screen, config)
+    survol = pygame.mouse.get_pos()
+    scale = UI_SCALE * 0.75
+    for rect, i in lignes:
+        entree = config[i]
+        dessiner_barre_pnj(screen, rect.x, rect.y, scale)
+        pastille = rect_pastille_hitbox(rect)
+        pygame.draw.rect(screen, HITBOX_COULEURS[entree["couleur"]], pastille)
+        pygame.draw.rect(screen, (18, 20, 28), pastille, 2)
+        zone_label = pygame.Rect(rect.x, rect.y,
+                                 rect.width - int(36 * UI_SCALE), rect.h)
+        _label_pnj(screen, HITBOX_TYPES[entree["type"]], zone_label, scale,
+                   zone_label.collidepoint(survol))
+    for rect, label in ((rect_ajouter, "AJOUTER"),
+                        (rect_enlever, "ENLEVER"),
+                        (rect_retour, "RETOUR")):
+        dessiner_barre_pnj(screen, rect.x, rect.y, scale)
+        _label_pnj(screen, label, rect, scale, rect.collidepoint(survol))
+
+def _valeur_texte(cle, val):
+    if cle == "lieu":
+        return NOMS_LIEUX.get(val, val)
+    if "pct" in cle:
+        return f"{val} %"
+    return str(val)
+
+def calculer_menu_settings(screen):
+    # barres "- valeur +" cote droit, labels de reglage a leur gauche
+    scale = UI_SCALE * 0.5
+    l, h = dims_barre_pnj(scale)
+    largeur = screen.get_width()
+    hauteur = screen.get_height()
+    x_barre = int(largeur * 0.62) - l // 2
+    dy = max(int(h * 1.15), int(hauteur * 0.045))
+    y0 = int(hauteur * 0.165)
+    lignes = [(pygame.Rect(x_barre, y0 + i * dy, l, h), cle)
+              for i, (cle, *_rest) in enumerate(SETTINGS_LIGNES)]
+    y_boutons = y0 + len(SETTINGS_LIGNES) * dy + int(4 * UI_SCALE)
+    rect_retour = pygame.Rect(int(largeur * 0.40) - l // 2, y_boutons, l, h)
+    rect_jouer = pygame.Rect(int(largeur * 0.62) - l // 2, y_boutons, l, h)
+    return lignes, rect_retour, rect_jouer
+
+def _zone_plus_moins(rect, cle, valeur, scale):
+    # rectangles cliquables des symboles - et + d'une ligne de reglage
+    body = max(1, scale * 0.75)
+    police = fonts.lettersC1
+    vt = _valeur_texte(cle, valeur)
+    l_m = fonts.get_text_width("-", body, police)
+    l_v = fonts.get_text_width(vt, body, police)
+    l_p = fonts.get_text_width("+", body, police)
+    total = l_m + int(6 * scale / 3) + l_v + int(6 * scale / 3) + l_p
+    xv = rect.centerx - total // 2
+    y = rect.centery - int(3 * body)
+    haut = int(9 * body)
+    ecart = int(6 * scale / 3)
+    return (pygame.Rect(xv - ecart, y, l_m + 2 * ecart, haut),
+            pygame.Rect(xv + l_m + ecart + l_v + ecart, y,
+                        l_p + 2 * ecart, haut))
+
+def draw_menu_settings(screen, fond, reglages):
+    _sous_menu_base(screen, fond, "REGLAGES")
+    lignes, rect_retour, rect_jouer = calculer_menu_settings(screen)
+    survol = pygame.mouse.get_pos()
+    scale = UI_SCALE * 0.5
+    body = max(1, scale * 0.75)
+    for rect, cle in lignes:
+        dessiner_barre_pnj(screen, rect.x, rect.y, scale)
+        definition = next(d for d in SETTINGS_LIGNES if d[0] == cle)
+        police = fonts.lettersC1
+        label = definition[1]
+        fonts.draw_body_text(
+            screen, label,
+            rect.x - 14 - fonts.get_text_width(label, body, police),
+            rect.centery - int(3 * body),
+            rect.width, font_dict=police, scale=body)
+        rm, rp = _zone_plus_moins(rect, cle, reglages[cle], scale)
+        survole_v = rm.collidepoint(survol) or rp.collidepoint(survol)
+        police_v = fonts.lettersC6 if survole_v else fonts.lettersC1
+        vt = _valeur_texte(cle, reglages[cle])
+        fonts.draw_body_text(
+            screen, "-", rm.centerx - fonts.get_text_width("-", body, police_v) // 2,
+            rm.y, rect.width, font_dict=police_v, scale=body)
+        fonts.draw_body_text(
+            screen, vt, rp.x - int(6 * scale / 3)
+            - fonts.get_text_width(vt, body, police_v),
+            rp.y, rect.width, font_dict=police_v, scale=body)
+        fonts.draw_body_text(
+            screen, "+", rp.centerx - fonts.get_text_width("+", body, police_v) // 2,
+            rp.y, rect.width, font_dict=police_v, scale=body)
+    dessiner_barre_pnj(screen, rect_retour.x, rect_retour.y, scale)
+    _label_pnj(screen, "RETOUR", rect_retour, scale,
+               rect_retour.collidepoint(survol))
+    dessiner_barre_pnj(screen, rect_jouer.x, rect_jouer.y, scale)
+    _label_pnj(screen, "JOUER", rect_jouer, scale,
+               rect_jouer.collidepoint(survol))
