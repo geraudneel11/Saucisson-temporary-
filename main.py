@@ -1,6 +1,6 @@
 import os
 import pygame 
-import random
+import random  
 import math
 
 from pygame import key
@@ -9,7 +9,7 @@ from animations import load_animation
 from animations import load_animation_row
 from animations import load_animation_column
 from animations import load_animation_grid
-from animations import split_frames_by_regions
+from animations import split_frames_by_regions 
 from animations import load_item_sprite
 from settings import *
 from classes import Player, Enemy, Coin, NPC, Tree, Rock, Apple, GoldenApple, ItemDrop, Potion, Dynamite, DynamiteProjectile, XpOrb, Explosion, ArmorOffer
@@ -20,8 +20,10 @@ import player_system
 import window
 import fight
 import collision 
-import decor     
+import decor  
+import audio   
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
 
 fullscreen = True
@@ -46,6 +48,7 @@ healer.load_healer_ui()
 merchant_1.load_merchant_ui()
 librarian.load_librarian_ui()
 divinity.load_divinity_ui()
+audio.init()
 
 speed = PLAYER_SPEED
 transition = True
@@ -120,7 +123,7 @@ goodbye_timer = 0
 heal_finished = False
 PLAYER_SORT_MARGIN = 70  # ajuste cette valeur selon le ressenti en jeu
 DEV_START_GAME_STATE = "wave"
-game_state = DEV_START_GAME_STATE
+game_state = "intro"
 
 game_surface = pygame.Surface((MAP_WIDTH, MAP_HEIGHT)).convert()
 
@@ -806,8 +809,67 @@ def enemy_obstacle(obj):
 	if player.hitbox.colliderect(obj.rect):
 		return obj.hitbox
 	return obj.rect 
+
+# ---------- MENU PRINCIPAL ----------
+# fond : la scene shop pre-rendue une seule fois
+menu_fond = pygame.Surface(screen.get_size())
+menu_fond.blit(chapel_path_layer, chapel_path_pos)
+menu_fond.blit(shop_decor_layer, shop_decor_pos)
+menu_fond.blit(house_base, (house_x, house_y + roof_height))
+menu_fond.blit(chapel.base, (chapel.rect.x, chapel.rect.y + chapel.roof_height))
+boutons_menu = ui.calculer_boutons_menu(screen)
+intro_debut = pygame.time.get_ticks()
+
+
 run = True
 while run == True :
+	if game_state == "intro":
+		# intro studio : fondu SAUCISSON STUDIOS puis reveal du menu
+		# (un clic passe directement au menu)
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN:
+				intro_debut = pygame.time.get_ticks() - 10 ** 9
+		if ui.draw_intro(screen, pygame.time.get_ticks() - intro_debut,
+		                 boutons_menu, menu_fond):
+			game_state = "menu"
+			intro_debut = pygame.time.get_ticks()
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
+
+	if game_state == "menu":
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+				for rect, action in boutons_menu:
+					if rect.collidepoint(event.pos):
+						if action == "jouer":
+							game_state = "chargement"
+							chargement_debut = pygame.time.get_ticks()
+							chargement_duree = random.randint(500, 2000)
+						elif action == "quitter":
+							run = False
+		ui.draw_menu(screen, boutons_menu, menu_fond)
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
+	if game_state == "chargement":
+		# ecran de chargement : duree aleatoire 0.5 a 2 s posee par le
+		# clic sur JOUER, puis la partie demarre
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+		ui.draw_chargement(screen,
+		                   pygame.time.get_ticks() - chargement_debut,
+		                   chargement_duree)
+		if pygame.time.get_ticks() - chargement_debut >= chargement_duree:
+			game_state = DEV_START_GAME_STATE
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
 	colliders.clear()
 	if game_state == "house":
 		screen.fill((0, 0, 0))
@@ -974,6 +1036,13 @@ while run == True :
 
 
 	attacking, next_attack = player_system.animate(player, moving, attacking, next_attack)
+
+	audio.set_listener(player.rect.center)
+	audio.footsteps(
+		moving and not attacking and player.state != "hurt"
+		and current_npc is None and awaiting_npc_arrival is None,
+		game_state
+	)
 	
 	if game_state == "shop":
 		portal_timer, portal_frame = world.update_portal(
@@ -1055,6 +1124,7 @@ while run == True :
 		projectiles.remove(projectile)
 		explosion = Explosion(projectile.x, projectile.y, DYNAMITE_EXPLOSION_RADIUS, DYNAMITE_DAMAGE)
 		explosions.append(explosion)
+		audio.play("explosion", source=(projectile.x, projectile.y))
 
 		# 1) Degats aux monstres dans le rayon (l'explosion sert de source
 		#    pour le recul : ils sont repousses depuis son centre)
@@ -1098,6 +1168,7 @@ while run == True :
 	for coin in coins[:]:
 		if player.hitbox.colliderect(coin.rect):
 			player.coins += coin.value
+			audio.play("coin")
 			coins.remove(coin)
 
 	if game_state == "wave":
@@ -1105,6 +1176,7 @@ while run == True :
 			drop.update(player)
 			if player.hitbox.colliderect(drop.rect):
 				if player.add_item_to_inventory(drop.item):
+					audio.play("item_pickup")
 					item_drops.remove(drop)
 
 	entities = []
@@ -1173,6 +1245,7 @@ while run == True :
 	if game_state == "shop":
 		if player.hitbox.colliderect(portal_rect):
 			game_state = "wave"
+			audio.play("portal")
 			current_level, current_wave, transition, TRANSITION_TIMER = world.start_new_level(enemies, current_level, orc_data)
 
 			spawn_x, spawn_y = world.random_spawn_position(MAP_WIDTH, MAP_HEIGHT)
@@ -1268,10 +1341,12 @@ while run == True :
 		if current_wave < 3:
 			current_wave += 1
 			waves.start_wave(enemies, current_level, current_wave, orc_data)
+			audio.play("wave_start")
 			transition = True
 			TRANSITION_TIMER = 120
 		else:
 			merchant_1.refresh_shop()
+			audio.play("wave_clear")
 			update_merchant_presence()
 			projectiles.clear()
 			explosions.clear()
@@ -1293,7 +1368,9 @@ while run == True :
 
 		# L'xp restante en vol est creditee directement (jamais perdue)
 		for orb in xp_orbs[:]:
+			
 			player.gain_xp(orb.value)
+			
 			xp_orbs.remove(orb)
 
 	for event in pygame.event.get():
@@ -1327,6 +1404,8 @@ while run == True :
 				world_y = my + camera_y
 				print(f"DRAGON_BODY_OFFSET_X = {world_x - chapel.rect.centerx}")
 				print(f"DRAGON_BODY_OFFSET_Y = {world_y - chapel.rect.top}")
+			elif event.key == pygame.K_m:
+				audio.toggle_mute()
 
 		if event.type == pygame.MOUSEWHEEL:
 
@@ -1338,6 +1417,7 @@ while run == True :
 			if event.button == 1:
 				# Check if close button clicked on NPC UI
 				if current_npc:
+					audio.play("ui_click")
 
 										# Fermer la fenêtre
 					if close_rect and close_rect.collidepoint(event.pos):
@@ -1404,6 +1484,7 @@ while run == True :
 									heal_final = heal_offer["heal_amount"]
 									if player.hp < player.max_hp and heal_final > 0:
 										heal_timer = HEAL_ANIMATION_DURATION
+										audio.play("heal")
 										heal_animation_start_hp = player.hp
 										heal_animation_target_hp = min(player.max_hp, player.hp + heal_final)
 										heal_animation_start_coins = player.coins
@@ -1426,6 +1507,7 @@ while run == True :
 									librarian_buy_animation_start_coins = player.coins
 									librarian_buy_animation_target_coins = player.coins - 1
 									librarian_coin_timer = BUY_COIN_ANIMATION_DURATION
+									audio.play("buy")
 									librarian_state = "books"
 									dialogues.reset()
 							elif librarian_retour_rect and librarian_retour_rect.collidepoint(event.pos):
@@ -1455,10 +1537,12 @@ while run == True :
 							elif librarian_left_arrow_rect and librarian_left_arrow_rect.collidepoint(event.pos):
 								if current_librarian_page > 0:
 									current_librarian_page -= 1
+									audio.play("page_turn")
 							elif librarian_right_arrow_rect and librarian_right_arrow_rect.collidepoint(event.pos):
 								book = librarian.librarian_books[current_librarian_book]
 								if current_librarian_page < len(book.pages) - 1:
 									current_librarian_page += 1
+									audio.play("page_turn")
 
 					elif current_npc and current_npc.type == "divinity":
 
@@ -1497,6 +1581,7 @@ while run == True :
 											if result:
 												old_level, _new_level = result
 												divinity_state = "purchase"
+												audio.play("skill_buy")
 												priest = chapel_interior.priest_npc
 												if (priest.messe_active
 														and priest.messe_phase == "effect"):
@@ -1509,6 +1594,7 @@ while run == True :
 											# affiche la raison comme un dialogue.
 											dialogues.reset()
 											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
+											audio.play("ui_error")
 											dialogues.start_dialogue(divinity_text)
 											break 
 					
@@ -1561,6 +1647,7 @@ while run == True :
 												buy_animation_target_coins = player.coins - item.price
 												merchant_coin_timer = BUY_COIN_ANIMATION_DURATION
 												equiper_armure(item.tier)
+												audio.play("buy")
 												merchant_1.merchant_inventory.remove(item)
 												merchant_1.set_click_text(f"Tu équipes {item.name} !")
 											else:
@@ -1569,17 +1656,20 @@ while run == True :
 											merchant_1.set_click_text(
 											"Rupture de stock."
 										)
+											audio.play("ui_error")
 										elif player.coins < item.price:
 											merchant_1.set_click_text(
 											"Vous n'avez pas assez d'or."
 										)
+											audio.play("ui_error")
 										else:
 											if player.add_item_to_inventory(item):
 
 												item.stock -= 1
 												merchant_1.set_click_text(
-												f"Vous achetez {item.name}."
-											)
+												f"Vous achetez {item.name}.")
+												audio.play("buy")
+											
 												merchant_coin_timer = BUY_COIN_ANIMATION_DURATION
 												buy_animation_start_coins = player.coins
 												buy_animation_target_coins = player.coins - item.price
@@ -1588,6 +1678,7 @@ while run == True :
 												merchant_1.set_click_text(
 												   "Votre inventaire est plein."
 											)
+												audio.play("ui_error")
 				else:
 					# Only allow attacking if not in NPC interaction
 					attacking, attack_done, attack_hitbox = fight.handle_attack_event(
@@ -1615,6 +1706,7 @@ while run == True :
 							potion_heal_animation_start_hp = player.hp
 							potion_heal_animation_target_hp = min(player.max_hp, player.hp + item.heal)
 							potion_heal_timer = POTION_ANIMATION_DURATION
+							audio.play("potion")
 
 							slot["quantity"] -= 1
 							if slot["quantity"] <= 0:
@@ -1623,7 +1715,7 @@ while run == True :
 
 						elif isinstance(item, (Apple, GoldenApple)):
 							item.use(player)
-
+							audio.play("eat")
 							slot["quantity"] -= 1
 							if slot["quantity"] <= 0:
 								slot["item"] = None
@@ -1638,6 +1730,7 @@ while run == True :
 								world_my = my + camera_y
 								
 								item.use(player, world_mx, world_my, projectiles, scaled_dynamite)
+								audio.play("dynamite_throw")
 								
 								slot["quantity"] -= 1
 								if slot["quantity"] <= 0:
@@ -1646,7 +1739,7 @@ while run == True :
 							else:
 								merchant_1.set_click_text("Vous ne pouvez lancer la dynamite que dans le monde.")
 
-		if event.type == pygame.KEYDOWN:
+		if event.type == pygame.KEYDOWN: 
 
 			if event.key == pygame.K_e:
 				if current_npc and divinity_purchase is None:
@@ -1685,6 +1778,7 @@ while run == True :
 						if player.hitbox.colliderect(house.door_hitbox):
 
 							game_state = "house"
+							audio.play("door")
 							player.rect.center = (
 							house.door_rect.centerx,
 							HOUSE_INSIDE_HEIGHT - 220
@@ -1695,6 +1789,7 @@ while run == True :
 						elif player.hitbox.colliderect(chapel.door_hitbox):
 
 							game_state = "chapel"
+							audio.play("door")
 							player.rect.center = chapel_interior.entrance_point
 							player.hitbox.center = player.rect.center
 							player.direction = "up"
@@ -1705,6 +1800,7 @@ while run == True :
 						if player.hitbox.colliderect(house.door_rect):
 
 							game_state = "shop"
+							audio.play("door")
 							player.rect.center = (
 							house.door_hitbox.centerx,
 							house.door_hitbox.bottom + 40
@@ -1717,6 +1813,7 @@ while run == True :
 						if player.hitbox.colliderect(chapel_interior.exit_rect):
 
 							game_state = "shop"
+							audio.play("door")
 							player.rect.center = (
 							chapel.door_hitbox.centerx,
 							chapel.door_hitbox.bottom + 40
@@ -1747,6 +1844,7 @@ while run == True :
 		if player.hitbox.colliderect(coin.rect):
 			if player.hitbox.colliderect(coin.rect):
 				player.coins += coin.value
+				audio.play("coin")
 				coins.remove(coin)
 
 		coin.draw(game_surface)
@@ -1755,6 +1853,7 @@ while run == True :
 		orb.update(player)
 		if player.hitbox.colliderect(orb.rect):
 			player.gain_xp(orb.value)
+			audio.play("xp_orb")
 			xp_orbs.remove(orb)
 		orb.draw(game_surface)
 	
@@ -2081,7 +2180,7 @@ while run == True :
 
 			quantity_font = fonts.lettersC6 if player.selected_slot == i else fonts.lettersC1
 			if overlay_presence == True:
-				quantity_font = fonts.lettersC4
+				quantity_font = fonts.lettersC4 
 
 			draw_body_text(
 			screen,
@@ -2166,6 +2265,8 @@ while run == True :
 		
 	if transition == False and current_npc == None:
 		overlay_presence = False
+
+	audio.update_music(game_state, menu_open=current_npc is not None)
 	pygame.display.update()
 	clock.tick(FPS_MAX)
 

@@ -239,3 +239,112 @@ def draw_portal_indicator(screen, portal_rect, camera_x, camera_y, game_state):
         
             pulse = math.sin(pygame.time.get_ticks() / 120) * 3
             pygame.draw.circle(screen, (103, 166, 114), (int(indicator_x), int(indicator_y)), int(12 + pulse))
+
+# ---------- MENU PRINCIPAL ----------
+MENU_TITRE = "PIXSOULS"
+_menu_shop_sheet = pygame.image.load("Shop.png").convert_alpha()
+MENU_BOUTON_GAUCHE = _menu_shop_sheet.subsurface((94, 186, 37, 17))
+MENU_BOUTON_SUITE = _menu_shop_sheet.subsurface((102, 186, 29, 17))
+
+def calculer_boutons_menu(screen):
+    # boutons identiques a ceux des interfaces PNJ : barre de 280 px
+    # scalés (meme largeur que "Acheter"/"Quitter" du marchand),
+    # hauteur 17 px a l'echelle UI_SCALE
+    largeur = int(150 + 29 * UI_SCALE)
+    hauteur = int(17 * UI_SCALE)
+    cx = screen.get_width() // 2
+    y0 = int(screen.get_height() * 0.55)
+    return [
+        (pygame.Rect(cx - largeur // 2, y0, largeur, hauteur), "jouer"),
+        (pygame.Rect(cx - largeur // 2, y0 + hauteur + int(24 * UI_SCALE),
+                     largeur, hauteur), "quitter"),
+    ]
+
+def _dessiner_bouton_menu(screen, rect):
+    # meme recette que "Acheter" / "Quitter" du marchand : le capot
+    # gauche (37 px) puis les 2 prolongements (29 px) POSES CHEVAUCHES
+    # aux offsets 0 / +100 / +150 (px scalés, comme en fenetre shop)
+    for sprite, delta in ((MENU_BOUTON_GAUCHE, 0),
+                          (MENU_BOUTON_SUITE, 100),
+                          (MENU_BOUTON_SUITE, 150)):
+        img = pygame.transform.scale(
+            sprite,
+            (int(sprite.get_width() * UI_SCALE),
+             int(sprite.get_height() * UI_SCALE)))
+        screen.blit(img, (rect.x + delta, rect.y))
+
+def draw_menu(screen, boutons, fond):
+    # scene du jeu pre-rendue + voile sombre, titre PIXSOULS en T3
+    # puis les boutons PNJ : texte lettersC1 qui devient lettersC6 au
+    # survol (comportement identique aux boutons du marchand)
+    screen.blit(fond, (0, 0))
+    voile = pygame.Surface(screen.get_size())
+    voile.set_alpha(140)
+    voile.fill((10, 10, 16))
+    screen.blit(voile, (0, 0))
+    _draw_hp_text(screen, MENU_TITRE,
+                  screen.get_width() // 2, int(screen.get_height() * 0.28),
+                  echelle=8, centered=True, police=fonts.lettersT3)
+    survol = pygame.mouse.get_pos()
+    body_scale = max(1, UI_SCALE * 0.75)
+    for rect, action in boutons:
+        _dessiner_bouton_menu(screen, rect)
+        label = "JOUER" if action == "jouer" else "QUITTER"
+        police = fonts.lettersC6 if rect.collidepoint(survol) else fonts.lettersC1
+        fonts.draw_body_text(
+            screen, label,
+            rect.centerx - fonts.get_text_width(label, body_scale, police) // 2,
+            rect.centery - int(3 * body_scale)-10,
+            rect.width, font_dict=police, scale=body_scale
+        )
+
+INTRO_STUDIO = "SAUCISSON STUDIOS"
+INTRO_DUREES = (1200, 900, 1200, 1000)   # fondu entrant, pause,
+                                         # fondu sortant, reveal du menu
+
+def draw_intro(screen, t_ms, boutons, fond):
+    # fond noir, "SAUCISSON STUDIOS" en fondu puis fondu sortant, et
+    # enfin le menu qui se revele sous un voile noir qui s'efface.
+    # Renvoie True quand l'intro est terminee.
+    entree, pause, sortie, reveal = INTRO_DUREES
+    total_texte = entree + pause + sortie
+    if t_ms < total_texte:
+        if t_ms < entree:
+            alpha = 255 * t_ms // entree
+        elif t_ms < entree + pause:
+            alpha = 255
+        else:
+            alpha = 255 - 255 * (t_ms - entree - pause) // sortie
+        screen.fill((0, 0, 0))
+        temp = pygame.Surface(screen.get_size(),
+                              pygame.SRCALPHA).convert_alpha()
+        _draw_hp_text(temp, INTRO_STUDIO,
+                      screen.get_width() // 2, screen.get_height() // 2,
+                      echelle=5, centered=True, police=fonts.lettersT3)
+        temp.set_alpha(alpha)
+        screen.blit(temp, (0, 0))
+        return False
+    # phase finale : le menu apparait sous le noir qui s'efface
+    draw_menu(screen, boutons, fond)
+    reste = t_ms - total_texte
+    if reste < reveal:
+        voile = pygame.Surface(screen.get_size())
+        voile.fill((0, 0, 0))
+        voile.set_alpha(255 - 255 * reste // reveal)
+        screen.blit(voile, (0, 0))
+        return False
+    return True
+
+def draw_chargement(screen, t_ms, duree):
+    # ecran de chargement : CHARGEMENT en T3 blanc + la jauge d'xp
+    # pixel art (moteur existant) qui se remplit sur la duree
+    ratio = min(1.0, t_ms / duree)
+    screen.fill((0, 0, 0))
+    _draw_hp_text(screen, "CHARGEMENT",
+                  screen.get_width() // 2, screen.get_height() // 2 - 50,
+                  echelle=4, centered=True, police=fonts.lettersT3)
+    pos = (screen.get_width() // 2 - XP_CADRE.get_width() // 2,
+           screen.get_height() // 2 + 10)
+    screen.blit(_remplissage_barre(XP_ZONE, XP_SPANS, ratio,
+                                   (30, 30, 45), XP_ORB_COLOR), pos)
+    screen.blit(XP_CADRE, pos)
