@@ -593,7 +593,7 @@ def draw_menu_hitboxes(screen, fond, config):
     _draw_hp_text(screen, "F1 POUR AFFICHER EN JEU - MAX 15",
                   screen.get_width() // 2,
                   max(int(screen.get_height() * 0.135),
-                      int(screen.get_height() * 0.10) + 46),
+                      int(screen.get_height() * 0.10) + 40),
                   echelle=2, centered=True, police=fonts.lettersT4)
     lignes, rect_ajouter, rect_enlever, rect_retour = \
         calculer_menu_hitboxes(screen, config)
@@ -659,13 +659,13 @@ def calculer_menu_settings(screen):
     lignes = [(pygame.Rect(x_barre, y0 + i * dy, l, h), cle)
               for i, (cle, *_rest) in enumerate(SETTINGS_LIGNES)]
     y_boutons = y0 + len(SETTINGS_LIGNES) * dy + int(2 * UI_SCALE)
-    rect_retour = pygame.Rect(int(largeur * 0.44) - l // 2, y_boutons, l, h)
-    rect_jouer = pygame.Rect(int(largeur * 0.66) - l // 2, y_boutons, l, h)
-    return lignes, rect_retour, rect_jouer
+    rect_retour = pygame.Rect(largeur // 2 - l // 2, y_boutons, l, h)
+    return lignes, rect_retour
 
 def _zone_plus_moins(rect, cle, valeur, scale=None):
     # rectangles cliquables des symboles - et + d'une ligne de reglage
-    # (l'echelle se deduit de la hauteur de la barre : jamais decalée)
+    # (l'echelle se deduit de la hauteur de la barre : jamais decalée).
+    # Le "-" et le "+" sont a EGALE distance du texte des deux cotes.
     scale = scale or (rect.h / 17.0)
     body = max(1, scale * 0.75)
     police = fonts.lettersC1
@@ -673,18 +673,21 @@ def _zone_plus_moins(rect, cle, valeur, scale=None):
     l_m = fonts.get_text_width("-", body, police)
     l_v = fonts.get_text_width(vt, body, police)
     l_p = fonts.get_text_width("+", body, police)
-    total = l_m + int(6 * scale / 3) + l_v + int(6 * scale / 3) + l_p
-    xv = rect.centerx - total // 2
+    g = int(6 * scale / 3)
+    total = l_m + g + l_v + g + l_p
+    xs = rect.centerx - total // 2
     y = rect.centery - int(3 * body)
     haut = int(9 * body)
-    ecart = int(6 * scale / 3)
-    return (pygame.Rect(xv - ecart, y, l_m + 2 * ecart, haut),
-            pygame.Rect(xv + l_m + ecart + l_v + ecart, y,
-                        l_p + 2 * ecart, haut))
+    # le glyphe "-" occupe [xs, xs+l_m], la valeur commence a g apres ;
+    # le glyphe "+" commence a g apres la fin de la valeur : les deux
+    # symboles sont a EGALE distance visuelle du texte
+    rm = pygame.Rect(xs - g, y, l_m + 2 * g, haut)
+    rp = pygame.Rect(rm.right + l_v, y, l_p + 2 * g, haut)
+    return rm, rp
 
 def draw_menu_settings(screen, fond, reglages):
     _sous_menu_base(screen, fond, "REGLAGES")
-    lignes, rect_retour, rect_jouer = calculer_menu_settings(screen)
+    lignes, rect_retour = calculer_menu_settings(screen)
     survol = pygame.mouse.get_pos()
     scale = lignes[0][0].h / 17.0
     body = max(1, scale * 0.75)
@@ -705,9 +708,8 @@ def draw_menu_settings(screen, fond, reglages):
             screen, "-", rm.centerx - fonts.get_text_width("-", body, police_v) // 2,
             rm.y, rect.width, font_dict=police_v, scale=body)
         fonts.draw_body_text(
-            screen, vt, rp.x - int(6 * scale / 3)
-            - fonts.get_text_width(vt, body, police_v),
-            rp.y, rect.width, font_dict=police_v, scale=body)
+            screen, vt, rm.right, rp.y, rect.width,
+            font_dict=police_v, scale=body)
         fonts.draw_body_text(
             screen, "+", rp.centerx - fonts.get_text_width("+", body, police_v) // 2,
             rp.y, rect.width, font_dict=police_v, scale=body)
@@ -715,7 +717,4 @@ def draw_menu_settings(screen, fond, reglages):
                        rect_retour.width)
     _label_pnj(screen, "RETOUR", rect_retour, scale,
                rect_retour.collidepoint(survol))
-    dessiner_barre_pnj(screen, rect_jouer.x, rect_jouer.y, scale,
-                       rect_jouer.width)
-    _label_pnj(screen, "JOUER", rect_jouer, scale,
-               rect_jouer.collidepoint(survol))
+    
