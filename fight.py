@@ -1,13 +1,18 @@
 import pygame
+import audio
 
 
 def handle_attack_event(player, attacking, enemies, attack_done, attack_hitbox, attack_up, attack_down, attack_left, attack_right, player_system_module):
+    
+
     if attacking or player.state == "hurt":
+        
         return attacking, attack_done, attack_hitbox
 
     attacking = player_system_module.start_attack(player, attacking, enemies)
 
     if attacking:
+        audio.play("attack")
         attack_done = False
         attack_hitbox = player_system_module.create_attack_hitbox(player)
         player_system_module.set_attack_animation(player, attack_up, attack_down, attack_left, attack_right)
@@ -33,13 +38,13 @@ def resolve_player_attack(player, enemies, attacking, attack_done, attack_hitbox
             + (enemy.rect.centery - player.rect.centery) ** 2
         )
     )
-
     killed_this_attack = []
 
     for enemy in targets[:max_targets]:
         if enemy.dead:
             continue
         enemy.take_damage(int(player.base_damage * player.strength_factor() * player.armor_damage_factor() * player.damage_multiplier), player)
+        audio.play("hit_enemy")
         enemy.hit_this_attack = True
         if enemy.dead:
             killed_this_attack.append(enemy)

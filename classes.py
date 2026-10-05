@@ -24,7 +24,7 @@ class Player:
         self.current_animation = None
         self.direction = "down"
         self.invicible_timer = 0
-        self.coins = 150
+        self.coins = 0
         self.selected_slot = 0
         self.met_healer = False
         self.met_merchant = False
