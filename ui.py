@@ -141,9 +141,8 @@ def draw_health(screen, player):
 
 def draw_level(screen, current_level, current_wave, game_state):
     # NIVEAU X en T3 blanc, puis SHOP en T6 ou VAGUE X / 3 en T4 jaune
-    _draw_hp_text(screen, f"NIVEAU {current_level}",
-                  screen.get_width() // 2, 24,
-                  echelle=3, centered=True, police=fonts.lettersT3)
+    texte_titre_hc(screen, f"NIVEAU {current_level}",
+                screen.get_width() // 2, 30, 3, fonts.lettersT3)
     if game_state == "shop" or game_state == "house":
         _draw_hp_text(screen, "SHOP",
                       screen.get_width() // 2, 64,
@@ -163,9 +162,8 @@ def draw_transition(screen, transition, current_level, current_wave, game_state)
     overlay.fill((0,0,0))
     screen.blit(overlay,(0,0))
 
-    _draw_hp_text(screen, f"NIVEAU {current_level}",
-                  screen.get_width() // 2, 240,
-                  echelle=4, centered=True, police=fonts.lettersT3)
+    texte_titre_hc(screen, f"NIVEAU {current_level}",
+                   screen.get_width() // 2, 240, 4, fonts.lettersT3)
     if game_state == "shop":
         _draw_hp_text(screen, "SHOP",
                       screen.get_width() // 2, 290,
@@ -298,6 +296,10 @@ INTRO_STUDIO = "SAUCISSON STUDIOS"
 INTRO_DUREES = (1200, 900, 1200, 1000)   # fondu entrant, pause,
                                          # fondu sortant, reveal du menu
 
+
+# decalages des BOUTONS de l'ecran de mort : (dx, dy) par
+# bouton, en px ecran
+OFFSET_BOUTONS_MORT = {"reapparaitre": (0, 0), "quitter": (0, 0)}
 def draw_intro(screen, t_ms, boutons, fond):
     # fond noir, "SAUCISSON STUDIOS" en fondu puis fondu sortant, et
     # enfin le menu qui se revele sous un voile noir qui s'efface.
@@ -336,9 +338,9 @@ def draw_chargement(screen, t_ms, duree):
     # pixel art (moteur existant) qui se remplit sur la duree
     ratio = min(1.0, t_ms / duree)
     screen.fill((0, 0, 0))
-    _draw_hp_text(screen, "CHARGEMENT",
-                  screen.get_width() // 2, screen.get_height() // 2 - 50,
-                  echelle=4, centered=True, police=fonts.lettersT3)
+    texte_titre_hc(screen, "CHARGEMENT",
+                   screen.get_width() // 2, screen.get_height() // 2 - 32,
+                   4, fonts.lettersT3)
     pos = (screen.get_width() // 2 - XP_CADRE.get_width() // 2,
            screen.get_height() // 2 + 10)
     screen.blit(_remplissage_barre(XP_ZONE, XP_SPANS, ratio,
@@ -364,6 +366,8 @@ SETTINGS_LIGNES = [
     ("lieu", "LIEU D'APPARITION", None, None, None, "cycle"),
     ("pommes_pct", "TAUX POMMES (%)", 5, 0, 100, "int"),
     ("pommes_dorees_pct", "TAUX POMMES DOREES (%)", 5, 0, 100, "int"),
+    ("immortalite", "IMMORTALITE", None, None, None, "onoff"),
+    ("space_kill", "SPACE KILL", None, None, None, "onoff"),
 ]
 LIEUX = ["wave", "shop", "house", "chapel"]
 NOMS_LIEUX = {"wave": "VAGUES", "shop": "BOUTIQUE",
@@ -447,6 +451,10 @@ OFFSET_Y_TEXTE = {
     "entrees": -7,       # lignes de hitboxes (UI_SCALE * 0.70)
     "reglages": -7,      # barres "- valeur +" (echelle dynamique)
     "valeurs": -7,
+    "echap": -9,
+    "mort": 0, 
+    "hardcore": -7,
+    "hardsel": -7  
 }
 
 OFFSET_X_TEXTE = {
@@ -460,6 +468,10 @@ OFFSET_X_TEXTE = {
     "entrees": 0,
     "reglages": 0,
     "valeurs": +5,
+    "echap": +9,
+    "mort": 0, 
+    "hardcore": +12, 
+    "hardsel": +15
 }
 
 # positions MANUELLES des noms de reglages (texte blanc a gauche des
@@ -698,6 +710,8 @@ def draw_menu_hitboxes(screen, fond, config):
                    offset_x=OFFSET_X_TEXTE["entrees"])
 
 def _valeur_texte(cle, val):
+    if isinstance(val, bool):
+        return "ON" if val else "OFF"
     if cle == "lieu":
         return NOMS_LIEUX.get(val, val)
     if "pct" in cle:
@@ -719,9 +733,12 @@ def calculer_menu_settings(screen):
     body = max(1, scale * 0.75)
     echantillons = []
     for cle, _lab, _pas, mini, maxi, genre in SETTINGS_LIGNES:
-        echantillons.append(
-            max(NOMS_LIEUX.values(), key=len) if genre == "cycle"
-            else str(maxi))
+        if genre == "cycle":
+            echantillons.append(max(NOMS_LIEUX.values(), key=len))
+        elif genre == "onoff":
+            echantillons.append("OFF")
+        else:
+            echantillons.append(str(maxi))
     brute = int(max(fonts.get_text_width("- " + e + " +", body,
                                          fonts.lettersC1)
                     for e in echantillons) + 12 * scale)
@@ -801,4 +818,244 @@ def draw_menu_settings(screen, fond, reglages):
                rect_retour.collidepoint(survol),
                offset_y=OFFSET_Y_TEXTE["reglages"],
                offset_x=OFFSET_X_TEXTE["reglages"])
-    
+
+# ---------- MENU ECHAP IN-GAME ----------
+# panneau qui glisse depuis la gauche ; le jeu continue
+# derriere (aucun freeze). 4 positions de boutons : CONTINUER
+# tout en haut, QUITTER tout en bas, 2 slots RESERVES au milieu
+# pour de futurs boutons (actions None = ni dessines ni cliquables).
+ETATS_COULEURS = {"wave": (255, 90, 90), "shop": (255, 210, 0),
+                  "house": (130, 200, 255), "chapel": (200, 160, 255)}
+ECHAP_DUREE = 250   # ms d'animation d'entree / sortie
+
+def _texte_teinte(surface, texte, cx, cy, echelle, couleur, police,
+                  alpha=255):
+    # jumeau de _draw_hp_text (MEME metrique : glyphe 7*e,
+    # ecart e, slash special, y = cy - haut // 2) mais teinte a
+    # la couleur demandee ; alpha optionnel pour les fondus
+    haut = 9 * echelle
+    slash_largeur = 4 * echelle
+    largeur = 0
+    for char in texte:
+        if char == "/":
+            largeur += slash_largeur
+        elif char in police:
+            largeur += 7 * echelle
+        largeur += echelle
+    largeur -= echelle
+    pad = 2
+    temp = pygame.Surface((int(largeur) + 2 * pad,
+                           int(haut) + 2 * pad),
+                          pygame.SRCALPHA).convert_alpha()
+    x, y = pad, pad
+    for char in texte:
+        if char == "/":
+            pygame.draw.line(temp, (255, 255, 255),
+                             (x, y + haut - 1),
+                             (x + slash_largeur - echelle, y + 1),
+                             echelle)
+            x += slash_largeur + echelle
+        elif char in police:
+            sprite = pygame.transform.scale(police[char],
+                                            (7 * echelle, haut))
+            temp.blit(sprite, (x, y))
+            x += 7 * echelle + echelle
+    temp.fill(couleur, special_flags=pygame.BLEND_RGBA_MULT)
+    if alpha < 255:
+        temp.set_alpha(alpha)
+    surface.blit(temp, (cx - largeur // 2 - pad,
+                        cy - haut // 2 - pad))
+
+# --- mode HARDCORE : les polices blanches du jeu, du mini-menu
+# et du chargement deviennent rouge sang (noires sur fond rouge)
+MODE_HARDCORE = False
+ROUGE_SANG = (186, 18, 18)
+# police de l'ecran de mort : Text7.png (meme grille que Text3),
+# repli sur Text3 si le fichier est absent
+POLICE_MORT = None   # construite au 1er appel (apres load_font)
+
+def police_mort():
+    # police de l'ecran de mort : Text7.png (meme grille que
+    # Text3), repli sur Text3 si le fichier est absent
+    global POLICE_MORT
+    if POLICE_MORT is None:
+        if os.path.exists("Text7.png"):
+            feuille = pygame.image.load("Text7.png").convert_alpha()
+            POLICE_MORT = fonts.build_title_font(feuille, 0.0)
+        else:
+            POLICE_MORT = fonts.lettersT3
+    return POLICE_MORT
+
+def texte_titre_hc(screen, texte, x, y, echelle, police,
+                   fond_rouge=False):
+    # gros texte blanc du jeu ; en hardcore il devient rouge sang
+    # (noir s'il est pose sur un fond rouge)
+    if not MODE_HARDCORE:
+        _draw_hp_text(screen, texte, x, y, echelle=echelle,
+                      centered=True, police=police)
+        return
+    coul = (0, 0, 0) if fond_rouge else ROUGE_SANG
+    _texte_teinte(screen, texte, x, y, echelle, coul, police) 
+
+def rect_panneau_echap(screen):
+    # panneau lateral gauche ; sa largeur depend du plus long
+    # bouton (CONTINUER)
+    scale = UI_SCALE * 0.8
+    l_b = largeur_bouton_pour(("CONTINUER", "QUITTER"), scale)
+    marge = int(26 * scale)
+    return pygame.Rect(0, 0, l_b + 2 * marge, screen.get_height())
+
+def calculer_menu_echap(screen):
+    # les 4 positions de boutons du panneau (coordonnees ecran
+    # du panneau DEPLOYE ; l'animation ne deplace que le blit)
+    scale = UI_SCALE * 0.8
+    l_b, h_b = dims_barre_pnj(scale)
+    l_b = max(l_b, largeur_bouton_pour(("CONTINUER", "QUITTER"), scale))
+    panneau = rect_panneau_echap(screen)
+    cx_p = panneau.w // 2
+    zone_top = int(panneau.h * 0.20)
+    zone_bot = panneau.h - int(panneau.h * 0.06) - h_b
+    pas_zone = (zone_bot - zone_top) / 3.0
+    actions = ("continuer", None, None, "quitter")
+    return [(pygame.Rect(cx_p - l_b // 2,
+                         int(zone_top + i * pas_zone), l_b, h_b), a)
+            for i, a in enumerate(actions)]
+
+def dessiner_menu_echap(screen, etat, t_ouverture, t_fermeture=None):
+    # dessine le panneau a sa phase d'animation : t_ouverture =
+    # pygame.time.get_ticks() a l'ouverture ; pose t_fermeture
+    # pour voir le panneau reglisser vers la gauche. Renvoie le
+    # rect ecran ACTUEL du panneau (utile pour les clics).
+    maintenant = pygame.time.get_ticks()
+    if t_fermeture is None:
+        p = min(1.0, max(0.0, maintenant - t_ouverture) / ECHAP_DUREE)
+        phase = 1.0 - (1.0 - p) ** 3        # ease-out a l'entree
+    else:
+        p = min(1.0, max(0.0, maintenant - t_fermeture) / ECHAP_DUREE)
+        phase = (1.0 - p) ** 2              # ease-in a la sortie
+    panneau = rect_panneau_echap(screen)
+    x_panneau = int(panneau.w * (phase - 1.0))
+    surf = pygame.Surface(panneau.size, pygame.SRCALPHA).convert_alpha()
+    surf.fill((8, 8, 14, 235))
+    pygame.draw.rect(surf, (96, 122, 106), surf.get_rect(), 2)
+    pygame.draw.line(surf, (150, 180, 160), (2, 2), (panneau.w - 3, 2))
+    # titre du jeu puis game state harmonise, de sa couleur
+    texte_titre_hc(surf, MENU_TITRE, panneau.w // 2,
+                   int(panneau.h * 0.05)+18, 4, fonts.lettersT3)
+    nom = NOMS_LIEUX.get(etat, str(etat).upper())
+    _texte_teinte(surf, nom, panneau.w // 2, int(panneau.h * 0.115)+9,
+                  2, ETATS_COULEURS.get(etat, (255, 255, 255)),
+                  fonts.lettersT3)
+    # boutons
+    survol = pygame.mouse.get_pos()
+    scale = UI_SCALE * 0.8
+    labels = {"continuer": "CONTINUER", "quitter": "QUITTER"}
+    for rect, action in calculer_menu_echap(screen):
+        if action is None:
+            continue
+        dessiner_barre_pnj(surf, rect.x, rect.y, scale, rect.width)
+        _label_pnj(surf, labels[action], rect, scale,
+                   rect.collidepoint(survol),
+                   offset_y=OFFSET_Y_TEXTE["echap"],
+                   offset_x=OFFSET_X_TEXTE["echap"])
+    screen.blit(surf, (x_panneau, 0))
+    return pygame.Rect(x_panneau, 0, panneau.w, panneau.h) 
+
+# ---------- MINI-MENU HARDCORE (sans sauvegarde) ----------
+# ---------- MINI-MENU HARDCORE (sans sauvegarde) ----------
+# simple : titre MODE HARDCORE, puis 3 boutons centres
+# (barre - ON/OFF +, JOUER, QUITTER)
+def calculer_menu_hardcore(screen):
+    scale = UI_SCALE * 0.8
+    l_b, h_b = dims_barre_pnj(scale)
+    l_b = max(l_b, largeur_bouton_pour(("JOUER", "QUITTER"), scale))
+    l_barre, h_barre = dims_barre_pnj(scale)
+    cx = screen.get_width() // 2
+    hauteur = screen.get_height()
+    rect_barre = pygame.Rect(cx - l_barre // 2,
+                             int(hauteur * 0.34), l_barre, h_barre)
+    y_b = int(hauteur * 0.48)
+    rect_jouer = pygame.Rect(cx - l_b // 2, y_b, l_b, h_b)
+    rect_quitter = pygame.Rect(cx - l_b // 2,
+                               y_b + h_b + int(16 * UI_SCALE),
+                               l_b, h_b)
+    return rect_barre, rect_jouer, rect_quitter
+
+def draw_menu_hardcore(screen, fond, reglages):
+    _sous_menu_base(screen, fond, "MODE HARDCORE")
+    rect_barre, rect_jouer, rect_quitter = \
+        calculer_menu_hardcore(screen)
+    survol = pygame.mouse.get_pos()
+    # barre - ON/OFF + centree
+    scale_b = rect_barre.h / 17.0
+    dessiner_barre_pnj(screen, rect_barre.x, rect_barre.y, scale_b,
+                       rect_barre.width)
+    rm, rp = _zone_plus_moins(rect_barre, "hardcore",
+                              reglages["hardcore"])
+    body = max(1, scale_b * 0.75)
+    survole = rm.collidepoint(survol) or rp.collidepoint(survol)
+    police_v = fonts.lettersC6 if survole else fonts.lettersC1
+    vt = _valeur_texte("hardcore", reglages["hardcore"])
+    ox_v = int(OFFSET_X_TEXTE["hardsel"])
+    oy_v = int(OFFSET_Y_TEXTE["hardsel"])
+    fonts.draw_body_text(
+        screen, "-", rm.centerx
+        - fonts.get_text_width("-", body, police_v) // 2 + ox_v,
+        rm.y + oy_v, rect_barre.width, font_dict=police_v, scale=body)
+    fonts.draw_body_text(screen, vt, rm.right + ox_v, rp.y + oy_v,
+                         rect_barre.width, font_dict=police_v,
+                         scale=body)
+    fonts.draw_body_text(
+        screen, "+", rp.centerx
+        - fonts.get_text_width("+", body, police_v) // 2 + ox_v,
+        rp.y + oy_v, rect_barre.width, font_dict=police_v, scale=body)
+    for rect, lab in ((rect_jouer, "JOUER"), (rect_quitter, "QUITTER")):
+        dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE * 0.8,
+                           rect.width)
+        _label_pnj(screen, lab, rect, UI_SCALE * 0.8,
+                   rect.collidepoint(survol),
+                   offset_y=OFFSET_Y_TEXTE["hardcore"],
+                   offset_x=OFFSET_X_TEXTE["hardcore"])
+# ---------- ECRAN DE MORT ----------
+MORT_DUREE_FONDU = 700   # ms du fondu noir (cote boucle de jeu)
+
+def calculer_menu_mort(screen):
+    scale = UI_SCALE * 0.8
+    l_b, h_b = dims_barre_pnj(scale)
+    l_b = max(l_b, largeur_bouton_pour(("REAPPARAITRE", "QUITTER"),
+                                       scale))
+    cx = screen.get_width() // 2
+    y_b = int(screen.get_height() * 0.60)
+    dx_r, dy_r = OFFSET_BOUTONS_MORT["reapparaitre"]
+    dx_q, dy_q = OFFSET_BOUTONS_MORT["quitter"]
+    return [(pygame.Rect(cx - l_b // 2 + dx_r, y_b + dy_r,
+                         l_b, h_b), "reapparaitre"),
+            (pygame.Rect(cx - l_b // 2 + dx_q,
+                         y_b + h_b + int(16 * UI_SCALE) + dy_q,
+                         l_b, h_b), "quitter")]
+
+def draw_menu_mort(screen, t_mort, niveau, vague):
+    # fond noir, puis VOUS ETES MORT en rouge (police Text7),
+    # le niveau/vague, et les boutons REAPPARAITRE / QUITTER
+    t = pygame.time.get_ticks() - t_mort
+    screen.fill((0, 0, 0))
+    if t <= MORT_DUREE_FONDU:
+        return
+    alpha = min(255, (t - MORT_DUREE_FONDU) * 2)
+    _texte_teinte(screen, "VOUS ETES MORT", screen.get_width() // 2,
+                  int(screen.get_height() * 0.24), 6, ROUGE_SANG,
+                  police_mort(), alpha)
+    coul = ROUGE_SANG if MODE_HARDCORE else (255, 255, 255)
+    _texte_teinte(screen, f"NIV {niveau} VAGUE {vague}",
+                  screen.get_width() // 2,
+                  int(screen.get_height() * 0.38), 3, coul,
+                  police_mort(), alpha)
+    survol = pygame.mouse.get_pos()
+    labels = {"reapparaitre": "REAPPARAITRE", "quitter": "QUITTER"}
+    for rect, action in calculer_menu_mort(screen):
+        dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE * 0.8,
+                           rect.width)
+        _label_pnj(screen, labels[action], rect, UI_SCALE * 0.8,
+                   rect.collidepoint(survol),
+                   offset_y=OFFSET_Y_TEXTE["mort"],
+                   offset_x=OFFSET_X_TEXTE["mort"])

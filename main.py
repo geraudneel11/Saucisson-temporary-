@@ -54,7 +54,7 @@ audio.init()
 
 speed = PLAYER_SPEED
 transition = True
-debug_hitboxes = DEBUG_HITBOXES
+
 debug_monk_points = DEBUG_MONK_POINTS
 portal_timer = 0
 smoke_timer = 0
@@ -422,7 +422,7 @@ if DEV_START_GAME_STATE == "chapel":
 	player.hitbox.center = player.rect.center
 	player.direction = "up"
 
-merchant1_npc = NPC(
+merchant1_npc = NPC( 
 	700,
 	250,
 	merchant1_idle,
@@ -827,154 +827,463 @@ slot_sauvegarde_actif = None      # 1..10 quand on joue AVEC sauvegarde
 chargement_action = ("nouveau", None)   # ou ("sauvegarde", slot)
 hitboxes_config = []              # [{"type": i, "couleur": j}] max 15
 hitboxes_visibles = False
+# --- menu echap in-game (le jeu continue derriere, pas de freeze) ---
+menu_echap_actif = False
+echap_t_ouverture = 0
+echap_t_fermeture = None
+# --- sauvegarde memoire "sans sauvegarde" : posee a chaque nouveau
+# niveau, sert au bouton REAPPARAITRE ; disparait en quittant
+
+# --- ecran de mort ---
+mort_en_cours = False
+mort_debut = 0
+# animation de mort du joueur : planches 4 rangees (bas, gauche,
+# droite, haut) x 7 frames de 64x64, MEME pixelisation que le
+# joueur (PLAYER_SCALE), une planche par niveau d'armure
+# (3 en comptant celle de base) ; repli si une planche manque
+DEATH_FRAME_MS = 90
+mort_anims = []
+for _tier in (1, 2, 3):
+	_chemin = f"Swordsman_lvl{_tier}_Death_with_shadow.png"
+	if os.path.exists(_chemin):
+		_feuille = pygame.image.load(_chemin).convert_alpha()
+		mort_anims.append({
+			"down": load_animation_row(_feuille, 0, PLAYER_SCALE,
+									   7, 4),
+			"left": load_animation_row(_feuille, 1, PLAYER_SCALE,
+									   7, 4),
+			"right": load_animation_row(_feuille, 2, PLAYER_SCALE,
+										7, 4),
+			"up": load_animation_row(_feuille, 3, PLAYER_SCALE,
+									 7, 4),
+		})
+	else:
+		mort_anims.append(None)
 _f1_precedent = False
 _etat_precedent = game_state
 DEFAUTS_REGLAGES = {
-    "vitesse_joueur": 14, "force_joueur": 10,
-    "pv_ennemis": 20, "degats_ennemis": 5, "vitesse_ennemis": 4,
-    "or_depart": 150, "niveau_competences": 0, "potions_depart": 0,
-    "lieu": "wave", "pommes_pct": 33, "pommes_dorees_pct": 20,
+	"vitesse_joueur": 14, "force_joueur": 10,
+	"pv_ennemis": 20, "degats_ennemis": 5, "vitesse_ennemis": 4,
+	"or_depart": 150, "niveau_competences": 0, "potions_depart": 0,
+	"lieu": "wave", "pommes_pct": 33, "pommes_dorees_pct": 20,
+	"immortalite": False, "space_kill": True,
+	"hardcore": False,
 }
 dev_reglages = dict(DEFAUTS_REGLAGES)
+mode_dev_actif = False
 
 def restaurer_defauts_dev():
-    dev_reglages.clear()
-    dev_reglages.update(DEFAUTS_REGLAGES)
+	dev_reglages.clear()
+	dev_reglages.update(DEFAUTS_REGLAGES)
 
 def lancer_chargement(action):
-    global chargement_action, game_state
-    global chargement_debut, chargement_duree
-    chargement_action = action
-    game_state = "chargement"
-    chargement_debut = pygame.time.get_ticks()
-    chargement_duree = random.randint(500, 2000)
+	global chargement_action, game_state
+	global chargement_debut, chargement_duree  
+	if action[0] == "nouveau":
+		# toute nouvelle partie repart d'un etat vierge
+		reinitialiser_partie()
+		capturer_checkpoint()
+	chargement_action = action
+	game_state = "chargement"
+	chargement_debut = pygame.time.get_ticks()
+	chargement_duree = random.randint(500, 2000)
 
 def appliquer_reglages_dev():
-    # applique les reglages du menu dev : player (vitesse, force, or,
-    # competences, items), constantes monstres (module classes, qui
-    # capture ses valeurs a l'import), taux de pommes (module main)
-    # et lieu d'apparition
-    import classes as _classes
-    r = dev_reglages
-    player.speed = r["vitesse_joueur"]
-    player.base_damage = r["force_joueur"]
-    for module in (globals().get("settings"), _classes):
-        if module is None:
-            continue
-        setattr(module, "MONSTER_BASE_HP", r["pv_ennemis"])
-        setattr(module, "MONSTER_BASE_DAMAGE", r["degats_ennemis"])
-        setattr(module, "MONSTER_BASE_SPEED", r["vitesse_ennemis"])
-    player.coins = r["or_depart"]
-    player.level = r["niveau_competences"]
-    if r["potions_depart"] > 0:
-        player.inventory[0] = {"item": fabriquer_item("Potion"),
-                               "quantity": r["potions_depart"]}
-    else:
-        player.inventory[0] = {"item": None, "quantity": 0}
-    globals()["DEV_START_GAME_STATE"] = r["lieu"]
-    globals()["APPLE_DROP_CHANCE"] = r["pommes_pct"] / 100.0
-    globals()["GOLDEN_APPLE_DROP_CHANCE"] = r["pommes_dorees_pct"] / 100.0
-    points = {"chapel": chapel_interior.entrance_point,
-              "house": getattr(house, "entrance_point", None),
-              "shop": plaza_center}
-    point = points.get(r["lieu"])
-    if point:
-        player.rect.center = (int(point[0]), int(point[1]))
-        player.update_hitbox()
+	# applique les reglages du menu dev : player (vitesse, force, or,
+	# competences, items), constantes monstres (module classes, qui
+	# capture ses valeurs a l'import), taux de pommes (module main)
+	# et lieu d'apparition
+	import classes as _classes
+	r = dev_reglages
+	_classes.IMMORTALITE = bool(r["immortalite"])
+	_classes.IMMORTALITE = bool(r["immortalite"])
+	ui.MODE_HARDCORE = bool(r["hardcore"])
+	global speed
+	# le mouvement du joueur lit la GLOBALE speed (voir plus bas),
+	# pas player.speed : les deux doivent etre mises a jour
+	speed = r["vitesse_joueur"]
+	player.speed = r["vitesse_joueur"]
+	player.base_damage = r["force_joueur"]
+	for module in (globals().get("settings"), _classes):
+		if module is None:
+			continue
+		setattr(module, "MONSTER_BASE_HP", r["pv_ennemis"])
+		setattr(module, "MONSTER_BASE_DAMAGE", r["degats_ennemis"])
+		setattr(module, "MONSTER_BASE_SPEED", r["vitesse_ennemis"])
+	player.coins = r["or_depart"]
+	player.level = r["niveau_competences"]
+	if r["potions_depart"] > 0:
+		player.inventory[0] = {"item": fabriquer_item("Potion"),
+							   "quantity": r["potions_depart"]}
+	else:
+		player.inventory[0] = {"item": None, "quantity": 0}
+	globals()["DEV_START_GAME_STATE"] = r["lieu"]
+	globals()["APPLE_DROP_CHANCE"] = r["pommes_pct"] / 100.0
+	globals()["GOLDEN_APPLE_DROP_CHANCE"] = r["pommes_dorees_pct"] / 100.0
+	points = {"chapel": chapel_interior.entrance_point,
+			  "house": getattr(house, "entrance_point", None),
+			  "shop": plaza_center}
+	point = points.get(r["lieu"])
+	if point:
+		player.rect.center = (int(point[0]), int(point[1]))
+		player.update_hitbox()
+checkpoint_donnees = {}   # copie de l'etat du joueur a chaque nouveau niveau
+def reinitialiser_partie():
+	# remet l'etat du jeu a zero avant une NOUVELLE partie (dev,
+	# sans sauvegarde, slot vide) : sans ca, quitter puis relancer
+	# reprenait la partie precedente (ennemis, position, decor...)
+	global current_level, current_wave, transition, TRANSITION_TIMER
+	global portal_rect, attack_hitbox
+	global level_trees, apple_trees, level_rocks
+	current_level = 1
+	current_wave = 1
+	enemies.clear()
+	coins.clear()
+	xp_orbs.clear()
+	item_drops.clear()
+	projectiles.clear()
+	explosions.clear()
+	attack_hitbox = None
+	player.hp = player.max_hp
+	player.coins = int(dev_reglages.get("or_depart", 150)) 
+	player.xp = 0
+	player.xp_level = 0
+	player.selected_slot = 0
+	player.inventory = [{"item": None, "quantity": 0}
+						for _ in range(3)]
+	if mode_dev_actif and DEV_GIVE_DYNAMITE:
+		for _ in range(5):
+			player.add_item_to_inventory(Dynamite(scaled_dynamite))
+	player.knockback_x = 0
+	player.knockback_y = 0
+	player.invicible_timer = 0
+	player.damage_timer = 0
+	lieu = DEV_START_GAME_STATE
+	if lieu == "shop":
+		player.rect.center = (
+			plaza_center[0] - PLAYER_SHOP_SPAWN_OFFSET_X,
+			plaza_center[1] + PLAYER_SHOP_SPAWN_OFFSET_Y)
+		player.update_hitbox()
+		portal_rect = pygame.Rect(MAP_WIDTH // 2 + PORTAL_OFFSET_X,
+								  MAP_HEIGHT // 2 + PORTAL_OFFSET_Y,
+								  PORTAL_SIZE, PORTAL_SIZE)
+	elif lieu == "house":
+		player.rect.center = (house.door_rect.centerx,
+							  HOUSE_INSIDE_HEIGHT - 220)
+		player.update_hitbox()
+	elif lieu == "chapel":
+		player.rect.center = chapel_interior.entrance_point
+		player.hitbox.center = player.rect.center
+		player.direction = "up"
+	else:
+		# vague : spawn aleatoire + decors regeneres + vague neuve
+		spawn_x, spawn_y = world.random_spawn_position(
+			MAP_WIDTH, MAP_HEIGHT)
+		player.rect.center = (spawn_x, spawn_y)
+		player.update_hitbox()
+		level_tree_placements = world.generate_level_trees(
+			[tree1, tree2, tree3],
+			(spawn_x, spawn_y),
+			MAP_WIDTH, MAP_HEIGHT,
+			plaza_center, path_end, house_bounds,
+			count=LEVEL_TREE_COUNT,
+			min_spacing=LEVEL_TREE_MIN_SPACING,
+			avoid_radius=LEVEL_TREE_AVOID_RADIUS)
+		level_trees = [make_level_tree(x, y, frames, i)
+					   for i, (x, y, frames)
+					   in enumerate(level_tree_placements)]
+		apple_tree_placements = world.generate_apple_trees(
+			tree4,
+			[(x, y) for x, y, _ in level_tree_placements],
+			(spawn_x, spawn_y),
+			MAP_WIDTH, MAP_HEIGHT,
+			plaza_center, path_end, house_bounds,
+			max_count=APPLE_TREE_MAX_COUNT,
+			spawn_chance=APPLE_TREE_SPAWN_CHANCE)
+		apple_trees = [Tree(x, y, frames,
+							hitbox_offset_y=TREE_HITBOX_OFFSET_Y)
+					   for x, y, frames in apple_tree_placements]
+		for tree in apple_trees:
+			tree.dropped_apple = False
+			tree.dropped_golden_apple = False
+		level_rock_placements = world.generate_level_rocks(
+			rock_variants,
+			[(x, y) for x, y, _ in level_tree_placements]
+			+ [(x, y) for x, y, _ in apple_tree_placements],
+			(spawn_x, spawn_y),
+			MAP_WIDTH, MAP_HEIGHT,
+			plaza_center, path_end, house_bounds,
+			count=LEVEL_ROCK_COUNT,
+			min_spacing=LEVEL_ROCK_MIN_SPACING)
+		level_rocks = [Rock(x, y, sprite,
+							hitbox_width=hitbox["width"],
+							hitbox_height=hitbox["height"],
+							hitbox_offset_y=ROCK_HITBOX_OFFSET_Y)
+					   for x, y, sprite, hitbox
+					   in level_rock_placements]
+		waves.start_wave(enemies, current_level, current_wave,
+						 orc_data)
+	transition = True
+	TRANSITION_TIMER = 120
+
+def capturer_checkpoint():
+	# copie COMPLETE de l'etat du joueur dans la sauvegarde
+	# memoire, avec les memes champs que le JSON des slots (or,
+	# xp, competences, armure, inventaire...) ; ne vit que le
+	# temps de la partie
+	checkpoint_donnees.clear()
+	checkpoint_donnees.update({
+		"niveau": current_level,
+		"vague": current_wave,
+		"or": player.coins,
+		"hp": player.hp,
+		"xp": player.xp,
+		"xp_level": player.xp_level,
+		"niveau_competences": player.level,
+		"skills": dict(player.skill_levels),
+		"equipement": player.equipment_level,
+		"inventaire": [
+			{"item": (it["item"].__class__.__name__
+					  if it["item"] else None),
+			 "quantite": it["quantity"]}
+			for it in player.inventory
+		],
+		"lieu": "wave",
+	})
+
+def restaurer_checkpoint():
+	# restaure l'etat complet du checkpoint (a appeler APRES la
+	# purge de reinitialiser_partie) ; remet aussi l'armure en
+	# apparence via les planches du niveau d'equipement
+	global current_level, current_wave
+	d = checkpoint_donnees
+	current_level = int(d.get("niveau", 1))
+	current_wave = int(d.get("vague", 1))
+	player.coins = int(d.get("or", 150))
+	player.xp = int(d.get("xp", 0))
+	player.xp_level = int(d.get("xp_level", 0))
+	player.level = int(d.get("niveau_competences", 0))
+	for cle, val in d.get("skills", {}).items():
+		if cle in player.skill_levels:
+			player.skill_levels[cle] = int(val)
+	player.equipment_level = int(d.get("equipement", 0))
+	charger_animations_joueur(max(0, player.equipment_level))
+	for i, sac in enumerate(d.get("inventaire", [])):
+		if i >= len(player.inventory):
+			break
+		player.inventory[i] = {
+			"item": fabriquer_item(sac.get("item")),
+			"quantity": int(sac.get("quantite", 0)),
+		}
+	player.recompute_max_hp()
+	player.hp = max(1, min(int(d.get("hp", player.max_hp)),
+						   player.max_hp))
+
+def reapparaitre():
+	# bouton REAPPARAITRE de l'ecran de mort
+	global game_state, transition, TRANSITION_TIMER
+	if dev_reglages.get("hardcore"):
+		# hardcore : on recommence TOUT (nouvelle partie complete)
+		lancer_chargement(("nouveau", None))
+		return
+	reinitialiser_partie()      # purge du monde (ennemis, decors...)
+	restaurer_checkpoint()      # l'etat COMPLET du checkpoint
+	waves.start_wave(enemies, current_level, current_wave,
+					 orc_data)
+	game_state = "wave"
+	transition = True
+	TRANSITION_TIMER = 120
 
 def fabriquer_item(nom):
-    # reconstruit un item d'inventaire d'apres son nom de classe
-    # (les classes d'items exigent leur sprite en argument)
-    import classes as _classes
-    if nom == "Potion":
-        img = pygame.image.load("Fiole_de_soin.png").convert_alpha()
-        return _classes.Potion(pygame.transform.scale(img, (48, 51)))
-    if nom == "Dynamite":
-        img = pygame.image.load("Dynamite.png").convert_alpha()
-        return _classes.Dynamite(pygame.transform.scale(img, (48, 48)))
-    return None
+	# reconstruit un item d'inventaire d'apres son nom de classe
+	# (les classes d'items exigent leur sprite en argument)
+	import classes as _classes
+	if nom == "Potion":
+		img = pygame.image.load("Fiole_de_soin.png").convert_alpha()
+		return _classes.Potion(pygame.transform.scale(img, (48, 51)))
+	if nom == "Dynamite":
+		img = pygame.image.load("Dynamite.png").convert_alpha()
+		return _classes.Dynamite(pygame.transform.scale(img, (48, 48)))
+	return None
 
 def sauvegarder_partie(slot):
-    # ecrit l'etat de progression dans saves/slot_<n>.json (appele a
-    # chaque entree et sortie du niveau shop)
-    donnees = {
-        "niveau": current_level,
-        "vague": current_wave,
-        "or": player.coins,
-        "hp": player.hp,
-        "xp": player.xp,
-        "xp_level": player.xp_level,
-        "niveau_competences": player.level,
-        "skills": dict(player.skill_levels),
-        "equipement": player.equipment_level,
-        "inventaire": [
-            {"item": (it["item"].__class__.__name__ if it["item"] else None),
-             "quantite": it["quantity"]}
-            for it in player.inventory
-        ],
-        "position": [player.rect.centerx, player.rect.centery],
-        "lieu": game_state if game_state in ("wave", "shop", "house",
-                                             "chapel") else "shop",
-        "date": time.strftime("%d/%m %H:%M"),
-    }
-    os.makedirs("saves", exist_ok=True)
-    with open(os.path.join("saves", f"slot_{slot}.json"), "w",
-              encoding="utf-8") as f:
-        json.dump(donnees, f, indent=2, ensure_ascii=False)
+	# ecrit l'etat de progression dans saves/slot_<n>.json (appele a
+	# chaque entree et sortie du niveau shop)
+	donnees = {
+		"niveau": current_level,
+		"vague": current_wave,
+		"or": player.coins,
+		"hp": player.hp,
+		"xp": player.xp,
+		"xp_level": player.xp_level,
+		"niveau_competences": player.level,
+		"skills": dict(player.skill_levels),
+		"equipement": player.equipment_level,
+		"inventaire": [
+			{"item": (it["item"].__class__.__name__ if it["item"] else None),
+			 "quantite": it["quantity"]}
+			for it in player.inventory
+		],
+		"position": [player.rect.centerx, player.rect.centery],
+		"lieu": game_state if game_state in ("wave", "shop", "house",
+											 "chapel") else "shop",
+		"date": time.strftime("%d/%m %H:%M"),
+	}
+	os.makedirs("saves", exist_ok=True)
+	with open(os.path.join("saves", f"slot_{slot}.json"), "w",
+			  encoding="utf-8") as f:
+		json.dump(donnees, f, indent=2, ensure_ascii=False)
 
 def charger_partie(slot):
-    # restaure la progression d'un slot ; reprise dans le lieu sauvegarde
-    global current_level, current_wave, game_state
-    with open(os.path.join("saves", f"slot_{slot}.json"),
-              encoding="utf-8") as f:
-        d = json.load(f)
-    current_level = int(d.get("niveau", 1))
-    current_wave = int(d.get("vague", 1))
-    player.coins = int(d.get("or", 150))
-    player.xp = int(d.get("xp", 0))
-    player.xp_level = int(d.get("xp_level", 0))
-    player.level = int(d.get("niveau_competences", 0))
-    for cle, val in d.get("skills", {}).items():
-        if cle in player.skill_levels:
-            player.skill_levels[cle] = int(val)
-    player.equipment_level = int(d.get("equipement", 0))
-    for i, sac in enumerate(d.get("inventaire", [])):
-        if i >= len(player.inventory):
-            break
-        nom = sac.get("item")
-        player.inventory[i] = {
-            "item": fabriquer_item(nom),
-            "quantity": int(sac.get("quantite", 0)),
-        }
-    player.recompute_max_hp()
-    player.hp = max(1, min(int(d.get("hp", player.max_hp)), player.max_hp))
-    if d.get("position"):
-        player.rect.center = (int(d["position"][0]), int(d["position"][1]))
-        player.update_hitbox()
-    game_state = d.get("lieu", "shop")
-    if game_state == "shop":
-        # reprise directe dans le shop : le portail n'existe pas encore
-        # (il nait de la vague precedante), on en pose un au plaza
-        global portal_rect
-        portal_rect = pygame.Rect(int(plaza_center[0]) - 32,
-                                  int(plaza_center[1]) - 32, 64, 64)
+	# ressssssstaure la progression d'un slot ; reprise dans le lieu sauvegarde
+	global current_level, current_wave, game_state
+	reinitialiser_partie()
+	with open(os.path.join("saves", f"slot_{slot}.json"),
+			  encoding="utf-8") as f:
+		d = json.load(f)
+	current_level = int(d.get("niveau", 1))
+	current_wave = int(d.get("vague", 1))
+	player.coins = int(d.get("or", 150))
+	player.xp = int(d.get("xp", 0))
+	player.xp_level = int(d.get("xp_level", 0))
+	player.level = int(d.get("niveau_competences", 0))
+	for cle, val in d.get("skills", {}).items():
+		if cle in player.skill_levels:
+			player.skill_levels[cle] = int(val)
+	player.equipment_level = int(d.get("equipement", 0))
+	for i, sac in enumerate(d.get("inventaire", [])):
+		if i >= len(player.inventory):
+			break
+		nom = sac.get("item")
+		player.inventory[i] = {
+			"item": fabriquer_item(nom),
+			"quantity": int(sac.get("quantite", 0)),
+		}
+	player.recompute_max_hp()
+	player.hp = max(1, min(int(d.get("hp", player.max_hp)), player.max_hp))
+	if d.get("position"):
+		player.rect.center = (int(d["position"][0]), int(d["position"][1]))
+		player.update_hitbox()
+	game_state = d.get("lieu", "shop")
+	if game_state == "shop":
+		# reprise directe dans le shop : le portail n'existe pas encore
+		# (il nait de la vague precedante), on en pose un au plaza
+		global portal_rect
+		portal_rect = pygame.Rect(int(plaza_center[0]) - 32,
+								  int(plaza_center[1]) - 32, 64, 64)
+		if game_state == "wave":
+		# la purge a retire les ennemis : on remet la vague
+		# du niveau sauvegarde avec les constantes actuelles
+			waves.start_wave(enemies, current_level, current_wave,
+						orc_data)
 
 def cibles_hitbox(indice):
-    # liste (rect monde, nom) pour le type de hitbox demande
-    if indice == 0:
-        return [(player.hitbox, "JOUEUR")]
-    if indice == 1:
-        return [(e.hitbox, f"ENNEMI {e.level}") for e in enemies]
-    if indice == 2:
-        return [(c.rect, "PIECE") for c in coins]
-    if indice == 3:
-        return [(n.interaction_rect, str(getattr(n, "type", "PNJ")).upper())
-                for n in npcs]
-    if indice == 4:
-        return [(o.rect, "XP") for o in xp_orbs]
-    if indice == 5:
-        return [(portal_rect, "PORTAIL")] if portal_rect else []
-    return []
+	# liste (rect monde, nom) pour le type de hitbox demande
+	if indice == 0:
+		return [(player.hitbox, "JOUEUR")]
+	if indice == 1:
+		return [(e.hitbox, f"ENNEMI {e.level}") for e in enemies]
+	if indice == 2:
+		return [(c.rect, "PIECE") for c in coins]
+	if indice == 3:
+		if game_state == "chapel":
+			pnjs = chapel_interior.chapel_npcs
+		elif game_state == "shop":
+			pnjs = outdoor_npcs
+		else:
+			pnjs = npcs
+		return [(n.hitbox_for_players, str(getattr(n, "type", "PNJ")).upper())
+				for n in pnjs]
+	if indice == 4:
+		return [(o.rect, "XP") for o in xp_orbs]
+	if indice == 5:
+		return [(portal_rect, "PORTAIL")] if portal_rect else []
+	if indice == 6:
+		return [(pos, nom) for pos, nom in points_pnj_hitbox()]
+	if indice == 7:
+		# meubles : mobilier de la maison, mobilier + bancs de la chapelle
+		if game_state == "chapel":
+			out = [(r, "MEUBLE") for r in
+				   chapel_interior.chapel_furniture_hitboxes.values()]
+			out += [(r, "BANC") for r in chapel_interior.pew_hitboxes]
+			return out
+		if game_state == "house":
+			return [(r, "MEUBLE")
+					for r in house.furniture_hitboxes.values()]
+		return []
+	if indice == 8:
+		# murs : maison ou chapelle selon le lieu
+		if game_state == "chapel":
+			return [(r, "MUR") for r in chapel_interior.wall_hitboxes]
+		if game_state == "house":
+			return [(house.wall_top_hitbox, "MUR"),
+					(house.wall_bottom_hitbox, "MUR"),
+					(house.wall_left_hitbox, "MUR"),
+					(house.wall_right_hitbox, "MUR")]
+		return []
+	if indice == 9:
+		# decors : arbres, rochers, chapelle, hitboxes dynamite
+		if game_state == "shop":
+			out = [(t.hitbox, f"ARBRE {t.index}") for t in town_trees]
+			out += [(r.hitbox, f"ROCHER {r.index}") for r in town_rocks]
+			out += [(chapel.hitbox, "CHAPELLE")]
+			return out
+		if game_state == "wave":
+			out = [(t.hitbox, "ARBRE") for t in level_trees]
+			out += [(t.hitbox, "POMMIER") for t in apple_trees]
+			out += [(r.hitbox, "ROCHER") for r in level_rocks]
+			out += [(t.dynamite_hitbox, "DYNAMITE")
+					for t in level_trees + apple_trees
+					if t.dynamite_hitbox]
+			out += [(r.dynamite_hitbox, "DYNAMITE")
+					for r in level_rocks if r.dynamite_hitbox]
+			return out
+		return []
+	if indice == 10:
+		# projectiles du joueur et des ennemis + coup d'attaque
+		out = [(p.hitbox, "PROJ") for p in projectiles]
+		if attack_hitbox and attacking:
+			out.append((attack_hitbox, "ATTAQUE"))
+		return out
+	return []
+
+def points_pnj_hitbox():
+	# points de deplacement des pnj : (position monde, nom)
+	if game_state == "chapel":
+		pnjs = chapel_interior.chapel_npcs
+	elif game_state == "shop":
+		pnjs = outdoor_npcs
+	else:
+		pnjs = npcs
+	out = []
+	for n in pnjs:
+		for i, point in enumerate(n.movement_points):
+			arret = i in n.stop_point_indices
+			out.append((point, f"{getattr(n, 'type', 'PNJ')} #{i}"
+						+ (" ARRET" if arret else "")))
+	return out
+
+def dessiner_hitboxes(offset_x, offset_y):
+	# dessine les hitboxes configurees dans le menu dev, avec
+	# l'offset monde -> ecran (camera negative, ou position de
+	# l'interieur centre pour la maison)
+	for entree in hitboxes_config:
+		couleur = ui.HITBOX_COULEURS[entree["couleur"]]
+		if entree["type"] == 6:
+			# points de deplacement des pnj : ronds
+			for pos, nom in points_pnj_hitbox():
+				cx = int(pos[0] + offset_x)
+				cy = int(pos[1] + offset_y)
+				pygame.draw.circle(screen, couleur, (cx, cy), 5)
+				ui._draw_hp_text(screen, nom, cx, cy - 16,
+								 echelle=1, centered=True)
+			continue
+		for rect_monde, nom in cibles_hitbox(entree["type"]):
+			ecran_r = rect_monde.move(int(offset_x), int(offset_y))
+			pygame.draw.rect(screen, couleur, ecran_r, 2)
+			ui._draw_hp_text(screen, nom, ecran_r.centerx,
+							 ecran_r.top - 9, echelle=1,
+							 centered=True)
 
 
 
@@ -989,7 +1298,7 @@ while run == True :
 			elif event.type == pygame.MOUSEBUTTONDOWN:
 				intro_debut = pygame.time.get_ticks() - 10 ** 9
 		if ui.draw_intro(screen, pygame.time.get_ticks() - intro_debut,
-		                 boutons_menu, menu_fond):
+						 boutons_menu, menu_fond):
 			game_state = "menu"
 			intro_debut = pygame.time.get_ticks()
 		pygame.display.update()
@@ -1000,54 +1309,94 @@ while run == True :
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
-			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
 				for rect, action in boutons_menu:
 					if rect.collidepoint(event.pos):
 						if action == "jouer":
-							game_state = "chargement"
-							chargement_debut = pygame.time.get_ticks()
-							chargement_duree = random.randint(500, 2000)
+							game_state = "menu_jouer"
 						elif action == "quitter":
 							run = False
 		ui.draw_menu(screen, boutons_menu, menu_fond)
 		pygame.display.update()
-		clock.tick(FPS_MAX)
+		clock.tick(FPS_MAX) 
 		continue
 	if game_state == "chargement":
-		# ecran de chargement : duree aleatoire 0.5 a 2 s posee par le
+		# ecran de chargement : duree aleatoire 0.5 a 2 s posee par le 
 		# clic sur JOUER, puis la partie demarre
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
 		ui.draw_chargement(screen,
-		                   pygame.time.get_ticks() - chargement_debut,
-		                   chargement_duree)
+						   pygame.time.get_ticks() - chargement_debut,
+						   chargement_duree)
 		if pygame.time.get_ticks() - chargement_debut >= chargement_duree:
 			if chargement_action[0] == "sauvegarde":
 				charger_partie(chargement_action[1])
+			elif chargement_action[0] == "menu":
+				game_state = "menu"
+				ui.MODE_HARDCORE = False
 			else:
 				game_state = DEV_START_GAME_STATE
 		pygame.display.update()
 		clock.tick(FPS_MAX)
 		continue
+	if game_state == "mort":
+		# ecran de mort : fondu noir, VOUS ETES MORT, 2 boutons
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+				for rect, action in ui.calculer_menu_mort(screen):
+					if action and rect.collidepoint(event.pos):
+						if action == "reapparaitre":
+							mort_en_cours = False
+							reapparaitre()
+						elif action == "quitter":
+							mort_en_cours = False
+							lancer_chargement(("menu", None))
+						break
+		ui.draw_menu_mort(screen, mort_debut, current_level,
+						  current_wave)
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
 	if game_state in ("menu_jouer", "menu_sauvegardes", "menu_dev",
-	                  "menu_hitboxes", "menu_settings"):
+					  "menu_hitboxes", "menu_settings","menu_hardcore"):
 		# sous-menus : ni monde ni entites, juste les clics
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+				if game_state == "menu_hardcore":
+					rect_barre, rect_jouer, rect_quitter = \
+						ui.calculer_menu_hardcore(screen)
+					if rect_barre.collidepoint(event.pos):
+						rm, rp = ui._zone_plus_moins(
+							rect_barre, "hardcore",
+							dev_reglages["hardcore"])
+						if rm.collidepoint(event.pos) or \
+								rp.collidepoint(event.pos):
+							dev_reglages["hardcore"] = \
+								not dev_reglages["hardcore"]
+					elif rect_jouer.collidepoint(event.pos):
+						appliquer_reglages_dev()
+						lancer_chargement(("nouveau", None))
+					elif rect_quitter.collidepoint(event.pos):
+						game_state = "menu_jouer"
 				if game_state == "menu_jouer":
 					for rect, action in ui.calculer_menu_jouer(screen):
 						if rect.collidepoint(event.pos):
 							if action == "sauvegarde":
 								game_state = "menu_sauvegardes"
+								mode_dev_actif = False
 							elif action == "sans":
 								restaurer_defauts_dev()
-								appliquer_reglages_dev()
 								slot_sauvegarde_actif = None
-								lancer_chargement(("nouveau", None))
+								# mini-menu : choix hardcore off/on
+								game_state = "menu_hardcore"
+								mode_dev_actif = False
 							elif action == "dev":
+								mode_dev_actif = True
 								game_state = "menu_dev"
 							elif action == "retour":
 								game_state = "menu"
@@ -1102,14 +1451,14 @@ while run == True :
 						if rect_ajouter.collidepoint(event.pos):
 							if len(hitboxes_config) < 15:
 								hitboxes_config.append({"type": 0,
-								                        "couleur": 0})
+														"couleur": 0})
 						elif rect_enlever.collidepoint(event.pos):
 							if hitboxes_config:
 								hitboxes_config.pop()
 						elif rect_retour.collidepoint(event.pos):
 							game_state = "menu_dev"
 				elif game_state == "menu_settings":
-					lignes, rect_retour, rect_jouer = \
+					lignes, rect_retour = \
 						ui.calculer_menu_settings(screen)
 					for rect, cle in lignes:
 						if not rect.collidepoint(event.pos):
@@ -1118,7 +1467,7 @@ while run == True :
 							d for d in ui.SETTINGS_LIGNES if d[0] == cle)
 						_cle, _label, pas, mini, maxi, genre = definition
 						rm, rp = ui._zone_plus_moins(
-							rect, cle, dev_reglages[cle], UI_SCALE * 0.5)
+							rect, cle, dev_reglages[cle])
 						if genre == "cycle":
 							i = ui.LIEUX.index(dev_reglages[cle])
 							if rm.collidepoint(event.pos):
@@ -1126,6 +1475,8 @@ while run == True :
 							elif rp.collidepoint(event.pos):
 								i = (i + 1) % len(ui.LIEUX)
 							dev_reglages[cle] = ui.LIEUX[i]
+						elif genre == "onoff":
+							dev_reglages[cle] = not dev_reglages[cle]
 						elif rm.collidepoint(event.pos):
 							dev_reglages[cle] = max(mini,
 								dev_reglages[cle] - pas)
@@ -1136,24 +1487,22 @@ while run == True :
 					else:
 						if rect_retour.collidepoint(event.pos):
 							game_state = "menu_dev"
-						elif rect_jouer.collidepoint(event.pos):
-							appliquer_reglages_dev()
-							slot_sauvegarde_actif = None
-							lancer_chargement(("nouveau", None))
 		if game_state == "menu_jouer":
 			ui.draw_menu_jouer(screen, ui.calculer_menu_jouer(screen),
-			                   menu_fond)
+							   menu_fond)
 		elif game_state == "menu_sauvegardes":
 			ui.draw_menu_sauvegardes(screen,
-			                         ui.calculer_menu_sauvegardes(screen),
-			                         menu_fond)
+									 ui.calculer_menu_sauvegardes(screen),
+									 menu_fond)
+		elif game_state == "menu_hardcore":
+			ui.draw_menu_hardcore(screen, menu_fond, dev_reglages)
 		elif game_state == "menu_dev":
 			ui.draw_menu_dev(screen, ui.calculer_menu_dev(screen),
-			                 menu_fond)
+							 menu_fond)
 		elif game_state == "menu_hitboxes":
 			ui.draw_menu_hitboxes(screen, menu_fond, hitboxes_config)
 		elif game_state == "menu_settings":
-			ui.draw_menu_settings(screen, menu_fond, dev_reglages)
+			ui.draw_menu_settings(screen, menu_fond, dev_reglages) 
 		pygame.display.update()
 		clock.tick(FPS_MAX)
 		continue
@@ -1548,6 +1897,9 @@ while run == True :
 			game_state = "wave"
 			audio.play("portal")
 			current_level, current_wave, transition, TRANSITION_TIMER = world.start_new_level(enemies, current_level, orc_data)
+						# sauvegarde memoire du nouveau niveau (checkpoint
+			# du bouton REAPPARAITRE, mode sans sauvegarde)
+			capturer_checkpoint()
 
 			spawn_x, spawn_y = world.random_spawn_position(MAP_WIDTH, MAP_HEIGHT)
 			player.rect.center = (spawn_x, spawn_y)
@@ -1682,29 +2034,21 @@ while run == True :
 			
 			# Cheat: press SPACE to kill all enemies on the map
 			if event.key == pygame.K_SPACE:
-				for e in enemies:
-					# deal lethal damage using the player as source so death logic runs
-					e.take_damage(e.hp, player)
-			elif event.key == pygame.K_F1:
-				debug_hitboxes = not debug_hitboxes
-			elif event.key == pygame.K_F2:
-				mx, my = pygame.mouse.get_pos()
-				world_x = mx + camera_x
-				world_y = my + camera_y
-				print(f"OFFSET_X = {world_x - house_x}")
-				print(f"OFFSET_Y = {world_y - house_y}")
-			elif event.key == pygame.K_F3:
-				mx, my = pygame.mouse.get_pos()
-				world_x = mx + camera_x
-				world_y = my + camera_y
-				print(f"DRAGON_OFFSET_X = {world_x - chapel.rect.centerx}")
-				print(f"DRAGON_OFFSET_Y = {world_y - chapel.rect.top}")
-			elif event.key == pygame.K_F4:
-				mx, my = pygame.mouse.get_pos()
-				world_x = mx + camera_x
-				world_y = my + camera_y
-				print(f"DRAGON_BODY_OFFSET_X = {world_x - chapel.rect.centerx}")
-				print(f"DRAGON_BODY_OFFSET_Y = {world_y - chapel.rect.top}")
+				# cheat SPACE KILL : activable/coupable dans REGLAGES
+				if mode_dev_actif and dev_reglages.get("space_kill"):
+
+					for e in enemies:
+						# deal lethal damage using the player as source so death logic runs
+						e.take_damage(e.hp, player)
+			if event.key == pygame.K_ESCAPE and current_npc is None:
+				# menu echap in-game : le jeu continue derriere
+				if menu_echap_actif:
+					menu_echap_actif = False
+					echap_t_fermeture = pygame.time.get_ticks()
+				else:
+					menu_echap_actif = True
+					echap_t_ouverture = pygame.time.get_ticks()
+					echap_t_fermeture = None
 			elif event.key == pygame.K_m:
 				audio.toggle_mute()
 
@@ -1716,7 +2060,25 @@ while run == True :
 
 		if event.type == pygame.MOUSEBUTTONDOWN:
 			if event.button == 1:
+				if menu_echap_actif:
+					# clics sur le panneau echap : geres ici,
+					# jamais transformes en attaque
+					if ui.rect_panneau_echap(screen).collidepoint(event.pos):
+						for rect, action in ui.calculer_menu_echap(screen):
+							if action and rect.collidepoint(event.pos):
+								if action == "continuer":
+									menu_echap_actif = False
+									echap_t_fermeture = pygame.time.get_ticks()
+								elif action == "quitter":
+									menu_echap_actif = False
+									echap_t_fermeture = None
+									current_npc = None
+									lancer_chargement(("menu", None))
+								break
+						continue
 				# Check if close button clicked on NPC UI
+
+			
 				if current_npc:
 					audio.play("ui_click")
 
@@ -2168,6 +2530,10 @@ while run == True :
 
 	for entity_type, entity, sort_y in entities:
 		if entity_type == "player":
+			if mort_en_cours:
+				# l'animation de mort est dessinee a part :
+				# le sprite debout ne s'affiche plus
+				pass
 			if game_state == "house":
 				player_system.draw_player(house.interior_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 			elif game_state == "chapel":
@@ -2366,98 +2732,28 @@ while run == True :
 	for window_rect in house.window_rects:
 		house.interior_surface.blit(house.window, window_rect)
 	house.interior_surface.blit(house.front_door, (HOUSE_INSIDE_WIDTH // 2 - house.front_door.get_width() // 2 + 93 + 195, HOUSE_INSIDE_HEIGHT - 126))
-	if debug_hitboxes and game_state == "house":
-		house.draw_debug_hitboxes(house.interior_surface)
-		npc_debug_font = pygame.font.SysFont(None, 16)
-		for npc in npcs:
-			# Cyan : hitbox qui bloque le joueur (active dès maintenant)
-			pygame.draw.rect(house.interior_surface, (0, 200, 255), npc.hitbox_for_players, 2)
-			npc_label = npc_debug_font.render(npc.type + " (joueur)", True, (0, 200, 255))
-			house.interior_surface.blit(npc_label, (npc.hitbox_for_players.x, npc.hitbox_for_players.y - 14))
-		for npc in npcs:
-			for i, point in enumerate(npc.movement_points):
-				is_stop = i in npc.stop_point_indices
-				color = (255, 80, 80) if is_stop else (255, 255, 0)
-				pygame.draw.circle(house.interior_surface, color, point, 5)
-				point_label = npc_debug_font.render(f"{npc.type} #{i}", True, color)
-				house.interior_surface.blit(point_label, (point[0] + 6, point[1] - 6))
-	if debug_hitboxes and game_state == "shop":
-		tree_debug_font = pygame.font.SysFont(None, 16)
-		for tree in town_trees:
-			pygame.draw.rect(game_surface, (255, 80, 80), tree.hitbox, 2)
-			label = tree_debug_font.render(f"arbre #{tree.index}", True, (255, 80, 80))
-			game_surface.blit(label, (tree.hitbox.x, tree.hitbox.y - 14))
-		for rock in town_rocks:
-			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
-			label = tree_debug_font.render(f"rocher #{rock.index}", True, (80, 160, 255))
-			game_surface.blit(label, (rock.hitbox.x, rock.hitbox.y - 14))
-		pygame.draw.rect(game_surface, (255, 80, 80), chapel.hitbox, 2)
-		chapel_label = tree_debug_font.render("chapelle", True, (255, 80, 80))
-		game_surface.blit(chapel_label, (chapel.hitbox.x, chapel.hitbox.y - 14))
-		for npc in outdoor_npcs:
-			pygame.draw.rect(game_surface, (0, 200, 255), npc.hitbox_for_players, 2)
-			# Violet : hitbox réservée aux futures collisions NPC-meubles
-		pygame.draw.rect(house.interior_surface, (170, 0, 255), npc.hitbox, 2)
-		# Debug : rect complet du joueur (vert) + point utilisé pour le tri	
-		pygame.draw.rect(house.interior_surface, (0, 255, 0), player.rect, 2)
-		pygame.draw.line(
-			house.interior_surface,
-			(0, 255, 0),
-			(player.rect.left, player.rect.bottom),
-			(player.rect.right, player.rect.bottom),
-			2
-		)
-		debug_font = pygame.font.SysFont(None, 16)
-		player_label = f"player rect: h={player.rect.height} bottom={player.rect.bottom}"
-		label_surface = debug_font.render(player_label, True, (0, 255, 0))
-		house.interior_surface.blit(label_surface, (player.rect.x, player.rect.y - 14))
-	if debug_hitboxes and game_state == "wave":
-		for tree in level_trees:
-			pygame.draw.rect(game_surface, (255, 80, 80), tree.hitbox, 2)
-		for tree in apple_trees:
-			pygame.draw.rect(game_surface, (255, 150, 0), tree.hitbox, 2)
-		for rock in level_rocks:
-			pygame.draw.rect(game_surface, (80, 160, 255), rock.hitbox, 2)
-		for tree in level_trees + apple_trees:
-			pygame.draw.rect(game_surface, (0, 255, 0), tree.dynamite_hitbox, 2)
-		for rock in level_rocks:
-			pygame.draw.rect(game_surface, (0, 255, 0), rock.dynamite_hitbox, 2)
-		for enemy in enemies:
-			pygame.draw.rect(game_surface, (255, 0, 255), enemy.hitbox, 2)
-		for projectile in projectiles:
-			pygame.draw.rect(game_surface, (255, 255, 0), projectile.hitbox, 2)
-		pygame.draw.rect(game_surface, (0, 255, 0), player.hitbox, 2)
-		if attack_hitbox and attacking:
-			pygame.draw.rect(game_surface, (0, 255, 255), attack_hitbox, 2)
-	if debug_hitboxes and game_state == "chapel":
-		chapel_interior.draw_debug_floor_corners(chapel_interior.interior_surface)
-		chapel_interior.draw_debug_hitboxes(chapel_interior.interior_surface)
-
-		npc_debug_font = pygame.font.SysFont(None, 16)
-		for npc in chapel_interior.chapel_npcs:
-			for i, point in enumerate(npc.movement_points):
-				is_stop = i in npc.stop_point_indices
-				color = (255, 80, 80) if is_stop else (255, 255, 0)
-				pygame.draw.circle(chapel_interior.interior_surface, color, point, 5)
-				point_label = npc_debug_font.render(f"{npc.type} #{i}", True, color)
-				chapel_interior.interior_surface.blit(point_label, (point[0] + 6, point[1] - 6))	
 
 	if game_state == "house":
 		overlay_presence = True
 		inside_x = (screen.get_width() - HOUSE_INSIDE_WIDTH) // 2
 		inside_y = (screen.get_height() - HOUSE_INSIDE_HEIGHT) // 2
 		screen.blit(house.interior_surface, (inside_x, inside_y))
+		if hitboxes_visibles:
+			dessiner_hitboxes(inside_x, inside_y)
 	elif game_state == "chapel":
 		overlay_presence = True
 		screen.blit(chapel_interior.interior_surface, (-camera_x, -camera_y))
 		chapel_interior.draw_debug_monk_points(chapel_interior.interior_surface)
-		
+		if hitboxes_visibles:
+			dessiner_hitboxes(-camera_x, -camera_y)
 	#if debug_monk_points and game_state == "chapel":
 		#chapel_interior.draw_debug_monk_points(chapel_interior.interior_surface)
 
 	else:
 		overlay_presence = False
 		screen.blit(game_surface, (-camera_x, -camera_y))
+		if hitboxes_visibles:
+			dessiner_hitboxes(-camera_x, -camera_y)
 
 		# Slots dynamiques : un rect de plus a chaque competence "Slots" achetee
 	inventory_slot_rects = [
@@ -2566,7 +2862,47 @@ while run == True :
 		
 	if transition == False and current_npc == None:
 		overlay_presence = False
-
+	if menu_echap_actif or (echap_t_fermeture is not None
+							and pygame.time.get_ticks() - echap_t_fermeture
+							< ui.ECHAP_DUREE + 40):
+		ui.dessiner_menu_echap(screen, game_state, echap_t_ouverture,
+							   None if menu_echap_actif
+							   else echap_t_fermeture)
+		# --- mort du joueur : fondu noir puis ecran de mort ---
+	if (game_state == "wave" and player.hp <= 0
+			and not mort_en_cours):
+		mort_en_cours = True
+		mort_debut = pygame.time.get_ticks()
+		menu_echap_actif = False
+	if mort_en_cours and game_state == "wave":
+		p = min(1.0, (pygame.time.get_ticks() - mort_debut)
+			   / 700.0)
+		# animation de mort : la planche de l'armure portee
+		# (repli sur la premiere disponible si elle manque),
+		# 7 frames joue une fois pendant le fondu
+		anim_mort = None
+		if mort_anims:
+			anim_mort = mort_anims[min(player.equipment_level, 2)]
+			if anim_mort is None:
+				anim_mort = next((a for a in mort_anims
+								  if a is not None), None)
+		if anim_mort:
+			frames_mort = anim_mort.get(player.direction) \
+						  or anim_mort["down"]
+			img_mort = frames_mort[min(
+				len(frames_mort) - 1,
+				(pygame.time.get_ticks() - mort_debut)
+				// DEATH_FRAME_MS)]
+			pos_mort = img_mort.get_rect(midbottom=(
+				player.rect.centerx - camera_x,
+				player.rect.bottom - camera_y + 10))
+			screen.blit(img_mort, pos_mort)
+		voile = pygame.Surface(screen.get_size())
+		voile.fill((0, 0, 0))
+		voile.set_alpha(int(255 * p))
+		screen.blit(voile, (0, 0))
+		if p >= 1.0:
+			game_state = "mort"
 	audio.update_music(game_state, menu_open=current_npc is not None)
 	pygame.display.update()
 	clock.tick(FPS_MAX)
