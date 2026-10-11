@@ -1371,9 +1371,9 @@ while run == True :
 					rect_barre, rect_jouer, rect_quitter = \
 						ui.calculer_menu_hardcore(screen)
 					if rect_barre.collidepoint(event.pos):
-						rm, rp = ui._zone_plus_moins(
-							rect_barre, "hardcore",
-							dev_reglages["hardcore"])
+						# TOUTE la barre est le bouton ON/OFF
+						dev_reglages["hardcore"] = \
+							not dev_reglages["hardcore"]
 						if rm.collidepoint(event.pos) or \
 								rp.collidepoint(event.pos):
 							dev_reglages["hardcore"] = \
@@ -2551,7 +2551,8 @@ while run == True :
 							chapel_interior.altar_rect.top - SKILL_SPELL_ALTAR_OFFSET_Y
 						))
 						chapel_interior.interior_surface.blit(fx, fx_rect)
-			else:
+			elif not mort_en_cours:
+				# l'animation de mort REMPLACE le sprite debout
 				player_system.draw_player(game_surface, player, hurt_up, hurt_down, hurt_left, hurt_right)
 
 		elif entity_type == "enemy":

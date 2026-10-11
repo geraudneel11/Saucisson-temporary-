@@ -299,7 +299,7 @@ INTRO_DUREES = (1200, 900, 1200, 1000)   # fondu entrant, pause,
 
 # decalages des BOUTONS de l'ecran de mort : (dx, dy) par
 # bouton, en px ecran
-OFFSET_BOUTONS_MORT = {"reapparaitre": (0, 0), "quitter": (0, 0)}
+OFFSET_BOUTONS_MORT = {"reapparaitre": (0, -5), "quitter": (0, -5)}
 def draw_intro(screen, t_ms, boutons, fond):
     # fond noir, "SAUCISSON STUDIOS" en fondu puis fondu sortant, et
     # enfin le menu qui se revele sous un voile noir qui s'efface.
@@ -986,29 +986,14 @@ def draw_menu_hardcore(screen, fond, reglages):
     rect_barre, rect_jouer, rect_quitter = \
         calculer_menu_hardcore(screen)
     survol = pygame.mouse.get_pos()
-    # barre - ON/OFF + centree
     scale_b = rect_barre.h / 17.0
     dessiner_barre_pnj(screen, rect_barre.x, rect_barre.y, scale_b,
                        rect_barre.width)
-    rm, rp = _zone_plus_moins(rect_barre, "hardcore",
-                              reglages["hardcore"])
-    body = max(1, scale_b * 0.75)
-    survole = rm.collidepoint(survol) or rp.collidepoint(survol)
-    police_v = fonts.lettersC6 if survole else fonts.lettersC1
     vt = _valeur_texte("hardcore", reglages["hardcore"])
-    ox_v = int(OFFSET_X_TEXTE["hardsel"])
-    oy_v = int(OFFSET_Y_TEXTE["hardsel"])
-    fonts.draw_body_text(
-        screen, "-", rm.centerx
-        - fonts.get_text_width("-", body, police_v) // 2 + ox_v,
-        rm.y + oy_v, rect_barre.width, font_dict=police_v, scale=body)
-    fonts.draw_body_text(screen, vt, rm.right + ox_v, rp.y + oy_v,
-                         rect_barre.width, font_dict=police_v,
-                         scale=body)
-    fonts.draw_body_text(
-        screen, "+", rp.centerx
-        - fonts.get_text_width("+", body, police_v) // 2 + ox_v,
-        rp.y + oy_v, rect_barre.width, font_dict=police_v, scale=body)
+    _label_pnj(screen, vt, rect_barre, scale_b,
+               rect_barre.collidepoint(survol),
+               offset_y=OFFSET_Y_TEXTE["jouer"],
+               offset_x=OFFSET_X_TEXTE["jouer"])
     for rect, lab in ((rect_jouer, "JOUER"), (rect_quitter, "QUITTER")):
         dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE * 0.8,
                            rect.width)
@@ -1033,23 +1018,41 @@ def calculer_menu_mort(screen):
             (pygame.Rect(cx - l_b // 2 + dx_q,
                          y_b + h_b + int(16 * UI_SCALE) + dy_q,
                          l_b, h_b), "quitter")]
+def _label_mort(screen, texte, cx, cy, scale, couleur):
+    # jumeau de _label_pnj pour le menu mort : MEME police que les
+    # boutons (lettersC1, corps 0.75) mais teintee, car les glyphes
+    # du marchand sont fonces (illisibles sur le fond noir)
+    police = fonts.lettersC1
+    corps = max(1, scale * 0.75)
+    pad = 2
+    largeur = int(fonts.get_text_width(texte, corps, police))
+    largeur += 2 * pad
+    hauteur = int(6 * corps) + 2 * pad
+    temp = pygame.Surface((largeur, hauteur),
+                          pygame.SRCALPHA).convert_alpha()
+    fonts.draw_line(temp, texte, pad, pad, corps, font_dict=police)
+    # les glyphes du marchand sont FONCES : on les passe a blanc
+    # (addition rgb) AVANT de teinter, sinon la teinte multiplicative
+    # ne se voit pas sur du (17, 11, 0)
+    temp.fill((255, 255, 255), special_flags=pygame.BLEND_RGB_ADD)
+    temp.fill(couleur, special_flags=pygame.BLEND_RGBA_MULT)
+    screen.blit(temp, (cx - largeur // 2, cy - hauteur // 2))
 
 def draw_menu_mort(screen, t_mort, niveau, vague):
-    # fond noir, puis VOUS ETES MORT en rouge (police Text7),
-    # le niveau/vague, et les boutons REAPPARAITRE / QUITTER
+    # fond noir, puis VOUS ETES MORT + niveau/vague + boutons :
+    # textes avec _label_mort (police du marchand), comme les boutons
     t = pygame.time.get_ticks() - t_mort
     screen.fill((0, 0, 0))
     if t <= MORT_DUREE_FONDU:
         return
-    alpha = min(255, (t - MORT_DUREE_FONDU) * 2)
-    _texte_teinte(screen, "VOUS ETES MORT", screen.get_width() // 2,
-                  int(screen.get_height() * 0.24), 6, ROUGE_SANG,
-                  police_mort(), alpha)
-    coul = ROUGE_SANG if MODE_HARDCORE else (255, 255, 255)
-    _texte_teinte(screen, f"NIV {niveau} VAGUE {vague}",
-                  screen.get_width() // 2,
-                  int(screen.get_height() * 0.38), 3, coul,
-                  police_mort(), alpha)
+    w, h = screen.get_width(), screen.get_height()
+    # titre a h*0.24 (ROUGE SANG en hardcore), info a h*0.38,
+    # tous les deux avec la police du marchand (_label_mort)
+    coul_titre = ROUGE_SANG if MODE_HARDCORE else (255, 255, 255)
+    _label_mort(screen, "VOUS ETES MORT", w // 2, int(h * 0.24),
+                12, coul_titre)
+    _label_mort(screen, f"NIV {niveau} VAGUE {vague}", w // 2,
+                int(h * 0.38), 6, (255, 255, 255))
     survol = pygame.mouse.get_pos()
     labels = {"reapparaitre": "REAPPARAITRE", "quitter": "QUITTER"}
     for rect, action in calculer_menu_mort(screen):
