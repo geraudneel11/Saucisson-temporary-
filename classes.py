@@ -6,6 +6,10 @@ import audio
 
 from pygame import surface
 
+# reglage dev : IMMORTALITE = True -> le joueur ignore les degats
+# (piloté par le menu REGLAGES via appliquer_reglages_dev)
+IMMORTALITE = False
+
 class Player:
 
     def __init__(self, x, y, width, height):
@@ -144,6 +148,8 @@ class Player:
         self.update_hitbox()
 
     def take_damage(self, damage, enemy):
+        if IMMORTALITE:
+            return
         if self.invicible_timer <= 0:
             self.hp -= damage
 

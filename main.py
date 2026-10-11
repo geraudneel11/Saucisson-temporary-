@@ -1374,10 +1374,7 @@ while run == True :
 						# TOUTE la barre est le bouton ON/OFF
 						dev_reglages["hardcore"] = \
 							not dev_reglages["hardcore"]
-						if rm.collidepoint(event.pos) or \
-								rp.collidepoint(event.pos):
-							dev_reglages["hardcore"] = \
-								not dev_reglages["hardcore"]
+						
 					elif rect_jouer.collidepoint(event.pos):
 						appliquer_reglages_dev()
 						lancer_chargement(("nouveau", None))
