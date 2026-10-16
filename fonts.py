@@ -149,6 +149,8 @@ def build_title_font(sheet, offset_y=0.0):
 	return font
 
 def draw_text(surface, text, x, y, scale=1, spacing=0, centered=False):
+	options_tr = __import__('options').tr
+	text = options_tr(text)
 	total_width = 0
 	for char in text.upper():
 		if char == " ":
@@ -180,6 +182,8 @@ def draw_text(surface, text, x, y, scale=1, spacing=0, centered=False):
 		current_x += max(1, sprite.get_width() + spacing)
 
 def draw_line(surface, text, x, y, scale=1, centered=False, font_dict=None):
+	options_tr = __import__('options').tr
+	text = options_tr(text)
 	if font_dict is None:
 		font_dict = lettersC1
 	letter_spacing = 1
@@ -216,6 +220,8 @@ def draw_line(surface, text, x, y, scale=1, centered=False, font_dict=None):
 		current_x += advance + letter_spacing
 
 def get_text_width(text, scale, font_dict):
+	options_tr = __import__('options').tr
+	text = options_tr(text)
 	width = 0
 	for char in text.upper():
 		if char == " ":

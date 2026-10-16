@@ -16,6 +16,9 @@ _music_failed = set()   # chemins qui n'ont pas pu être chargés (évite de ré
 _fade = 0.0             # 0 = muet, 1 = plein volume (fondu)
 _duck = 1.0             # 1 = normal, MUSIC_DUCK_VOLUME = menu ouvert
 
+_musique_actif = True   # menu REGLAGES : musique on/off
+_sons_actif = True      # menu REGLAGES : sons on/off
+
 
 # ============================================================
 # INITIALISATION
@@ -82,7 +85,7 @@ def play(name, source=None, volume=1.0):
 	           joueur ; au-delà de AUDIO_HEARING_RADIUS, rien n'est joué.
 	  volume : coefficient supplémentaire (0 à 1).
 	"""
-	if not _enabled or _muted:
+	if not _enabled or _muted or not _sons_actif:
 		return
 	variants = _sounds.get(name)
 	if not variants:
@@ -121,6 +124,17 @@ def footsteps(moving, game_state):
 		surface = {"house": "step_wood", "chapel": "step_stone"}.get(game_state, "step_grass")
 		play(surface)
 
+def set_musique(actif):
+	"""Active/coupe la MUSIQUE seule (menu REGLAGES)."""
+	global _musique_actif
+	_musique_actif = bool(actif)
+	_apply_music_volume()
+
+
+def set_sons(actif):
+	"""Active/coupe les SONS seuls (menu REGLAGES)."""
+	global _sons_actif
+	_sons_actif = bool(actif)
 
 def toggle_mute():
 	"""Coupe / rétablit tout le son (touche M)."""
@@ -183,5 +197,7 @@ def update_music(game_state, menu_open=False):
 
 
 def _apply_music_volume():
-	volume = 0.0 if _muted else MUSIC_VOLUME * _fade * _duck
+	volume = MUSIC_VOLUME * _fade * _duck
+	if _muted or not _musique_actif:
+		volume = 0.0
 	pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))

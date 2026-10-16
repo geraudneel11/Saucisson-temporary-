@@ -1,4 +1,5 @@
 import pygame
+import options
 
 dialogue_visible_chars = 0
 dialogue_timer = 0
@@ -15,7 +16,7 @@ def start_dialogue(text, speed=None):
     global dialogue_finished
     global TEXT_SPEED
 
-    dialogue_text = text
+    dialogue_text = options.tr(text)
     dialogue_visible_chars = 0
     dialogue_timer = 0
     dialogue_finished = False
