@@ -258,16 +258,15 @@ def calculer_boutons_menu(screen):
     cx = screen.get_width() // 2
     y0 = int(screen.get_height() * 0.55)
     boutons = []
-    for i, (label, action) in enumerate((("JOUER", "jouer"),
-                                         ("REGLAGES", "reglages"),
-                                         ("QUITTER", "quitter"))):
-        # chaque bouton a la largeur de SA pilule (format court des
-        # que l'etiquette tient sur capot + 1 morceau) : boutons
-        # raccourcis, centres sur l'axe median de l'ecran
-        largeur = largeur_bouton_pour((label,), scale)
+    for i, action in enumerate(("jouer", "reglages", "quitter")):
+        # les 3 boutons ont la MEME largeur (celle du plus long
+        # libelle, dans les 2 langues) et un espacement reduit
+        largeur = largeur_bouton_pour(
+            ("JOUER", "REGLAGES", "QUITTER",
+             "PLAY", "SETTINGS", "QUIT"), scale)
         boutons.append((pygame.Rect(cx - largeur // 2,
                                     y0 + i * (hauteur
-                                              + int(24 * UI_SCALE)),
+                                              + int(12 * UI_SCALE)),
                                     largeur, hauteur), action))
     return boutons
 
@@ -597,9 +596,10 @@ def draw_menu_sauvegardes(screen, boutons, fond):
         k = action[1]
         d = slots[k - 1]
         if d:
-            label = f"SLOT {k} - NIV {d.get('niveau', '?')}"
+            label = tr("SLOT {} - NIV {}").format(
+                k, d.get('niveau', '?'))
         else:
-            label = f"SLOT {k} - VIDE"
+            label = tr("SLOT {} - VIDE").format(k)
         _label_pnj(screen, label, rect, scale, survole,
                    offset_y=OFFSET_Y_TEXTE["sauvegardes"],
                    offset_x=OFFSET_X_TEXTE["sauvegardes"])
@@ -785,7 +785,7 @@ def _zone_plus_moins(rect, cle, valeur, scale=None):
     return rm, rp
 
 def draw_menu_settings(screen, fond, reglages):
-    _sous_menu_base(screen, fond, "REGLAGES")
+    _sous_menu_base(screen, fond, tr("SETTINGS"))
     lignes, rect_retour = calculer_menu_settings(screen)
     survol = pygame.mouse.get_pos()
     scale = lignes[0][0].h / 17.0
@@ -1013,6 +1013,10 @@ def draw_menu_hardcore(screen, fond, reglages):
                    offset_x=OFFSET_X_TEXTE["hardcore"])
 
 # ---------- MENU REGLAGES (musique/sons/langues/touches) ----------
+OFFSET_BOUTONS_REGLAGES = {"musique": (0, 0), "sons": (0, 0),
+                           "langues": (0, 0), "touches": (0, 0),
+                           "retour": (0, 0)}
+
 def calculer_menu_reglages(screen):
     # 5 elements empiles et centres : barre MUSIQUE, barre SONS,
     # LANGUES, TOUCHES, RETOUR
@@ -1023,8 +1027,14 @@ def calculer_menu_reglages(screen):
          "RETOUR"), scale))
     cx = screen.get_width() // 2
     h = screen.get_height()
-    return [pygame.Rect(cx - l_b // 2, int(h * p), l_b, h_b)
-            for p in (0.32, 0.42, 0.53, 0.61, 0.72)]
+    cles = ("musique", "sons", "langues", "touches", "retour")
+    positions = (0.32, 0.42, 0.53, 0.61, 0.72)
+    boutons = []
+    for cle, p in zip(cles, positions):
+        dx, dy = OFFSET_BOUTONS_REGLAGES[cle]
+        boutons.append(pygame.Rect(cx - l_b // 2 + dx,
+                                   int(h * p) + dy, l_b, h_b))
+    return boutons
 
 def draw_menu_reglages(screen, fond):
     _sous_menu_base(screen, fond, tr("SETTINGS"))
