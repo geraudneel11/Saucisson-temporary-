@@ -459,7 +459,8 @@ OFFSET_Y_TEXTE = {
     "echap": -9,
     "mort": -6, 
     "hardcore": -7,
-    "hardsel": -7 
+    "hardsel": -7,
+    "reglages_boutons":-5,
 }
 
 OFFSET_X_TEXTE = {
@@ -476,7 +477,8 @@ OFFSET_X_TEXTE = {
     "echap": +9,
     "mort": 0, 
     "hardcore": +12, 
-    "hardsel": +15
+    "hardsel": +15,
+    "reglages_boutons":20,
 }
 
 # positions MANUELLES des noms de reglages (texte blanc a gauche des
@@ -581,7 +583,7 @@ def calculer_menu_sauvegardes(screen):
     return boutons
 
 def draw_menu_sauvegardes(screen, boutons, fond):
-    _sous_menu_base(screen, fond, "SAUVEGARDES")
+    _sous_menu_base(screen, fond, tr("SAUVEGARDES"))
     survol = pygame.mouse.get_pos()
     slots = lire_slots()
     scale = UI_SCALE * 0.85
@@ -589,7 +591,7 @@ def draw_menu_sauvegardes(screen, boutons, fond):
         dessiner_barre_pnj(screen, rect.x, rect.y, scale, rect.width)
         survole = rect.collidepoint(survol)
         if action[0] == "retour":
-            _label_pnj(screen, "RETOUR", rect, scale, survole,
+            _label_pnj(screen, tr("RETOUR"), rect, scale, survole,
                        offset_y=OFFSET_Y_TEXTE["sauvegardes"],
                        offset_x=OFFSET_X_TEXTE["sauvegardes"])
             continue
@@ -605,7 +607,7 @@ def draw_menu_sauvegardes(screen, boutons, fond):
                    offset_x=OFFSET_X_TEXTE["sauvegardes"])
 
         _draw_hp_text(screen,
-                  "POUR SUPPRIMER UNE SAUVEGARDE, SUPPRIME SON FICHIER JSON",
+                  tr("POUR SUPPRIMER UNE SAUVEGARDE, SUPPRIME SON FICHIER JSON"),
                   screen.get_width() // 2,
                   screen.get_height() - int(screen.get_height() * 0.03) - 22,
                   echelle=2, centered=True, police=fonts.lettersT3)
@@ -623,7 +625,7 @@ def calculer_menu_dev(screen):
                                    "retour"))]
 
 def draw_menu_dev(screen, boutons, fond):
-    _sous_menu_base(screen, fond, "MODE DEV")
+    _sous_menu_base(screen, fond, tr("MODE DEV"))
     survol = pygame.mouse.get_pos()
     for rect, action in boutons:
         labels = {"hitboxes": tr("HITBOXES"), "settings": tr("REGLAGES"),
@@ -678,7 +680,7 @@ def rect_pastille_hitbox(rect):
                        rect.centery - cote // 2, cote, cote)
 
 def draw_menu_hitboxes(screen, fond, config):
-    _sous_menu_base(screen, fond, "HITBOXES")
+    _sous_menu_base(screen, fond, tr("HITBOXES"))
     _draw_hp_text(screen, "F1 POUR AFFICHER EN JEU - MAX 15",
                   screen.get_width() // 2,
                   max(int(screen.get_height() * 0.135),
@@ -1013,9 +1015,9 @@ def draw_menu_hardcore(screen, fond, reglages):
                    offset_x=OFFSET_X_TEXTE["hardcore"])
 
 # ---------- MENU REGLAGES (musique/sons/langues/touches) ----------
-OFFSET_BOUTONS_REGLAGES = {"musique": (0, 0), "sons": (0, 0),
-                           "langues": (0, 0), "touches": (0, 0),
-                           "retour": (0, 0)}
+OFFSET_BOUTONS_REGLAGES = {"musique": (-20, 0), "sons": (-20, 0),
+                           "langues": (-20, 0), "touches": (-20, 0),
+                           "retour": (-20, 0)}
 
 def calculer_menu_reglages(screen):
     # 5 elements empiles et centres : barre MUSIQUE, barre SONS,
@@ -1052,8 +1054,8 @@ def draw_menu_reglages(screen, fond):
                            rect.width)
         _label_pnj(screen, texte, rect, scale_b,
                    rect.collidepoint(survol),
-                   offset_y=OFFSET_Y_TEXTE["jouer"],
-                   offset_x=OFFSET_X_TEXTE["jouer"])
+                   offset_y=OFFSET_Y_TEXTE["reglages_boutons"],
+                   offset_x=OFFSET_X_TEXTE["reglages_boutons"])
 
 # ---------- MENU LANGUES ----------
 def calculer_menu_langues(screen):

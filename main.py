@@ -23,7 +23,9 @@ import window
 import fight
 import collision 
 import decor  
-import audio   
+import audio 
+import options
+from options import tr  
 
 pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
@@ -51,6 +53,9 @@ merchant_1.load_merchant_ui()
 librarian.load_librarian_ui()
 divinity.load_divinity_ui()
 audio.init()
+options.charger()
+audio.set_musique(options.MUSIQUE_ACTIF)
+audio.set_sons(options.SONS_ACTIF)
 
 speed = PLAYER_SPEED
 transition = True
@@ -831,6 +836,10 @@ hitboxes_visibles = False
 menu_echap_actif = False
 echap_t_ouverture = 0
 echap_t_fermeture = None
+# --- menus reglages / langues / touches ---
+reglages_depuis_jeu = False
+capture_touche = None
+fond_reglages_jeu = None
 # --- sauvegarde memoire "sans sauvegarde" : posee a chaque nouveau
 # niveau, sert au bouton REAPPARAITRE ; disparait en quittant
 
@@ -1309,6 +1318,25 @@ while run == True :
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+				# clic droit : annule la capture de touche en cours
+				if game_state == "menu_touches" and capture_touche:
+					capture_touche = None
+			elif event.type == pygame.KEYDOWN:
+				if game_state == "menu_touches" and capture_touche:
+					# la prochaine touche pressee devient celle de l'action
+					options.TOUCHES[capture_touche] = event.key
+					options.sauver()
+					capture_touche = None
+				elif game_state in ("menu_reglages", "menu_langues",
+									"menu_touches"):
+					# ECHAP : retour en arriere (le jeu reprend)
+					if game_state == "menu_reglages":
+						game_state = ("wave" if reglages_depuis_jeu
+						              else "menu")
+						reglages_depuis_jeu = False
+					else:
+						game_state = "menu_reglages"
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: 
 				for rect, action in boutons_menu:
 					if rect.collidepoint(event.pos):
@@ -1316,6 +1344,8 @@ while run == True :
 							game_state = "menu_jouer"
 						elif action == "quitter":
 							run = False
+						elif action == "reglages":
+							game_state = "menu_reglages"
 		ui.draw_menu(screen, boutons_menu, menu_fond)
 		pygame.display.update()
 		clock.tick(FPS_MAX) 
@@ -1361,11 +1391,31 @@ while run == True :
 		clock.tick(FPS_MAX)
 		continue
 	if game_state in ("menu_jouer", "menu_sauvegardes", "menu_dev",
-					  "menu_hitboxes", "menu_settings","menu_hardcore"):
+					  "menu_hitboxes", "menu_settings","menu_hardcore",
+					  "menu_reglages", "menu_langues", "menu_touches"):
 		# sous-menus : ni monde ni entites, juste les clics
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
+			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+				# clic droit : annule la capture de touche en cours
+				if game_state == "menu_touches" and capture_touche:
+					capture_touche = None
+			elif event.type == pygame.KEYDOWN:
+				if game_state == "menu_touches" and capture_touche:
+					# la prochaine touche pressee devient celle de l'action
+					options.TOUCHES[capture_touche] = event.key
+					options.sauver()
+					capture_touche = None
+				elif game_state in ("menu_reglages", "menu_langues",
+									"menu_touches"):
+					# ECHAP : retour en arriere (le jeu reprend)
+					if game_state == "menu_reglages":
+						game_state = ("wave" if reglages_depuis_jeu
+						              else "menu")
+						reglages_depuis_jeu = False
+					else:
+						game_state = "menu_reglages"
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
 				if game_state == "menu_hardcore":
 					rect_barre, rect_jouer, rect_quitter = \
@@ -1380,6 +1430,48 @@ while run == True :
 						lancer_chargement(("nouveau", None))
 					elif rect_quitter.collidepoint(event.pos):
 						game_state = "menu_jouer"
+				if game_state == "menu_reglages":
+					rect_mus, rect_sons, rect_lng, rect_tch, rect_ret = \
+						ui.calculer_menu_reglages(screen)
+					if rect_mus.collidepoint(event.pos):
+						options.MUSIQUE_ACTIF = not options.MUSIQUE_ACTIF
+						audio.set_musique(options.MUSIQUE_ACTIF)
+						options.sauver()
+					elif rect_sons.collidepoint(event.pos):
+						options.SONS_ACTIF = not options.SONS_ACTIF
+						audio.set_sons(options.SONS_ACTIF)
+						options.sauver()
+					elif rect_lng.collidepoint(event.pos):
+						game_state = "menu_langues"
+					elif rect_tch.collidepoint(event.pos):
+						game_state = "menu_touches"
+					elif rect_ret.collidepoint(event.pos):
+						game_state = ("wave" if reglages_depuis_jeu
+						              else "menu")
+						reglages_depuis_jeu = False
+				elif game_state == "menu_langues":
+					rect_fr, rect_en, rect_ret = \
+						ui.calculer_menu_langues(screen)
+					if rect_fr.collidepoint(event.pos):
+						options.set_langue("fr")
+						options.sauver()
+					elif rect_en.collidepoint(event.pos):
+						options.set_langue("en")
+						options.sauver()
+					elif rect_ret.collidepoint(event.pos):
+						game_state = "menu_reglages"
+				elif game_state == "menu_touches":
+					lignes, rect_reset, rect_ret = \
+						ui.calculer_menu_touches(screen)
+					if rect_reset.collidepoint(event.pos):
+						options.reinitialiser_touches()
+					elif rect_ret.collidepoint(event.pos):
+						game_state = "menu_reglages"
+					else:
+						for action, _rt, rc in lignes:
+							if rc.collidepoint(event.pos):
+								capture_touche = action
+								break
 				if game_state == "menu_jouer":
 					for rect, action in ui.calculer_menu_jouer(screen):
 						if rect.collidepoint(event.pos):
@@ -1500,6 +1592,16 @@ while run == True :
 			ui.draw_menu_hitboxes(screen, menu_fond, hitboxes_config)
 		elif game_state == "menu_settings":
 			ui.draw_menu_settings(screen, menu_fond, dev_reglages) 
+		elif game_state == "menu_reglages":
+			ui.draw_menu_reglages(screen, fond_reglages_jeu
+			                      if reglages_depuis_jeu else menu_fond)
+		elif game_state == "menu_langues":
+			ui.draw_menu_langues(screen, fond_reglages_jeu
+			                     if reglages_depuis_jeu else menu_fond)
+		elif game_state == "menu_touches":
+			ui.draw_menu_touches(screen, fond_reglages_jeu
+			                     if reglages_depuis_jeu else menu_fond,
+			                     capture_touche)
 		pygame.display.update()
 		clock.tick(FPS_MAX)
 		continue
@@ -2046,8 +2148,18 @@ while run == True :
 					menu_echap_actif = True
 					echap_t_ouverture = pygame.time.get_ticks()
 					echap_t_fermeture = None
-			elif event.key == pygame.K_m:
+			elif event.key == options.TOUCHES["mute"]:
 				audio.toggle_mute()
+
+			_k_att = options.TOUCHES["attaque"]
+			if (_k_att is not None and event.key == _k_att
+					and not attacking and player.state != "hurt"
+					and current_npc is None):
+				attacking, attack_done, attack_hitbox = \
+					fight.handle_attack_event(
+						player, attacking, enemies, attack_done,
+						attack_hitbox, attack_up, attack_down,
+						attack_left, attack_right, player_system)
 
 		if event.type == pygame.MOUSEWHEEL:
 
@@ -2066,6 +2178,12 @@ while run == True :
 								if action == "continuer":
 									menu_echap_actif = False
 									echap_t_fermeture = pygame.time.get_ticks()
+								elif action == "reglages":
+									menu_echap_actif = False
+									echap_t_fermeture = None
+									reglages_depuis_jeu = True
+									fond_reglages_jeu = screen.copy()
+									game_state = "menu_reglages"
 								elif action == "quitter":
 									menu_echap_actif = False
 									echap_t_fermeture = None
@@ -2106,8 +2224,8 @@ while run == True :
 							elif player.coins >= heal_price:
 
 								healer_text = (
-			f"Il te manque {missing_hp} hp. "
-			f"Je peux te soigner completement pour {heal_price} pieces d'or."
+			tr("Il te manque {} hp. Je peux te soigner completement "
+			"pour {} pieces d'or.").format(missing_hp, heal_price)
 		)
 								dialogues.start_dialogue(healer_text)
 							else:
@@ -2115,8 +2233,8 @@ while run == True :
 								partial_hp = min((player.coins * 10) // 3, missing_hp)
 
 								healer_text = (
-			f"Il te manque {missing_hp} hp. "
-			f"Je peux te rendre {partial_hp} hp pour tout ton or."
+			tr("Il te manque {} hp. Je peux te rendre {} hp "
+			"pour tout ton or.").format(missing_hp, partial_hp)
 		)
 								dialogues.start_dialogue(healer_text)
 							heal_offer = {
@@ -2309,7 +2427,7 @@ while run == True :
 												equiper_armure(item.tier)
 												audio.play("buy")
 												merchant_1.merchant_inventory.remove(item)
-												merchant_1.set_click_text(f"Tu équipes {item.name} !")
+												merchant_1.set_click_text(tr("Tu équipes {} !").format(tr(item.name)))
 											else:
 												merchant_1.set_click_text("Vous n'avez pas assez d'or.")
 										elif item.stock <= 0:
@@ -2327,7 +2445,7 @@ while run == True :
 
 												item.stock -= 1
 												merchant_1.set_click_text(
-												f"Vous achetez {item.name}.")
+												tr("Vous achetez {}.").format(tr(item.name)))
 												audio.play("buy")
 											
 												merchant_coin_timer = BUY_COIN_ANIMATION_DURATION
@@ -2401,7 +2519,7 @@ while run == True :
 
 		if event.type == pygame.KEYDOWN: 
 
-			if event.key == pygame.K_e:
+			if event.key == options.TOUCHES["interaction"]:
 				if current_npc and divinity_purchase is None:
 					
 					if not dialogues.dialogue_finished:
