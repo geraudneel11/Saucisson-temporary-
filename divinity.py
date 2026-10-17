@@ -4,6 +4,7 @@ import fonts
 import dialogues
 import random
 from settings import *
+from options import tr
 
 
 def load_divinity_ui():
@@ -197,7 +198,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 			)
 			level_font = fonts.lettersC6 if rect.collidepoint(mouse_pos) else fonts.lettersC1
 			fonts.draw_body_text(
-				screen, f"Niv. {player.skill_levels[skill['key']]}", rect.right - 125, rect.y,
+				screen, tr("Niv. {}").format(player.skill_levels[skill['key']]), rect.right - 125, rect.y,
 				125, level_font, max(1, ui_scale * 0.6)
 			)
 			# Description (une ligne) puis cout en XP.
@@ -206,9 +207,9 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 				rect.width, classic_font, desc_scale
 			)
 			if skill["cost_kind"] == "level":
-				cost_label = f"Cout : {skill['cost_value']} niv"
+				cost_label = tr("Cout : {} niv").format(skill['cost_value'])
 			else:
-				cost_label = f"Cout : {skill['cost_value']} XP"
+				cost_label = tr("Cout : {} XP").format(skill['cost_value'])
 			fonts.draw_body_text(
 				screen, cost_label, rect.x, rect.bottom - 26,
 				rect.width, fonts.lettersC1, desc_scale
@@ -231,7 +232,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 		if current_page < divinity_max_pages - 1:
 			screen.blit(scaled_arrow_right, right_arrow_rect.topleft)
 
-		page_label = f"{current_page + 1} sur {divinity_max_pages}"
+		page_label = tr("{} sur {}").format(current_page + 1, divinity_max_pages)
 		fonts.draw_body_text(
 			screen, page_label, window_x + scaled_window.get_width() // 2 - 60,
 			window_y + 625, scaled_window.get_width(), fonts.lettersC1, max(1, ui_scale * 0.62)
@@ -245,7 +246,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 		quit_font = fonts.lettersC6 if quit_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
 			screen, "Quitter", window_x + 217, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font, bouton="divinite"
 		)
 
 	elif divinity_state == "goodbye":

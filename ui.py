@@ -144,10 +144,10 @@ def draw_health(screen, player):
 
 def draw_level(screen, current_level, current_wave, game_state):
     # NIVEAU X en T3 blanc, puis SHOP en T6 ou VAGUE X / 3 en T4 jaune
-    texte_titre_hc(screen, f"NIVEAU {current_level}",
-                screen.get_width() // 2, 30, 3, fonts.lettersT3)
+    texte_titre_hc(screen, f"{tr('LEVEL')} {current_level}",
+            screen.get_width() // 2, 30, 3, fonts.lettersT3)
     if game_state == "shop" or game_state == "house":
-        _draw_hp_text(screen, "SHOP",
+        _draw_hp_text(screen, tr("SHOP"),
                       screen.get_width() // 2, 64,
                       echelle=3, centered=True, police=fonts.lettersT6)
     else:
@@ -448,24 +448,42 @@ def largeur_bouton_pour(labels, scale):
 # --- reglage vertical du texte, une entree par taille de bouton ---
 # le texte est pose au centre vertical de la barre ; mets 2 pour
 # descendre le texte de 2 px a l'ecran, -3 pour le monter, etc.
-OFFSET_Y_TEXTE = {
-    "principal": -10,   # menu principal (UI_SCALE)
-    "jouer": -10,         # menu JOUER / MODE DEV (UI_SCALE)
-    "sauvegardes": -10,   # slots de sauvegarde (UI_SCALE * 0.85)
-    "hitboxes": -10,      # AJOUTER/ENLEVER/RETOUR (UI_SCALE * 0.85)
-    "entrees": -7,       # lignes de hitboxes (UI_SCALE * 0.70)
-    "reglages": -7,      # barres "- valeur +" (echelle dynamique)
+class _OffsetLangue(dict):
+    # dict d'offsets : en ANGLAIS, ajoute le delta de self.en a la
+    # valeur francaise. Les appels OFFSET_X_TEXTE["jouer"] restent
+    # inchanges.
+    def __init__(self, base, en):
+        super().__init__(base)
+        self.en = en
+
+    def __getitem__(self, cle):
+        valeur = super().__getitem__(cle)
+        if options.LANGUE == "en":
+            valeur += self.en.get(cle, 0)
+        return valeur
+
+OFFSET_Y_TEXTE = _OffsetLangue({
+    "principal": -10,
+    "jouer": -10,
+    "sauvegardes": -10,
+    "hitboxes": -10,
+    "entrees": -7,
+    "reglages": -7,
     "valeurs": -7,
     "echap": -9,
-    "mort": -6, 
+    "mort": -6,
     "hardcore": -7,
     "hardsel": -7,
-    "reglages_boutons":-5,
-}
+    "reglages_boutons": -5,
+    "keys_menu": -5
+}, en={
+    # delta ANGLAIS ajoute a la valeur ci-dessus (0 = identique au francais)
+    "principal": 0, "jouer": 0, "sauvegardes": 0, "hitboxes": 0,
+    "entrees": 0, "reglages": 0, "valeurs": 0, "echap": 0, "mort": 0,
+    "hardcore": 0, "hardsel": 0, "reglages_boutons": 0, "keys_menu": 0
+})
 
-OFFSET_X_TEXTE = {
-    # deplacement HORIZONTAL du texte (px ecran) ; positif = vers la
-    # droite, negatif = vers la gauche, par taille de bouton
+OFFSET_X_TEXTE = _OffsetLangue({
     "principal": 0,
     "jouer": 0,
     "dev": +10,
@@ -475,12 +493,17 @@ OFFSET_X_TEXTE = {
     "reglages": 0,
     "valeurs": +5,
     "echap": +9,
-    "mort": 0, 
-    "hardcore": +12, 
+    "mort": 0,
+    "hardcore": +12,
     "hardsel": +15,
-    "reglages_boutons":20,
-}
-
+    "reglages_boutons": 20,
+    "language": 5,
+    "keys_menu": +10,
+}, en={
+    "principal": 0, "jouer": 0, "dev": 0, "sauvegardes": 0, "hitboxes": 0,
+    "entrees": 0, "reglages": 0, "valeurs": 0, "echap": 0, "mort": 0,
+    "hardcore": 0, "hardsel": 0, "reglages_boutons": 0, "language": 0, "keys_menu": 0
+})
 # positions MANUELLES des noms de reglages (texte blanc a gauche des
 # barres) : cle = cle de SETTINGS_LIGNES, valeur = (dx, dy) en px
 # ecran. Exemple : "or_depart": (6, -2) deplace ce nom de 6 px a
@@ -721,7 +744,7 @@ def _valeur_texte(cle, val):
     if isinstance(val, bool):
         return "ON" if val else "OFF"
     if cle == "lieu":
-        return NOMS_LIEUX.get(val, val)
+        return tr(NOMS_LIEUX.get(val, val))
     if "pct" in cle:
         return f"{val} %"
     return str(val)
@@ -916,7 +939,9 @@ def rect_panneau_echap(screen):
 
 def calculer_menu_echap(screen):
     # les 4 positions de boutons du panneau (coordonnees ecran
-    # du panneau DEPLOYE ; l'animation ne deplace que le blit)
+    # du panneau DEPLOYE ; l'animation ne deplace que le blit).
+    # CONTINUER et REGLAGES sont COLLES en haut ; le slot 3 reste
+    # reserve pour un futur bouton ; QUITTER reste tout en bas.
     scale = UI_SCALE * 0.8
     l_b, h_b = dims_barre_pnj(scale)
     l_b = max(l_b, largeur_bouton_pour(
@@ -925,10 +950,16 @@ def calculer_menu_echap(screen):
     cx_p = panneau.w // 2
     zone_top = int(panneau.h * 0.20)
     zone_bot = panneau.h - int(panneau.h * 0.06) - h_b
-    pas_zone = (zone_bot - zone_top) / 3.0
+
+    ecart = int(10 * UI_SCALE * 0.8)      # espace entre deux boutons voisins
+    pas_haut = h_b + ecart                # distance d'un bouton au suivant
+    ys = (zone_top,                       # 0 - CONTINUER
+          zone_top + pas_haut,            # 1 - REGLAGES (juste dessous)
+          zone_top + 2 * pas_haut,        # 2 - slot reserve
+          zone_bot)                       # 3 - QUITTER (tout en bas)
+
     actions = ("continuer", "reglages", None, "quitter")
-    return [(pygame.Rect(cx_p - l_b // 2,
-                         int(zone_top + i * pas_zone), l_b, h_b), a)
+    return [(pygame.Rect(cx_p - l_b // 2, ys[i], l_b, h_b), a)
             for i, a in enumerate(actions)]
 
 def dessiner_menu_echap(screen, etat, t_ouverture, t_fermeture=None):
@@ -980,7 +1011,7 @@ def dessiner_menu_echap(screen, etat, t_ouverture, t_fermeture=None):
 def calculer_menu_hardcore(screen):
     scale = UI_SCALE * 0.8
     l_b, h_b = dims_barre_pnj(scale)
-    l_b = max(l_b, largeur_bouton_pour(("JOUER", "QUITTER"), scale))
+    l_b = max(l_b, largeur_bouton_pour(("JOUER", "RETOUR"), scale))
     l_barre, h_barre = dims_barre_pnj(scale)
     cx = screen.get_width() // 2
     hauteur = screen.get_height()
@@ -1006,7 +1037,7 @@ def draw_menu_hardcore(screen, fond, reglages):
                rect_barre.collidepoint(survol),
                offset_y=OFFSET_Y_TEXTE["jouer"],
                offset_x=OFFSET_X_TEXTE["jouer"])
-    for rect, lab in ((rect_jouer, "JOUER"), (rect_quitter, "QUITTER")):
+    for rect, lab in ((rect_jouer, "JOUER"), (rect_quitter, "RETOUR")):
         dessiner_barre_pnj(screen, rect.x, rect.y, UI_SCALE * 0.8,
                            rect.width)
         _label_pnj(screen, lab, rect, UI_SCALE * 0.8,
@@ -1088,7 +1119,7 @@ def draw_menu_langues(screen, fond):
         _label_pnj(screen, texte, rect, scale_b,
                    rect.collidepoint(survol),
                    offset_y=OFFSET_Y_TEXTE["jouer"],
-                   offset_x=OFFSET_X_TEXTE["jouer"])
+                   offset_x=OFFSET_X_TEXTE["language"])
 
 # ---------- MENU TOUCHES (re-mappage clavier) ----------
 LABELS_ACTIONS = {"gauche": "LEFT", "droite": "RIGHT",
@@ -1143,15 +1174,15 @@ def draw_menu_touches(screen, fond, capture_action=None):
         else:
             txt = options.nom_touche(options.TOUCHES[action])
         _label_pnj(screen, txt, rect_touche, scale_pet, False,
-                   offset_y=OFFSET_Y_TEXTE["jouer"],
-                   offset_x=OFFSET_X_TEXTE["jouer"])
+                   offset_y=OFFSET_Y_TEXTE["keys_menu"],
+                   offset_x=OFFSET_X_TEXTE["keys_menu"])
         # bouton CHANGER
         dessiner_barre_pnj(screen, rect_changer.x, rect_changer.y,
                            scale_pet, rect_changer.width)
         _label_pnj(screen, tr("CHANGE"), rect_changer, scale_pet,
                    rect_changer.collidepoint(survol),
-                   offset_y=OFFSET_Y_TEXTE["jouer"],
-                   offset_x=OFFSET_X_TEXTE["jouer"])
+                   offset_y=OFFSET_Y_TEXTE["keys_menu"],
+                   offset_x=OFFSET_X_TEXTE["keys_menu"])
         # conflit : 2 "!" jaunes (T4) autour de la touche et du
         # bouton CHANGER
         if (options.TOUCHES.get(action) is not None
@@ -1172,8 +1203,8 @@ def draw_menu_touches(screen, fond, capture_action=None):
                            rect.width)
         _label_pnj(screen, texte, rect, UI_SCALE * 0.8,
                    rect.collidepoint(survol),
-                   offset_y=OFFSET_Y_TEXTE["jouer"],
-                   offset_x=OFFSET_X_TEXTE["jouer"])
+                   offset_y=OFFSET_Y_TEXTE["keys_menu"],
+                   offset_x=OFFSET_X_TEXTE["keys_menu"])
 # ---------- ECRAN DE MORT ----------
 MORT_DUREE_FONDU = 700   # ms du fondu noir (cote boucle de jeu)
 

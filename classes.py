@@ -3,6 +3,7 @@ import random
 import math
 from settings import *
 import audio
+from options import tr
 
 from pygame import surface
 
@@ -623,7 +624,7 @@ class Enemy:
             _monster_level_font = pygame.font.SysFont(
                 "Ebrima", MONSTER_LABEL_FONT_SIZE, bold=True)
         color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
-        text = _monster_level_font.render(f"Niv. {self.level}", True, color)
+        text = _monster_level_font.render(tr("Niv. {}").format(self.level), True, color)
         if MONSTER_LABEL_BELOW_BAR:
             # Sous la barre de vie : la barre occupe top-10 -> top-4,
             # le label commence juste en dessous (+ l'ecart reglable).
