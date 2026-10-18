@@ -369,10 +369,14 @@ INTRO_PHASES_MS = (1200, 900, 1200, 1000)   # fade in, hold,
 # offsets of the SETTINGS page BUTTONS: (dx, dy) per button, in
 # screen px (same principle as the death screen; clicks follow
 # because the rects move)
-SETTINGS_BUTTON_OFFSETS = {"musique": (0, 0), "sons": (0, 0),
-                           "langues": (0, 0), "touches": (0, 0),
-                           "retour": (0, 0)}
+SETTINGS_BUTTON_OFFSETS = {"musique": (-20, 0), "sons": (-20, 0),
+                           "langues": (-20, 0), "touches": (-20, 0),
+                           "retour": (-20, 0)}
 DEATH_BUTTON_OFFSETS = {"reapparaitre": (0, -5), "quitter": (0, -5)}
+LANGUAGES_BUTTON_OFFSETS = {"francais": (0, 0), "english": (0, 0),
+                            "retour": (0, 0)}
+KEYS_BUTTON_OFFSETS = {"reset": (0, 0), "retour": (0, 0)}
+KEYS_ROWS_OFFSET = (0, 0)   # (dx, dy) shifts ALL the key rows
 
 
 def draw_intro(screen, t_ms, buttons, background):
@@ -537,7 +541,7 @@ LABEL_OFFSET_Y = {
     "death": 0,
     "death_title": 0,     # YOU ARE DEAD text
     "death_info": 0,      # LVL X WAVE X text
-    "settings_buttons": 0,  # text ON the SETTINGS buttons
+    "settings_buttons": -5,  # text ON the SETTINGS buttons
     "hardcore": -7,
     "hardsel": -7
 }
@@ -557,12 +561,11 @@ LABEL_OFFSET_X = {
     "death": 0,
     "death_title": 0,     # YOU ARE DEAD text
     "death_info": 0,      # LVL X WAVE X text
-    "settings_buttons": 0,  # text ON the SETTINGS buttons
+    "settings_buttons": 20,  # text ON the SETTINGS buttons
+    "settings_buttons2": 10,  # text ON the SETTINGS buttons
     "hardcore": +12,
     "hardsel": +15
 }
-
-SETTING_LABEL_OFFSETS = {}
 
 
 def _npc_label(screen, text, rect, scale, hover, *, body=0.75,
@@ -1174,12 +1177,15 @@ def build_menu_languages(screen):
                                         scale))
     cx = screen.get_width() // 2
     height = screen.get_height()
-    return (pygame.Rect(cx - bar_w // 2, int(height * 0.45),
-                        bar_w, bar_h),
-            pygame.Rect(cx - bar_w // 2, int(height * 0.55),
-                        bar_w, bar_h),
-            pygame.Rect(cx - bar_w // 2, int(height * 0.70),
-                        bar_w, bar_h))
+    dx_f, dy_f = LANGUAGES_BUTTON_OFFSETS["francais"]
+    dx_e, dy_e = LANGUAGES_BUTTON_OFFSETS["english"]
+    dx_r, dy_r = LANGUAGES_BUTTON_OFFSETS["retour"]
+    return (pygame.Rect(cx - bar_w // 2 + dx_f,
+                        int(height * 0.45) + dy_f, bar_w, bar_h),
+            pygame.Rect(cx - bar_w // 2 + dx_e,
+                        int(height * 0.55) + dy_e, bar_w, bar_h),
+            pygame.Rect(cx - bar_w // 2 + dx_r,
+                        int(height * 0.70) + dy_r, bar_w, bar_h))
 
 
 def draw_menu_languages(screen, background):
@@ -1198,7 +1204,7 @@ def draw_menu_languages(screen, background):
         _npc_label(screen, text, rect, scale_b,
                    rect.collidepoint(mouse),
                    offset_y=LABEL_OFFSET_Y["settings_buttons"],
-                   offset_x=LABEL_OFFSET_X["settings_buttons"])
+                   offset_x=LABEL_OFFSET_X["settings_buttons2"])
 
 # ---------- KEYS MENU (keyboard re-mapping) ----------
 LABELS_ACTIONS = {"left": "LEFT", "right": "RIGHT",
@@ -1209,27 +1215,31 @@ LABELS_ACTIONS = {"left": "LEFT", "right": "RIGHT",
 
 def build_menu_keys(screen):
     # rows (action, key_rect, change_rect) + RESET + BACK at the
-    # bottom.
+    # bottom. KEYS_ROWS_OFFSET shifts the whole rows block;
+    # KEYS_BUTTON_OFFSETS moves RESET / BACK individually.
     small_scale = UI_SCALE * 0.55
     _small_w, small_h = npc_bar_size(small_scale)
     cx = screen.get_width() // 2
     height = screen.get_height()
+    rows_dx, rows_dy = KEYS_ROWS_OFFSET
     rows = []
     for i, action in enumerate(options.KEY_ORDER):
-        y = int(height * 0.20) + i * int(height * 0.062)
-        key_rect = pygame.Rect(cx - int(height * 0.09), y,
+        y = int(height * 0.20) + i * int(height * 0.062) + rows_dy
+        key_rect = pygame.Rect(cx - int(height * 0.09) + rows_dx, y,
                                int(height * 0.18), small_h)
-        change_rect = pygame.Rect(cx + int(height * 0.12), y,
+        change_rect = pygame.Rect(cx + int(height * 0.12) + rows_dx, y,
                                   int(height * 0.14), small_h)
         rows.append((action, key_rect, change_rect))
     bottom_scale = UI_SCALE * 0.8
     bar_w, bar_h = npc_bar_size(bottom_scale)
     bar_w = max(bar_w, button_width_for(("REINITIALISER", "RETOUR"),
                                         bottom_scale))
-    rect_reset = pygame.Rect(cx - bar_w // 2, int(height * 0.72),
-                             bar_w, bar_h)
-    rect_back = pygame.Rect(cx - bar_w // 2, int(height * 0.81),
-                            bar_w, bar_h)
+    dx_r, dy_r = KEYS_BUTTON_OFFSETS["reset"]
+    rect_reset = pygame.Rect(cx - bar_w // 2 + dx_r,
+                             int(height * 0.72) + dy_r, bar_w, bar_h)
+    dx_b, dy_b = KEYS_BUTTON_OFFSETS["retour"]
+    rect_back = pygame.Rect(cx - bar_w // 2 + dx_b,
+                            int(height * 0.81) + dy_b, bar_w, bar_h)
     return rows, rect_reset, rect_back
 
 
@@ -1252,24 +1262,24 @@ def draw_menu_keys(screen, background, capture_action=None):
         if capture_action == action:
             text = tr("PRESS ANY KEY...")
         elif (action == "attack"
-              and options.TOUCHES[action] is None):
+              and options.KEYS[action] is None):
             text = tr("LEFT CLICK")
         else:
-            text = options.key_name(options.TOUCHES[action])
+            text = options.key_name(options.KEYS[action])
         _npc_label(screen, text, key_rect, small_scale, False,
-                   offset_y=LABEL_OFFSET_Y["play"],
-                   offset_x=LABEL_OFFSET_X["play"])
+                   offset_y=LABEL_OFFSET_Y["settings_buttons"],
+                   offset_x=LABEL_OFFSET_X["settings_buttons2"])
         # CHANGE button
         draw_npc_bar(screen, change_rect.x, change_rect.y,
                      small_scale, change_rect.width)
         _npc_label(screen, tr("CHANGE"), change_rect, small_scale,
                    change_rect.collidepoint(mouse),
-                   offset_y=LABEL_OFFSET_Y["play"],
-                   offset_x=LABEL_OFFSET_X["play"])
+                   offset_y=LABEL_OFFSET_Y["settings_buttons"],
+                   offset_x=LABEL_OFFSET_X["settings_buttons2"])
         # conflict: 2 yellow "!" (T4) around the key and the
         # CHANGE button
-        if (options.TOUCHES.get(action) is not None
-                and options.TOUCHES[action] in conflicts):
+        if (options.KEYS.get(action) is not None
+                and options.KEYS[action] in conflicts):
             for rect in (key_rect, change_rect):
                 _draw_hp_text(screen, "!",
                               rect.x - int(rect.h * 0.45),
@@ -1287,8 +1297,8 @@ def draw_menu_keys(screen, background, capture_action=None):
                      rect.width)
         _npc_label(screen, text, rect, UI_SCALE * 0.8,
                    rect.collidepoint(mouse),
-                   offset_y=LABEL_OFFSET_Y["play"],
-                   offset_x=LABEL_OFFSET_X["play"])
+                   offset_y=LABEL_OFFSET_Y["settings_buttons"],
+                   offset_x=LABEL_OFFSET_X["settings_buttons2"])
 
 # ---------- DEATH SCREEN ----------
 DEATH_FADE_MS = 700   # ms of the black fade (game loop side)

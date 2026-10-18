@@ -1390,7 +1390,7 @@ while run == True :
 			if event.type == pygame.QUIT:
 				run = False
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-				for rect, action in ui.build_menu_mort(screen):
+				for rect, action in ui.build_menu_death(screen):
 					if action and rect.collidepoint(event.pos):
 						if action == "reapparaitre":
 							mort_en_cours = False
@@ -1399,7 +1399,7 @@ while run == True :
 							mort_en_cours = False
 							lancer_chargement(("menu", None))
 						break
-		ui.draw_menu_mort(screen, mort_debut, current_level,
+		ui.draw_menu_death(screen, mort_debut, current_level,
 						  current_wave)
 		pygame.display.update()
 		clock.tick(FPS_MAX)
@@ -1465,7 +1465,7 @@ while run == True :
 						reglages_depuis_jeu = False
 				elif game_state == "menu_langues":
 					rect_fr, rect_en, rect_ret = \
-						ui.build_menu_langues(screen)
+						ui.build_menu_languages(screen)
 					if rect_fr.collidepoint(event.pos):
 						options.set_language("fr")
 						options.save()
@@ -1476,7 +1476,7 @@ while run == True :
 						game_state = "menu_reglages"
 				elif game_state == "menu_touches":
 					lignes, rect_reset, rect_ret = \
-						ui.build_menu_touches(screen)
+						ui.build_menu_keys(screen)
 					if rect_reset.collidepoint(event.pos):
 						options.reset_keys()
 					elif rect_ret.collidepoint(event.pos):
@@ -1487,7 +1487,7 @@ while run == True :
 								capture_touche = action
 								break
 				if game_state == "menu_jouer":
-					for rect, action in ui.build_menu_jouer(screen):
+					for rect, action in ui.build_menu_play(screen):
 						if rect.collidepoint(event.pos):
 							if action == "sauvegarde":
 								game_state = "menu_sauvegardes"
@@ -1505,7 +1505,7 @@ while run == True :
 								game_state = "menu"
 							break
 				elif game_state == "menu_sauvegardes":
-					for rect, action in ui.build_menu_sauvegardes(screen):
+					for rect, action in ui.build_menu_saves(screen):
 						if rect.collidepoint(event.pos):
 							if action[0] == "retour":
 								game_state = "menu_jouer"
@@ -1591,11 +1591,11 @@ while run == True :
 						if rect_retour.collidepoint(event.pos):
 							game_state = "menu_dev"
 		if game_state == "menu_jouer":
-			ui.draw_menu_jouer(screen, ui.build_menu_jouer(screen),
+			ui.draw_menu_play(screen, ui.build_menu_play(screen),
 							   menu_fond)
 		elif game_state == "menu_sauvegardes":
-			ui.draw_menu_sauvegardes(screen,
-									 ui.build_menu_sauvegardes(screen),
+			ui.draw_menu_saves(screen,
+									 ui.build_menu_saves(screen),
 									 menu_fond)
 		elif game_state == "menu_hardcore":
 			ui.draw_menu_hardcore(screen, menu_fond, dev_reglages)
@@ -1610,10 +1610,10 @@ while run == True :
 			ui.draw_menu_settings(screen, fond_reglages_jeu
 			                      if reglages_depuis_jeu else menu_fond)
 		elif game_state == "menu_langues":
-			ui.draw_menu_langues(screen, fond_reglages_jeu
+			ui.draw_menu_languages(screen, fond_reglages_jeu
 			                     if reglages_depuis_jeu else menu_fond)
 		elif game_state == "menu_touches":
-			ui.draw_menu_touches(screen, fond_reglages_jeu
+			ui.draw_menu_keys(screen, fond_reglages_jeu
 			                     if reglages_depuis_jeu else menu_fond,
 			                     capture_touche)
 		pygame.display.update()
