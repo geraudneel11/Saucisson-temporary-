@@ -828,7 +828,7 @@ menu_fond.blit(chapel_path_layer, chapel_path_pos)
 menu_fond.blit(shop_decor_layer, shop_decor_pos)
 menu_fond.blit(house_base, (house_x, house_y + roof_height))
 menu_fond.blit(chapel.base, (chapel.rect.x, chapel.rect.y + chapel.roof_height))
-boutons_menu = ui.calculer_boutons_menu(screen)
+boutons_menu = ui.main_menu_buttons(screen)
 intro_debut = pygame.time.get_ticks()
 
 # ---------- SAUVEGARDES + MODE DEV + HITBOXES (F1) ----------
@@ -1291,7 +1291,7 @@ def dessiner_hitboxes(offset_x, offset_y):
 	# l'offset monde -> ecran (camera negative, ou position de
 	# l'interieur centre pour la maison)
 	for entree in hitboxes_config:
-		couleur = ui.HITBOX_COULEURS[entree["couleur"]]
+		couleur = ui.HITBOX_COLORS[entree["couleur"]]
 		if entree["type"] == 6:
 			# points de deplacement des pnj : ronds
 			for pos, nom in points_pnj_hitbox():
@@ -1370,7 +1370,7 @@ while run == True :
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				run = False
-		ui.draw_chargement(screen,
+		ui.draw_loading(screen,
 						   pygame.time.get_ticks() - chargement_debut,
 						   chargement_duree)
 		if pygame.time.get_ticks() - chargement_debut >= chargement_duree:
@@ -1390,7 +1390,7 @@ while run == True :
 			if event.type == pygame.QUIT:
 				run = False
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-				for rect, action in ui.calculer_menu_mort(screen):
+				for rect, action in ui.build_menu_mort(screen):
 					if action and rect.collidepoint(event.pos):
 						if action == "reapparaitre":
 							mort_en_cours = False
@@ -1433,7 +1433,7 @@ while run == True :
 			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
 				if game_state == "menu_hardcore":
 					rect_barre, rect_jouer, rect_quitter = \
-						ui.calculer_menu_hardcore(screen)
+						ui.build_menu_hardcore(screen)
 					if rect_barre.collidepoint(event.pos):
 						# TOUTE la barre est le bouton ON/OFF
 						dev_reglages["hardcore"] = \
@@ -1446,7 +1446,7 @@ while run == True :
 						game_state = "menu_jouer"
 				elif game_state == "menu_reglages":
 					rect_mus, rect_sons, rect_lng, rect_tch, rect_ret = \
-						ui.calculer_menu_reglages(screen)
+						ui.build_menu_settings(screen)
 					if rect_mus.collidepoint(event.pos):
 						options.MUSIC_ON = not options.MUSIC_ON
 						audio.set_music(options.MUSIC_ON)
@@ -1465,7 +1465,7 @@ while run == True :
 						reglages_depuis_jeu = False
 				elif game_state == "menu_langues":
 					rect_fr, rect_en, rect_ret = \
-						ui.calculer_menu_langues(screen)
+						ui.build_menu_langues(screen)
 					if rect_fr.collidepoint(event.pos):
 						options.set_language("fr")
 						options.save()
@@ -1476,7 +1476,7 @@ while run == True :
 						game_state = "menu_reglages"
 				elif game_state == "menu_touches":
 					lignes, rect_reset, rect_ret = \
-						ui.calculer_menu_touches(screen)
+						ui.build_menu_touches(screen)
 					if rect_reset.collidepoint(event.pos):
 						options.reset_keys()
 					elif rect_ret.collidepoint(event.pos):
@@ -1487,7 +1487,7 @@ while run == True :
 								capture_touche = action
 								break
 				if game_state == "menu_jouer":
-					for rect, action in ui.calculer_menu_jouer(screen):
+					for rect, action in ui.build_menu_jouer(screen):
 						if rect.collidepoint(event.pos):
 							if action == "sauvegarde":
 								game_state = "menu_sauvegardes"
@@ -1505,7 +1505,7 @@ while run == True :
 								game_state = "menu"
 							break
 				elif game_state == "menu_sauvegardes":
-					for rect, action in ui.calculer_menu_sauvegardes(screen):
+					for rect, action in ui.build_menu_sauvegardes(screen):
 						if rect.collidepoint(event.pos):
 							if action[0] == "retour":
 								game_state = "menu_jouer"
@@ -1522,7 +1522,7 @@ while run == True :
 									lancer_chargement(("nouveau", None))
 							break
 				elif game_state == "menu_dev":
-					for rect, action in ui.calculer_menu_dev(screen):
+					for rect, action in ui.build_menu_dev(screen):
 						if rect.collidepoint(event.pos):
 							if action == "hitboxes":
 								game_state = "menu_hitboxes"
@@ -1537,14 +1537,14 @@ while run == True :
 							break
 				elif game_state == "menu_hitboxes":
 					lignes, rect_ajouter, rect_enlever, rect_retour = \
-						ui.calculer_menu_hitboxes(screen, hitboxes_config)
+						ui.build_menu_hitboxes(screen, hitboxes_config)
 					for rect, i in lignes:
 						if rect.collidepoint(event.pos):
-							pastille = ui.rect_pastille_hitbox(rect)
+							pastille = ui.hitbox_dot_rect(rect)
 							if pastille.collidepoint(event.pos):
 								e = hitboxes_config[i]
 								e["couleur"] = ((e["couleur"] + 1)
-									% len(ui.HITBOX_COULEURS))
+									% len(ui.HITBOX_COLORS))
 							else:
 								e = hitboxes_config[i]
 								e["type"] = ((e["type"] + 1)
@@ -1562,22 +1562,22 @@ while run == True :
 							game_state = "menu_dev"
 				elif game_state == "menu_settings":
 					lignes, rect_retour = \
-						ui.calculer_menu_settings(screen)
+						ui.build_menu_dev_settings(screen)
 					for rect, cle in lignes:
 						if not rect.collidepoint(event.pos):
 							continue
 						definition = next(
-							d for d in ui.SETTINGS_LIGNES if d[0] == cle)
+							d for d in ui.SETTINGS_ROWS if d[0] == cle)
 						_cle, _label, pas, mini, maxi, genre = definition
-						rm, rp = ui._zone_plus_moins(
+						rm, rp = ui._plus_minus_zone(
 							rect, cle, dev_reglages[cle])
 						if genre == "cycle":
-							i = ui.LIEUX.index(dev_reglages[cle])
+							i = ui.SPAWN_PLACES.index(dev_reglages[cle])
 							if rm.collidepoint(event.pos):
-								i = (i - 1) % len(ui.LIEUX)
+								i = (i - 1) % len(ui.SPAWN_PLACES)
 							elif rp.collidepoint(event.pos):
-								i = (i + 1) % len(ui.LIEUX)
-							dev_reglages[cle] = ui.LIEUX[i]
+								i = (i + 1) % len(ui.SPAWN_PLACES)
+							dev_reglages[cle] = ui.SPAWN_PLACES[i]
 						elif genre == "onoff":
 							dev_reglages[cle] = not dev_reglages[cle]
 						elif rm.collidepoint(event.pos):
@@ -1591,23 +1591,23 @@ while run == True :
 						if rect_retour.collidepoint(event.pos):
 							game_state = "menu_dev"
 		if game_state == "menu_jouer":
-			ui.draw_menu_jouer(screen, ui.calculer_menu_jouer(screen),
+			ui.draw_menu_jouer(screen, ui.build_menu_jouer(screen),
 							   menu_fond)
 		elif game_state == "menu_sauvegardes":
 			ui.draw_menu_sauvegardes(screen,
-									 ui.calculer_menu_sauvegardes(screen),
+									 ui.build_menu_sauvegardes(screen),
 									 menu_fond)
 		elif game_state == "menu_hardcore":
 			ui.draw_menu_hardcore(screen, menu_fond, dev_reglages)
 		elif game_state == "menu_dev":
-			ui.draw_menu_dev(screen, ui.calculer_menu_dev(screen),
+			ui.draw_menu_dev(screen, ui.build_menu_dev(screen),
 							 menu_fond)
 		elif game_state == "menu_hitboxes":
 			ui.draw_menu_hitboxes(screen, menu_fond, hitboxes_config)
 		elif game_state == "menu_settings":
-			ui.draw_menu_settings(screen, menu_fond, dev_reglages) 
+			ui.draw_menu_dev_settings(screen, menu_fond, dev_reglages) 
 		elif game_state == "menu_reglages":
-			ui.draw_menu_reglages(screen, fond_reglages_jeu
+			ui.draw_menu_settings(screen, fond_reglages_jeu
 			                      if reglages_depuis_jeu else menu_fond)
 		elif game_state == "menu_langues":
 			ui.draw_menu_langues(screen, fond_reglages_jeu
@@ -2186,8 +2186,8 @@ while run == True :
 				if menu_echap_actif:
 					# clics sur le panneau echap : geres ici,
 					# jamais transformes en attaque
-					if ui.rect_panneau_echap(screen).collidepoint(event.pos):
-						for rect, action in ui.calculer_menu_echap(screen):
+					if ui.pause_panel_rect(screen).collidepoint(event.pos):
+						for rect, action in ui.build_menu_echap(screen):
 							if action and rect.collidepoint(event.pos):
 								if action == "continuer":
 									menu_echap_actif = False
@@ -2997,8 +2997,8 @@ while run == True :
 		overlay_presence = False
 	if menu_echap_actif or (echap_t_fermeture is not None
 							and pygame.time.get_ticks() - echap_t_fermeture
-							< ui.ECHAP_DUREE + 40):
-		ui.dessiner_menu_echap(screen, game_state, echap_t_ouverture,
+							< ui.PAUSE_ANIM_MS + 40):
+		ui.draw_pause_menu(screen, game_state, echap_t_ouverture,
 							   None if menu_echap_actif
 							   else echap_t_fermeture)
 		# --- mort du joueur : fondu noir puis ecran de mort ---
