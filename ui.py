@@ -28,6 +28,7 @@ BAR_SCALE = 5        # pixel density shared by both bars
 HP_BAR_POS = (20, 20)   # health bar, top left
 XP_BAR_POS = (20, 89)   # xp bar, right below the HP bar
 
+MENU_BUTTON_GAP_Y = 6
 
 def _transparent_runs(surface, y):
     # List of [x0, x1] runs of transparent pixels on row y.
@@ -304,30 +305,33 @@ def draw_portal_indicator(screen, portal_rect, camera_x, camera_y,
                                int(12 + pulse))
 # ---------- MAIN MENU ----------
 GAME_TITLE = "PIXSOULS"
+GAME_VERSION = "1.1"   # shown under the title on the main menu
 _menu_button_sheet = pygame.image.load("Shop.png").convert_alpha()
 MENU_CAP_PILL = _menu_button_sheet.subsurface((94, 186, 37, 17))
 MENU_EXTEND_PILL = _menu_button_sheet.subsurface((102, 186, 29, 17))
 
 
 def main_menu_buttons(screen):
-    # Buttons identical to the NPC interfaces. All 3 buttons share
-    # the SAME width (the widest label, in BOTH languages so the
-    # layout never changes with the language) and stay centered.
+    # Buttons identical to the NPC interfaces. All 4 buttons
+    # share the SAME width (the widest label, in BOTH languages
+    # so the layout never changes with the language) and stay
+    # centered. CREDITS sits between SETTINGS and QUIT.
+    # MENU_BUTTON_GAP_Y tunes the vertical gap between buttons.
     scale = UI_SCALE
     _base, height = npc_bar_size(scale)
     cx = screen.get_width() // 2
     y0 = int(screen.get_height() * 0.55)
+    gap = int(MENU_BUTTON_GAP_Y * UI_SCALE)
     buttons = []
-    for i, action in enumerate(("jouer", "reglages", "quitter")):
+    for i, action in enumerate(("jouer", "reglages", "credits",
+                                "quitter")):
         width = button_width_for(
-            ("JOUER", "REGLAGES", "QUIT TER".replace(" ", ""),
+            ("JOUER", "REGLAGES", "CREDITS", "QUITTER",
              "PLAY", "SETTINGS", "QUIT"), scale)
         buttons.append((pygame.Rect(cx - width // 2,
-                                    y0 + i * (height
-                                              + int(12 * UI_SCALE)),
+                                    y0 + i * (height + gap),
                                     width, height), action))
     return buttons
-
 
 def _draw_menu_button(screen, rect):
     # NPC bar stretched over the whole button width (see
@@ -347,12 +351,17 @@ def draw_menu(screen, buttons, background):
     _draw_hp_text(screen, GAME_TITLE,
                   screen.get_width() // 2, int(screen.get_height() * 0.28),
                   scale=8, centered=True, font_dict=fonts.lettersT3)
+    _draw_hp_text(screen, GAME_VERSION,
+                  screen.get_width() // 2,
+                  int(screen.get_height() * 0.28) + 9 * 8 // 2 + 16,
+                  scale=2, centered=True, font_dict=fonts.lettersT4)
     mouse = pygame.mouse.get_pos()
     for rect, action in buttons:
         _draw_menu_button(screen, rect)
         label = (tr("PLAY") if action == "jouer" else
-                 tr("SETTINGS") if action == "reglages"
-                 else tr("QUIT"))
+                 tr("SETTINGS") if action == "reglages" else
+                 tr("CREDITS") if action == "credits" else
+                 tr("QUIT"))
         _npc_label(screen, label, rect, UI_SCALE,
                    rect.collidepoint(mouse),
                    offset_y=LABEL_OFFSET_Y["main"],
@@ -564,7 +573,8 @@ LABEL_OFFSET_X = {
     "settings_buttons": 20,  # text ON the SETTINGS buttons
     "settings_buttons2": 10,  # text ON the SETTINGS buttons
     "hardcore": +12,
-    "hardsel": +15
+    "hardsel": +15,
+    "credits": 7
 }
 
 
@@ -938,6 +948,7 @@ def draw_menu_dev_settings(screen, background, settings):
 STATE_COLORS = {"wave": (255, 90, 90), "shop": (255, 210, 0),
                 "house": (130, 200, 255), "chapel": (200, 160, 255)}
 PAUSE_ANIM_MS = 250   # ms of enter / exit animation
+PAUSE_SETTINGS_DY = 0   # vertical shift of the SETTINGS pause button (screen px)
 
 
 def _tinted_text(surface, text, cx, cy, scale, color, font_dict,
@@ -1023,8 +1034,11 @@ def pause_panel_rect(screen):
 
 
 def build_menu_echap(screen):
-    # The 4 button slots of the panel (coordinates on the DEPLOYED
-    # panel; the animation only moves the blit).
+    # The 4 button slots of the panel (coordinates on the
+    # DEPLOYED panel; the animation only moves the blit).
+    # >>> CHANGE THE NUMBER BELOW to move the SETTINGS button
+    # up (-) or down (+). Clicks follow automatically. <<<
+    SETTINGS_BUTTON_DY = -160
     scale = UI_SCALE * 0.8
     bar_w, bar_h = npc_bar_size(scale)
     bar_w = max(bar_w, button_width_for(
@@ -1035,10 +1049,14 @@ def build_menu_echap(screen):
     zone_bot = panel.h - int(panel.h * 0.06) - bar_h
     zone_step = (zone_bot - zone_top) / 3.0
     actions = ("continuer", "reglages", None, "quitter")
-    return [(pygame.Rect(panel_cx - bar_w // 2,
-                         int(zone_top + i * zone_step), bar_w, bar_h), a)
-            for i, a in enumerate(actions)]
-
+    buttons = []
+    for i, action in enumerate(actions):
+        dy = SETTINGS_BUTTON_DY if action == "reglages" else 0
+        buttons.append((pygame.Rect(
+            panel_cx - bar_w // 2,
+            int(zone_top + i * zone_step) + dy, bar_w, bar_h),
+            action))
+    return buttons
 
 def draw_pause_menu(screen, state, t_open, t_close=None):
     # Draws the panel at its animation phase: t_open =
@@ -1123,6 +1141,72 @@ def draw_menu_hardcore(screen, background, settings):
                    rect.collidepoint(mouse),
                    offset_y=LABEL_OFFSET_Y["hardcore"],
                    offset_x=LABEL_OFFSET_X["hardcore"])
+
+# ---------- CREDITS MENU ----------
+# Fill the 3 lists with the names to display (A-Z / 0-9 only:
+# the pixel fonts have no accents, lowercase or special
+# characters). Each row shows at most CREDITS_NAMES_PER_ROW
+# names, centered; add as many rows as you need.
+CREDITS_DEVS = [
+    "Duareg84",
+]
+
+CREDITS_MUSICS = [
+    "Duareg84", "Zachagoonmc"
+]
+CREDITS_GRAPHICS = [
+    "Duareg84", "Pepito"
+]
+CREDITS_SECTIONS = (
+    ("DEVS", CREDITS_DEVS),
+    ("MUSICS", CREDITS_MUSICS),
+    ("GRAPHICS", CREDITS_GRAPHICS),
+    
+)
+CREDITS_NAMES_PER_ROW = 4
+
+
+def build_menu_credits(screen):
+    # BACK button at the bottom; the sections themselves are
+    # drawn by draw_menu_credits (dynamic vertical flow).
+    scale = UI_SCALE * 0.8
+    bar_w, bar_h = npc_bar_size(scale)
+    bar_w = max(bar_w, button_width_for(("RETOUR",), scale))
+    cx = screen.get_width() // 2
+    return pygame.Rect(cx - bar_w // 2,
+                       int(screen.get_height() * 0.88),
+                       bar_w, bar_h)
+
+
+def draw_menu_credits(screen, background):
+    _submenu_base(screen, background, tr("CREDITS"))
+    width = screen.get_width()
+    height = screen.get_height()
+    y = int(height * 0.17)
+    for title, names in CREDITS_SECTIONS:
+        _draw_hp_text(screen, tr(title),
+                      width // 2, y,
+                      scale=3, centered=True,
+                      font_dict=fonts.lettersT4)
+        y += int(height * 0.052)
+        slot_w = width * 0.6 / CREDITS_NAMES_PER_ROW
+        for i in range(0, len(names), CREDITS_NAMES_PER_ROW):
+            row = names[i:i + CREDITS_NAMES_PER_ROW]
+            start_x = width / 2 - slot_w * len(row) / 2
+            for j, name in enumerate(row):
+                _draw_hp_text(screen, name.upper(),
+                              int(start_x + slot_w * (j + 0.5)),
+                              y, scale=2, centered=True,
+                              font_dict=fonts.lettersT3)
+            y += int(height * 0.038)
+        y += int(height * 0.028)
+    rect_back = build_menu_credits(screen)
+    draw_npc_bar(screen, rect_back.x, rect_back.y,
+                 UI_SCALE * 0.8, rect_back.width)
+    _npc_label(screen, tr("BACK"), rect_back, UI_SCALE * 0.8,
+               rect_back.collidepoint(pygame.mouse.get_pos()),
+               offset_y=LABEL_OFFSET_Y["settings_buttons"],
+               offset_x=LABEL_OFFSET_X["credits"])
 
 # ---------- SETTINGS MENU (music/sound/languages/keys) ----------
 def build_menu_settings(screen):

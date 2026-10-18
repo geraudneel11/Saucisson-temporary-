@@ -48,6 +48,7 @@ TRAD = {
     "HITBOXES": ("HITBOXES", "HITBOXES"),
     "MUSIC": ("MUSIC", "MUSIQUE"),
     "SOUND": ("SOUND", "SONS"),
+    "GRAPHICS": ("GRAPHICS", "GRAPHISMES"),
     "LANGUAGES": ("LANGUAGES", "LANGUES"),
     "KEYS": ("KEYS", "TOUCHES"),
     "ON": ("ON", "ON"),
@@ -343,6 +344,10 @@ TRAD = {
     "ENTER": ("ENTER", "ENTREE"),
     "ENNEMI": ("ENEMY", "ENNEMI"),
     "ARRET": ("STOP", "ARRET"),
+    "DEVS": ("DEVS, HELPED BY AI", "DEVS, AIDE PAR IA"),
+    "GRAPHICS": ("GRAPHICS, USED CRAFTPIX", "GRAPHIQUES, CRAFTPIX UTILISE"),
+    "MUSICS": ("MUSICS AND SFX", "MUSIQUES ET SONS"),
+    
 }
 # Bilingual index: both languages point to the same pair, so tr()
 # accepts either an English or a French string as input (and stays

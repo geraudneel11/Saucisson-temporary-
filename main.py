@@ -1360,6 +1360,8 @@ while run == True :
 							run = False
 						elif action == "reglages":
 							game_state = "menu_reglages"
+						elif action == "credits":
+							game_state = "menu_credits"
 		ui.draw_menu(screen, boutons_menu, menu_fond)
 		pygame.display.update()
 		clock.tick(FPS_MAX) 
@@ -1406,7 +1408,8 @@ while run == True :
 		continue
 	if game_state in ("menu_jouer", "menu_sauvegardes", "menu_dev",
 					  "menu_hitboxes", "menu_settings","menu_hardcore",
-					  "menu_reglages", "menu_langues", "menu_touches"):
+					  "menu_reglages", "menu_langues", "menu_touches",
+					  "menu_credits"):
 		# sous-menus : ni monde ni entites, juste les clics
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
@@ -1421,6 +1424,8 @@ while run == True :
 					options.KEYS[capture_touche] = event.key
 					options.save()
 					capture_touche = None
+				elif game_state == "menu_credits":
+					game_state = "menu"
 				elif game_state in ("menu_reglages", "menu_langues",
 									"menu_touches"):
 					# ECHAP : retour en arriere (le jeu reprend)
@@ -1444,6 +1449,10 @@ while run == True :
 						lancer_chargement(("nouveau", None))
 					elif rect_quitter.collidepoint(event.pos):
 						game_state = "menu_jouer"
+				elif game_state == "menu_credits":
+					rect_back = ui.build_menu_credits(screen)
+					if rect_back.collidepoint(event.pos):
+						game_state = "menu"
 				elif game_state == "menu_reglages":
 					rect_mus, rect_sons, rect_lng, rect_tch, rect_ret = \
 						ui.build_menu_settings(screen)
@@ -1609,6 +1618,8 @@ while run == True :
 		elif game_state == "menu_reglages":
 			ui.draw_menu_settings(screen, fond_reglages_jeu
 			                      if reglages_depuis_jeu else menu_fond)
+		elif game_state == "menu_credits":
+			ui.draw_menu_credits(screen, menu_fond)
 		elif game_state == "menu_langues":
 			ui.draw_menu_languages(screen, fond_reglages_jeu
 			                     if reglages_depuis_jeu else menu_fond)
