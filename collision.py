@@ -4,48 +4,60 @@ import pygame
 def resolve_tree_bounce(player, tree_collider, old_pos):
     dx = player.rect.centerx - tree_collider.centerx
     dy = player.rect.centery - tree_collider.centery
-    
+
     if dx == 0 and dy == 0:
         dx = 1
-    
+
     distance = max(1, (dx ** 2 + dy ** 2) ** 0.5)
     bounce_strength = 5
-    
-    bounce_x = dx / distance * bounce_strength
-    bounce_y = dy / distance * bounce_strength
-    
-    player.rect.x += int(bounce_x)
-    player.rect.y += int(bounce_y)
+
+    player.rect.x += int(dx / distance * bounce_strength)
+    player.rect.y += int(dy / distance * bounce_strength)
     player.hitbox.center = player.rect.center
 
 
 def resolve_player_collisions(player, colliders, old_pos):
-    for collider in colliders:
-        if player.hitbox.colliderect(collider):
-            player.rect = old_pos
-            player.hitbox.center = player.rect.center
+    # collidelist fait la boucle en C : meme resultat que tester chaque
+    # collider un par un (un seul contact suffit a annuler le deplacement)
+    if player.hitbox.collidelist(colliders) != -1:
+        player.rect = old_pos
+        player.hitbox.center = player.rect.center
 
 
 def resolve_entity_collisions(enemies):
-    for i, enemy1 in enumerate(enemies):
-        for enemy2 in enemies[i + 1:]:
-            if enemy1.hitbox.colliderect(enemy2.hitbox):
-                dx = enemy1.rect.centerx - enemy2.rect.centerx
-                dy = enemy1.rect.centery - enemy2.rect.centery
+    # Balayage trie par x : pour chaque monstre on ne teste que ses
+    # voisins de droite, et on s'arrete des que le suivant commence
+    # apres son bord droit. Evite de tester les n*(n-1)/2 paires.
+    ordered = sorted(enemies, key=lambda enemy: enemy.hitbox.left)
+    count = len(ordered)
 
-                if dx == 0 and dy == 0:
-                    dx = 1
+    for i in range(count):
+        enemy1 = ordered[i]
+        right = enemy1.hitbox.right
 
-                distance = max(1, (dx ** 2 + dy ** 2) ** 0.5)
-                push_strength = 3
+        for j in range(i + 1, count):
+            enemy2 = ordered[j]
+            if enemy2.hitbox.left >= right:
+                break
+            if not enemy1.hitbox.colliderect(enemy2.hitbox):
+                continue
 
-                push_x = dx / distance * push_strength
-                push_y = dy / distance * push_strength
+            dx = enemy1.rect.centerx - enemy2.rect.centerx
+            dy = enemy1.rect.centery - enemy2.rect.centery
 
-                enemy1.rect.x += int(push_x)
-                enemy1.rect.y += int(push_y)
-                enemy2.rect.x -= int(push_x)
-                enemy2.rect.y -= int(push_y)
+            if dx == 0 and dy == 0:
+                dx = 1
 
-                enemy1.hitbox.center = enemy1.rect.center
-                enemy2.hitbox.center = enemy2.rect.center
+            distance = max(1, (dx ** 2 + dy ** 2) ** 0.5)
+            push_strength = 3
+
+            push_x = int(dx / distance * push_strength)
+            push_y = int(dy / distance * push_strength)
+
+            enemy1.rect.x += push_x
+            enemy1.rect.y += push_y
+            enemy2.rect.x -= push_x
+            enemy2.rect.y -= push_y
+
+            enemy1.hitbox.center = enemy1.rect.center
+            enemy2.hitbox.center = enemy2.rect.center

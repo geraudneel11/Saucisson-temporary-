@@ -38,31 +38,6 @@ def start_new_level(enemies, current_level, orc_data):
 		transition_timer
 	)
 
-def draw_portal(surface, rect, timer):
-	perimeter = (rect.width + rect.height) * 2
-	t = timer % perimeter
-
-	if t < rect.width:
-		x = rect.left + t
-		y = rect.top
-	elif t < rect.width + rect.height:
-		x = rect.right
-		y = rect.top + (t - rect.width)
-	elif t < rect.width * 2 + rect.height:
-		x = rect.right - (t - (rect.width + rect.height))
-		y = rect.bottom
-	else:
-		x = rect.left
-		y = rect.bottom - (t - (rect.width*2 + rect.height))
-
-	pygame.draw.circle(surface, (0, 255, 255), (int(x), int(y)), 4)
-	
-def handle_player_collisions(player, colliders, old_pos):
-	for collider in colliders:
-		if player.hitbox.colliderect(collider):
-			player.rect = old_pos
-			player.hitbox.center = player.rect.center
-			
 def update_portal(game_state, portal_timer, portal_frame,
 				  portal_animation_speed, portal_animation):
 
@@ -177,6 +152,7 @@ class House:
 		)
 		self.interior_surface = pygame.Surface((HOUSE_INSIDE_WIDTH, HOUSE_INSIDE_HEIGHT))
 		self._draw_interior()
+		self.static_surface = self.interior_surface.copy()
 		self.wall_top_hitbox = pygame.Rect(0, 0, HOUSE_INSIDE_WIDTH, 106)
 		self.wall_bottom_hitbox = pygame.Rect(0, HOUSE_INSIDE_HEIGHT - 85, HOUSE_INSIDE_WIDTH, 45)
 		self.wall_left_hitbox = pygame.Rect(0, 0, 10, HOUSE_INSIDE_HEIGHT)
@@ -455,7 +431,7 @@ class House:
 		self.interior_surface.blit(self.red_rug, self.red_rug_rect)
 
 	def draw_interior(self):
-		self._draw_interior()
+		self.interior_surface.blit(self.static_surface, (0, 0))
 		return self.interior_surface
 
 

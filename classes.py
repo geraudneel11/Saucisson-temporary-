@@ -255,7 +255,9 @@ class Enemy:
                 # --- Niveau du monstre : pv, degats, vitesse (par palier de 5),
         # cooldown d'attaque. Les autres stats ne bougent pas.
         self.level = max(1, int(level))
-        self.is_elite = False            # pose par waves.spawn_enemy
+        self.is_elite = False  
+        self._label_cle = None
+        self._label_surface = None          # pose par waves.spawn_enemy
         self.max_hp = MONSTER_BASE_HP + MONSTER_HP_PER_LEVEL * (self.level - 1)
         self.hp = self.max_hp
         self.damage = MONSTER_BASE_DAMAGE + MONSTER_DAMAGE_PER_LEVEL * (self.level - 1)
@@ -524,7 +526,7 @@ class Enemy:
             test_rect.x += step_x
             test_rect.y += step_y
 
-            if not any(test_rect.colliderect(o) for o in obstacles):
+            if test_rect.collidelist(obstacles) == -1:
                 return step_x, step_y
 
         # Aucune direction libre trouvée : l'ennemi est probablement
@@ -623,8 +625,15 @@ class Enemy:
             _monster_level_font_size = MONSTER_LABEL_FONT_SIZE
             _monster_level_font = pygame.font.SysFont(
                 "Ebrima", MONSTER_LABEL_FONT_SIZE, bold=True)
+        texte = tr("Niv. {}").format(self.level)
         color = MONSTER_ELITE_LABEL_COLOR if self.is_elite else (255, 255, 255)
-        text = _monster_level_font.render(tr("Niv. {}").format(self.level), True, color)
+        # Le rendu d'un texte SysFont est couteux : on ne le refait que
+        # si le texte (langue incluse), la couleur ou la taille changent.
+        cle = (texte, color, MONSTER_LABEL_FONT_SIZE)
+        if self._label_cle != cle:
+            self._label_cle = cle
+            self._label_surface = _monster_level_font.render(texte, True, color)
+        text = self._label_surface
         if MONSTER_LABEL_BELOW_BAR:
             # Sous la barre de vie : la barre occupe top-10 -> top-4,
             # le label commence juste en dessous (+ l'ecart reglable).
