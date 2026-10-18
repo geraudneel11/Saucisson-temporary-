@@ -4,6 +4,7 @@ import dialogues
 import random
 from settings import *
 from classes import Book
+from options import tr
 
 
 def load_librarian_ui():
@@ -106,7 +107,7 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		screen.blit(scaled_button_on2, (window_x + 293, window_y + top_rect_y))
 
 	if librarian_state == "main":
-		visible_text = dialogues.get_visible_text()
+		visible_text = dialogues.visible_text()
 		fonts.draw_body_text(
 			screen, visible_text, window_x + 60, window_y + 80,
 			scaled_window.get_width() - 80, classic_font, body_scale
@@ -127,11 +128,11 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 
 		fonts.draw_body_text(
 			screen, "Payer (1 or)", window_x + 178, window_y + 267,
-			scaled_window.get_width() - 40, font_dict=pay_font, scale=body_scale
+			scaled_window.get_width() - 40, font_dict=pay_font, scale=body_scale,bouton="moine"
 		)
 		fonts.draw_body_text(
 			screen, "Retour", window_x + 217, window_y + 367,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=retour_font
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=retour_font,bouton="moine"
 		)
 
 	elif librarian_state == "books":
@@ -152,7 +153,7 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		quit_font = fonts.lettersC6 if quit_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
 			screen, "Quitter", window_x + 217, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font,bouton="moine"
 		)
 
 	elif librarian_state == "reading":
@@ -169,7 +170,7 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 			max_y=window_y + 500
 		)
 
-		page_label = f"{current_page + 1} sur {len(book.pages)}"
+		page_label = tr("{} sur {}").format(current_page + 1, len(book.pages))
 		fonts.draw_body_text(
 			screen, page_label, window_x + scaled_window.get_width() // 2 - 60,
 			window_y + 625, scaled_window.get_width(), fonts.lettersC1, max(1, ui_scale * 0.62)
@@ -197,11 +198,11 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		back_font = fonts.lettersC6 if back_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
 			screen, "Retour", window_x + 227, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=back_font
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=back_font,bouton="moine"
 		)
 
 	elif librarian_state == "goodbye":
-		visible_text = dialogues.get_visible_text()
+		visible_text = dialogues.visible_text()
 		fonts.draw_wrapped_text(
 			screen, visible_text, window_x + 60, window_y + 80,
 			scaled_window.get_width() - 120, classic_font, body_scale,

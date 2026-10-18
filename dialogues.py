@@ -1,72 +1,61 @@
-import pygame
 import options
 
-dialogue_visible_chars = 0
-dialogue_timer = 0
-dialogue_finished = False
 
-dialogue_text = ""
-
+# Typewriter dialogue state. The text is TRANSLATED once when the
+# dialogue starts, so the typewriter effect always shows the right
+# language even while characters are still appearing.
+text = ""
+visible_chars = 0
+timer = 0
+finished = True
 TEXT_SPEED = 2
 
-def start_dialogue(text, speed=None):
-    global dialogue_text
-    global dialogue_visible_chars
-    global dialogue_timer
-    global dialogue_finished
-    global TEXT_SPEED
-
-    dialogue_text = options.tr(text)
-    dialogue_visible_chars = 0
-    dialogue_timer = 0
-    dialogue_finished = False
-
-    if speed is None:
-        TEXT_SPEED = 2
-    else:
-        TEXT_SPEED = speed
-
-def update_dialogue():
-    global dialogue_visible_chars
-    global dialogue_timer
-    global dialogue_finished
-
-    if dialogue_finished:
-        return
-    dialogue_timer += 1
-
-    if dialogue_timer >= TEXT_SPEED:
-        dialogue_timer = 0
-        dialogue_visible_chars += 1
-
-        if dialogue_visible_chars >= len(dialogue_text):
-            dialogue_visible_chars = len(dialogue_text)
-            dialogue_finished = True
-
-def get_visible_text():
-    return dialogue_text[:dialogue_visible_chars]
-
-def is_finished():
-    return dialogue_finished
-
-def skip_dialogue():
-    global dialogue_visible_chars
-    global dialogue_finished
-
-    dialogue_visible_chars = len(dialogue_text)
-    dialogue_finished = True
-
-def get_full_text():
-    return dialogue_text
 
 def reset():
+    global text, visible_chars, timer, finished
+    text = ""
+    visible_chars = 0
+    timer = 0
+    finished = True
 
-    global dialogue_text
-    global dialogue_visible_chars
-    global dialogue_timer
-    global dialogue_finished
 
-    dialogue_text = ""
-    dialogue_visible_chars = 0
-    dialogue_timer = 0
-    dialogue_finished = True
+def start(raw_text, speed=None):
+    global text, visible_chars, timer, finished, TEXT_SPEED
+    text = options.tr(raw_text)
+    visible_chars = 0
+    timer = 0
+    finished = False
+    TEXT_SPEED = 2 if speed is None else speed
+
+
+def update():
+    # Reveal one character every TEXT_SPEED frames until done.
+    global visible_chars, timer, finished
+    if finished:
+        return
+    timer += 1
+    if timer >= TEXT_SPEED:
+        timer = 0
+        visible_chars += 1
+        if visible_chars >= len(text):
+            visible_chars = len(text)
+            finished = True
+
+
+def visible_text():
+    return text[:visible_chars]
+
+
+def full_text():
+    return text
+
+
+def is_finished():
+    return finished
+
+
+def skip():
+    # Reveal everything at once (interaction key while talking).
+    global visible_chars, finished
+    visible_chars = len(text)
+    finished = True

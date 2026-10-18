@@ -1,32 +1,41 @@
-# ============================================================
-# OPTIONS DU JEU : langue (FR/EN), touches re-mappables,
-# musique/sons on-off, sauvegarde dans settings.json
-# Langue par defaut : ANGLAIS. tr(x) renvoie la bonne langue.
-# ============================================================
 import json
 import os
+
 import pygame
 
-LANGUE = "en"          # "en" (defaut) ou "fr"
-MUSIQUE_ACTIF = True
-SONS_ACTIF = True
+LANGUAGE = "en"        # "en" (default) or "fr"
+MUSIC_ON = True
+SFX_ON = True
 
-CHEMIN_REGLAGES = os.path.join(os.path.dirname(
+# Settings live next to the game files. The FILE NAME (settings.json)
+# is legacy: it must stay in sync with the old releases so existing
+# players keep their bindings.
+SETTINGS_PATH = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "settings.json")
 
-TOUCHES = {
-    "gauche": pygame.K_q,
-    "droite": pygame.K_d,
-    "haut": pygame.K_z,
-    "bas": pygame.K_s,
-    "interaction": pygame.K_e,
-    "attaque": None,          # clic gauche natif ; touche en plus
+# ------------------------------------------------------------
+# KEY BINDINGS: action -> pygame.K_x (None = no key, the action
+# stays mouse-only). ATTACK = left click by default; a key can be
+# ADDED on top of it.
+# ------------------------------------------------------------
+KEYS = {
+    "left": pygame.K_q,
+    "right": pygame.K_d,
+    "up": pygame.K_z,
+    "down": pygame.K_s,
+    "interact": pygame.K_e,
+    "attack": None,       # native left click; a key may be added
     "mute": pygame.K_m,
 }
-TOUCHES_DEFAUT = dict(TOUCHES)
-ORDRE_TOUCHES = ("gauche", "droite", "haut", "bas", "interaction",
-                 "attaque", "mute")
+DEFAULT_KEYS = dict(KEYS)
+KEY_ORDER = ("left", "right", "up", "down", "interact",
+             "attack", "mute")
 
+# ------------------------------------------------------------
+# TRANSLATIONS: key = the exact string found in the code, value =
+# (english, french). tr() accepts EITHER language as its input
+# (see _INDEX below), so hard-coded French labels keep working.
+# ------------------------------------------------------------
 TRAD = {
     "PLAY": ("PLAY", "JOUER"),
     "SETTINGS": ("SETTINGS", "REGLAGES"),
@@ -273,83 +282,160 @@ TRAD = {
     "Bienvenue. Je peux te vendre ce que tu veux.": (
         "Welcome. I can sell you whatever you want.",
         "Bienvenue. Je peux te vendre ce que tu veux."),
+        # --- Soigneur ---
+    "Tu sembles deja en parfaite sante. Garde ton or, tu en auras certainement besoin...": (
+        "You already seem to be in perfect health. Keep your gold, you will surely need it...",
+        "Tu sembles deja en parfaite sante. Garde ton or, tu en auras "
+        "certainement besoin..."),
+    "Il te manque {} hp. Je peux te soigner completement pour {} pieces d'or.": (
+        "You are missing {} HP. I can heal you completely for {} gold coins.",
+        "Il te manque {} hp. Je peux te soigner completement pour {} "
+        "pieces d'or."),
+    "Il te manque {} hp. Je peux te rendre {} hp pour tout ton or.": (
+        "You are missing {} HP. I can restore {} HP for all your gold.",
+        "Il te manque {} hp. Je peux te rendre {} hp pour tout ton or."),
+    # --- Divinite ---
+    "Pas assez de niveaux d'XP pour cette competence...": (
+        "Not enough XP levels for this skill...",
+        "Pas assez de niveaux d'XP pour cette competence..."),
+    # --- Noms d'objets ---
+    "Potion de soin": ("Healing potion", "Potion de soin"),
+    "Pomme": ("Apple", "Pomme"),
+    "Pomme doree": ("Golden apple", "Pomme doree"),
+    "Armure niv 1": ("Armor lvl 1", "Armure niv 1"),
+    "Armure niv 2": ("Armor lvl 2", "Armure niv 2"),
+    # --- Menus ---
+    "SAUVEGARDES": ("SAVES", "SAUVEGARDES"),
+    "SLOT {} - NIV {}": ("SLOT {} - LVL {}", "SLOT {} - NIV {}"),
+    "SLOT {} - VIDE": ("SLOT {} - EMPTY", "SLOT {} - VIDE"),
+    "AJOUTER": ("ADD", "AJOUTER"),
+    "ENLEVER": ("REMOVE", "ENLEVER"),
+    # --- Types de hitbox (menu + etiquettes debug) ---
+    "JOUEUR": ("PLAYER", "JOUEUR"),
+    "ENNEMIS": ("ENEMIES", "ENNEMIS"),
+    "PIECES": ("COINS", "PIECES"),
+    "PNJ": ("NPC", "PNJ"),
+    "ORBES XP": ("XP ORBS", "ORBES XP"),
+    "POINTS PNJ": ("NPC POINTS", "POINTS PNJ"),
+    "MEUBLES": ("FURNITURE", "MEUBLES"),
+    "MURS": ("WALLS", "MURS"),
+    "DECORS": ("DECOR", "DECORS"),
+    "PIECE": ("COIN", "PIECE"),
+    "MEUBLE": ("FURNITURE", "MEUBLE"),
+    "BANC": ("PEW", "BANC"),
+    "MUR": ("WALL", "MUR"),
+    "ARBRE": ("TREE", "ARBRE"),
+    "ROCHER": ("ROCK", "ROCHER"),
+    # --- Noms de touches (pygame.key.name().upper()) ---
+    "LEFT SHIFT": ("LEFT SHIFT", "SHIFT GAUCHE"),
+    "RIGHT SHIFT": ("RIGHT SHIFT", "SHIFT DROIT"),
+    "LEFT CTRL": ("LEFT CTRL", "CTRL GAUCHE"),
+    "RIGHT CTRL": ("RIGHT CTRL", "CTRL DROIT"),
+    "LEFT ALT": ("LEFT ALT", "ALT GAUCHE"),
+    "RIGHT ALT": ("RIGHT ALT", "ALT DROIT"),
+    "CAPS LOCK": ("CAPS LOCK", "VERR. MAJ"),
+    "DELETE": ("DELETE", "SUPPR"),
+    "INSERT": ("INSERT", "INSER"),
+    "HOME": ("HOME", "DEBUT"),
+    "END": ("END", "FIN"),
+    "PAGE UP": ("PAGE UP", "PAGE HAUT"),
+    "PAGE DOWN": ("PAGE DOWN", "PAGE BAS"),
+    "ENTER": ("ENTER", "ENTREE"),
+    "ENNEMI": ("ENEMY", "ENNEMI"),
+    "ARRET": ("STOP", "ARRET"),
 }
+# Bilingual index: both languages point to the same pair, so tr()
+# accepts either an English or a French string as input (and stays
+# idempotent: tr(tr(x)) == tr(x)).
 _INDEX = {}
 for _en, _fr in TRAD.values():
     _INDEX[_en] = (_en, _fr)
     _INDEX[_fr] = (_en, _fr)
 
 
-def set_langue(langue):
-    global LANGUE
-    LANGUE = "fr" if langue == "fr" else "en"
+def set_language(language):
+    global LANGUAGE
+    LANGUAGE = "fr" if language == "fr" else "en"
 
 
-def tr(texte):
-    """Renvoie le texte dans la langue courante (defaut : anglais).
-    Accepte une chaine source en FR ou EN (index bilingue)."""
-    paire = _INDEX.get(texte) or TRAD.get(texte)
-    if paire is None:
-        return texte
-    return paire[1] if LANGUE == "fr" else paire[0]
+def tr(text):
+    """Return the text in the current language (default: English).
+    Accepts a source string in French or English (bilingual index)."""
+    pair = _INDEX.get(text) or TRAD.get(text)
+    if pair is None:
+        return text
+    return pair[1] if LANGUAGE == "fr" else pair[0]
 
 
-def nom_touche(code):
-    """Nom lisible d'une touche (code pygame.K_x) dans la langue
-    courante ; None = action a la souris."""
+def key_name(code):
+    """Readable key name (pygame.K_x code) in the current language;
+    None = mouse-only action."""
     if code is None:
         return ""
     return tr(pygame.key.name(code).upper())
 
 
-def touches_conflit():
-    """Renvoie {code: [actions...]} pour les touches utilisees par
-    2 actions ou plus."""
-    vu = {}
-    for action in ORDRE_TOUCHES:
-        code = TOUCHES.get(action)
+def key_conflicts():
+    """Return {code: [actions...]} for keys used by 2+ actions."""
+    seen = {}
+    for action in KEY_ORDER:
+        code = KEYS.get(action)
         if code is None:
             continue
-        vu.setdefault(code, []).append(action)
-    return {c: a for c, a in vu.items() if len(a) >= 2}
+        seen.setdefault(code, []).append(action)
+    return {c: a for c, a in seen.items() if len(a) >= 2}
 
 
-def action_en_conflit(action):
-    """True si la touche de cette action est partagee avec une autre."""
-    code = TOUCHES.get(action)
+def key_is_conflicting(action):
+    """True if this action's key is shared with another action."""
+    code = KEYS.get(action)
     if code is None:
         return False
-    return len(touches_conflit().get(code, [])) >= 2
+    return len(key_conflicts().get(code, [])) >= 2
 
 
-def reinitialiser_touches():
-    global TOUCHES
-    TOUCHES = dict(TOUCHES_DEFAUT)
-    sauver()
+def reset_keys():
+    global KEYS
+    KEYS = dict(DEFAULT_KEYS)
+    save()
 
 
-def sauver():
-    """Ecrit settings.json (langue, musique, sons, touches)."""
-    data = {"langue": LANGUE, "musique": MUSIQUE_ACTIF,
-            "sons": SONS_ACTIF, "touches": dict(TOUCHES)}
-    with open(CHEMIN_REGLAGES, "w", encoding="utf-8") as f:
+# Migration map: action keys of the FIRST settings.json release
+# (French) -> current English action keys.
+_OLD_KEY_MAP = {"gauche": "left", "droite": "right", "haut": "up",
+                "bas": "down", "interaction": "interact",
+                "attaque": "attack", "mute": "mute"}
+
+
+def save():
+    """Write settings.json (language, music, sfx, key bindings)."""
+    data = {"language": LANGUAGE, "music": MUSIC_ON, "sfx": SFX_ON,
+            "keys": dict(KEYS)}
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=True, indent=2)
 
 
-def charger():
-    """Lit settings.json s'il existe et applique les valeurs."""
-    global LANGUE, MUSIQUE_ACTIF, SONS_ACTIF, TOUCHES
-    if not os.path.exists(CHEMIN_REGLAGES):
+def load():
+    """Read settings.json if it exists and apply the values.
+    Understands the old French-key format and migrates it."""
+    global LANGUAGE, MUSIC_ON, SFX_ON, KEYS
+    if not os.path.exists(SETTINGS_PATH):
         return
     try:
-        with open(CHEMIN_REGLAGES, encoding="utf-8") as f:
+        with open(SETTINGS_PATH, encoding="utf-8") as f:
             data = json.load(f)
     except (ValueError, OSError):
         return
-    set_langue(data.get("langue", "en"))
-    MUSIQUE_ACTIF = bool(data.get("musique", True))
-    SONS_ACTIF = bool(data.get("sons", True))
-    t = data.get("touches", {})
-    for action in ORDRE_TOUCHES:
-        if action in t:
-            TOUCHES[action] = t[action]
+    set_language(data.get("language") or data.get("langue", "en"))
+    MUSIC_ON = bool(data.get("music", data.get("musique", True)))
+    SFX_ON = bool(data.get("sfx", data.get("sons", True)))
+    keys = data.get("keys", data.get("touches", {}))
+    for action in KEY_ORDER:
+        if action in keys:
+            KEYS[action] = keys[action]
+        else:
+            # old format: French action names as JSON keys
+            old = [k for k, v in _OLD_KEY_MAP.items()
+                   if v == action and k in keys]
+            if old:
+                KEYS[action] = keys[old[0]]

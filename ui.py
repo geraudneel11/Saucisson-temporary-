@@ -69,12 +69,14 @@ def _centre_fenetre(spans):
             (min(ys) + max(ys) + 1) / 2)
 
 HP_CENTRE = _centre_fenetre(HP_SPANS)
-
+_BARRES_CACHE = {}   # (zone, ratio arrondi, couleurs) -> surface prete
 def _remplissage_barre(zone, spans, ratio, couleur_fond, couleur_jauge):
-    # long rectangle coupe en biseau au lieu de remplir chaque fenetre :
-    # fond et jauge sont dessines d'un trait, 1 px plus LARGE que la
-    # fenetre, et le cadre opaque recouvre le surplus (le vert passe
-    # donc SOUS le bord en diagonale du cadre)
+    # the bar only changes when the ratio moves: cache the rendered
+    # surface and rebuild it only then
+    cle = (id(zone), round(ratio, 3), couleur_fond, couleur_jauge)
+    en_cache = _BARRES_CACHE.get(cle)
+    if en_cache is not None:
+        return en_cache
     surf = zone.copy()
     lignes = [(y, runs[0]) for y, runs in sorted(spans.items()) if runs]
     if lignes:
@@ -89,8 +91,13 @@ def _remplissage_barre(zone, spans, ratio, couleur_fond, couleur_jauge):
             if limite > gauche:
                 pygame.draw.line(surf, couleur_jauge, (gauche, y),
                                  (min(droit, limite - 1), y))
-    return pygame.transform.scale_by(surf, BAR_SCALE)
+    surf = pygame.transform.scale_by(surf, BAR_SCALE)
+    if len(_BARRES_CACHE) > 64:
+        _BARRES_CACHE.clear()
+    _BARRES_CACHE[cle] = surf
+    return surf
 HP_TEXT_SCALE = 2     # chiffres 7x9 de Text3 agrandis x2 (~18 px de haut)
+_GLYPHE_CACHE = {}   # (police, caractere, echelle) -> sprite pret
 
 def _draw_hp_text(screen, texte, cx, cy, echelle=None, centered=True,
                   police=None, slash_couleur=None):
@@ -123,8 +130,14 @@ def _draw_hp_text(screen, texte, cx, cy, echelle=None, centered=True,
                              (x + slash_largeur - echelle, y + 1), echelle)
             x += slash_largeur + echelle
         elif char in police:
-            sprite = pygame.transform.scale(police[char],
-                                            (7 * echelle, haut))
+            # scaled glyphs are CACHED: transform.scale per
+            # character per frame was a real bottleneck in the HUD
+            cle = (id(police), char, echelle)
+            sprite = _GLYPHE_CACHE.get(cle)
+            if sprite is None:
+                sprite = pygame.transform.scale(police[char],
+                                                (7 * echelle, haut))
+                _GLYPHE_CACHE[cle] = sprite
             screen.blit(sprite, (x, y))
             x += 7 * echelle + echelle
 def draw_health(screen, player):
@@ -155,15 +168,18 @@ def draw_level(screen, current_level, current_wave, game_state):
                       screen.get_width() // 2, 64,
                       echelle=3, centered=True, police=fonts.lettersT4,
                       slash_couleur=(244, 219, 0))
-
+_OVERLAY_TRANSITION = None
 def draw_transition(screen, transition, current_level, current_wave, game_state):
     if not transition:
         return
 
-    overlay = pygame.Surface(screen.get_size())
-    overlay.set_alpha(150)
-    overlay.fill((0,0,0))
-    screen.blit(overlay,(0,0))
+    global _OVERLAY_TRANSITION
+    if _OVERLAY_TRANSITION is None:
+        _OVERLAY_TRANSITION = pygame.Surface(
+            screen.get_size()).convert()
+        _OVERLAY_TRANSITION.fill((0, 0, 0))
+    _OVERLAY_TRANSITION.set_alpha(150)
+    screen.blit(_OVERLAY_TRANSITION, (0, 0))
 
     texte_titre_hc(screen, f"{tr('LEVEL')} {current_level}",
                    screen.get_width() // 2, 240, 4, fonts.lettersT3)
@@ -458,7 +474,7 @@ class _OffsetLangue(dict):
 
     def __getitem__(self, cle):
         valeur = super().__getitem__(cle)
-        if options.LANGUE == "en":
+        if options.LANGUAGE == "en":
             valeur += self.en.get(cle, 0)
         return valeur
 
@@ -501,7 +517,7 @@ OFFSET_X_TEXTE = _OffsetLangue({
     "keys_menu": +10,
 }, en={
     "principal": 0, "jouer": 0, "dev": 0, "sauvegardes": 0, "hitboxes": 0,
-    "entrees": 0, "reglages": 0, "valeurs": 0, "echap": 0, "mort": 0,
+    "entrees": 0, "reglages": 0, "valeurs": 0, "echap": 0, "mort": 5,
     "hardcore": 0, "hardsel": 0, "reglages_boutons": 0, "language": 0, "keys_menu": 0
 })
 # positions MANUELLES des noms de reglages (texte blanc a gauche des
@@ -1075,8 +1091,8 @@ def draw_menu_reglages(screen, fond):
         calculer_menu_reglages(screen)
     survol = pygame.mouse.get_pos()
     scale_b = rect_mus.h / 17.0
-    txt_mus = f"{tr('MUSIC')} : {tr('ON') if options.MUSIQUE_ACTIF else tr('OFF')}"
-    txt_sons = f"{tr('SOUND')} : {tr('ON') if options.SONS_ACTIF else tr('OFF')}"
+    txt_mus = f"{tr('MUSIC')} : {tr('ON') if options.MUSIC_ON else tr('OFF')}"
+    txt_sons = f"{tr('SOUND')} : {tr('ON') if options.SFX_ON else tr('OFF')}"
     for rect, texte in ((rect_mus, txt_mus), (rect_sons, txt_sons),
                         (rect_lng, tr("LANGUAGES")),
                         (rect_tch, tr("KEYS")),
@@ -1106,7 +1122,7 @@ def draw_menu_langues(screen, fond):
     _sous_menu_base(screen, fond, tr("LANGUAGES"))
     rect_fr, rect_en, rect_ret = calculer_menu_langues(screen)
     survol = pygame.mouse.get_pos()
-    nom = "FRANCAIS" if options.LANGUE == "fr" else "ENGLISH"
+    nom = "FRANCAIS" if options.LANGUAGE == "fr" else "ENGLISH"
     _draw_hp_text(screen, tr("GAME LANGUAGE: {}").format(nom),
                   screen.get_width() // 2,
                   int(screen.get_height() * 0.30), echelle=3,
@@ -1135,7 +1151,7 @@ def calculer_menu_touches(screen):
     cx = screen.get_width() // 2
     h = screen.get_height()
     lignes = []
-    for i, action in enumerate(options.ORDRE_TOUCHES):
+    for i, action in enumerate(options.KEY_ORDER):
         y = int(h * 0.20) + i * int(h * 0.062)
         rect_touche = pygame.Rect(cx - int(h * 0.09), y,
                                   int(h * 0.18), h_pet)
@@ -1154,7 +1170,7 @@ def draw_menu_touches(screen, fond, capture_action=None):
     _sous_menu_base(screen, fond, tr("KEYS"))
     lignes, rect_reset, rect_ret = calculer_menu_touches(screen)
     survol = pygame.mouse.get_pos()
-    conflits = options.touches_conflit()
+    conflits = options.key_conflicts()
     h = screen.get_height()
     scale_pet = UI_SCALE * 0.55
     for action, rect_touche, rect_changer in lignes:
@@ -1169,10 +1185,10 @@ def draw_menu_touches(screen, fond, capture_action=None):
         if capture_action == action:
             txt = tr("PRESS ANY KEY...")
         elif (action == "attaque"
-              and options.TOUCHES[action] is None):
+              and options.KEYS[action] is None):
             txt = tr("LEFT CLICK")
         else:
-            txt = options.nom_touche(options.TOUCHES[action])
+            txt = options.key_name(options.KEYS[action])
         _label_pnj(screen, txt, rect_touche, scale_pet, False,
                    offset_y=OFFSET_Y_TEXTE["keys_menu"],
                    offset_x=OFFSET_X_TEXTE["keys_menu"])
@@ -1185,8 +1201,8 @@ def draw_menu_touches(screen, fond, capture_action=None):
                    offset_x=OFFSET_X_TEXTE["keys_menu"])
         # conflit : 2 "!" jaunes (T4) autour de la touche et du
         # bouton CHANGER
-        if (options.TOUCHES.get(action) is not None
-                and options.TOUCHES[action] in conflits):
+        if (options.KEYS.get(action) is not None
+                and options.KEYS[action] in conflits):
             for rect in (rect_touche, rect_changer):
                 _draw_hp_text(screen, "!",
                               rect.x - int(rect.h * 0.45),

@@ -4,6 +4,7 @@ import fonts
 import dialogues
 import random
 from settings import * 
+from options import tr
 from classes import Potion, Dynamite, ArmorOffer
 
 def load_merchant_ui():
@@ -154,7 +155,7 @@ def set_hover_text(text):
 
     if merchant_hover_text != text:
         merchant_hover_text = text
-        dialogues.start_dialogue(text, speed=1)
+        dialogues.start(text, speed=1)
 
 
 def set_click_text(text):
@@ -165,7 +166,7 @@ def set_click_text(text):
     merchant_click_text = text
     merchant_message_timer = MERCHANT_MESSAGE_DURATION
 
-    dialogues.start_dialogue(text, speed=1)
+    dialogues.start(text, speed=1)
 def update_messages():
 
     global merchant_click_text
@@ -180,7 +181,7 @@ def update_messages():
             merchant_click_text = ""
 
             if merchant_hover_text != "":
-                dialogues.start_dialogue(
+                dialogues.start(
                     merchant_hover_text,
                     speed=1
                 )
@@ -269,7 +270,7 @@ def draw_merchant_ui(
             spacing=-1,
             centered=True
         )
-        visible_text = dialogues.get_visible_text()
+        visible_text = dialogues.visible_text()
 
         fonts.draw_body_text(
             screen,
@@ -302,7 +303,8 @@ def draw_merchant_ui(
             window_y + 267,
             scaled_window.get_width() - 40,
             font_dict=shop_font,
-            scale=body_scale
+            scale=body_scale,
+            bouton="marchand"
         )
         fonts.draw_body_text(
             screen,
@@ -311,7 +313,8 @@ def draw_merchant_ui(
             window_y + 367,
             scaled_window.get_width() - 40,
             scale=body_scale,
-            font_dict=quit_font
+            font_dict=quit_font,
+            bouton="marchand"
         )
         scaled_exit = pygame.transform.scale(
         exit_button,
@@ -401,9 +404,11 @@ def draw_merchant_ui(
         window_y + 592,
         scaled_window.get_width(),
         back_font,
-        body_scale
+        body_scale,
+        bouton="marchand"
     )
-        page_text = f"{merchant1_page} sur {merchant1_max_page}"
+
+        page_text = tr("{} sur {}").format(merchant1_page, merchant1_max_page)
         fonts.draw_body_text(
         screen,
         page_text,
@@ -474,16 +479,15 @@ def draw_merchant_ui(
                     if has_item:
                         item = current_items[i]
                         if item.stock > 0:
-                            set_hover_text(f"{item.name}: {item.price} or")
+                            set_hover_text(tr("{}: {} or").format(tr(item.name), item.price))
                         else:
-                            set_hover_text(
-                            item.name + " (Rupture de stock)"
-                        )
+                            set_hover_text(tr("{} (Rupture de stock)").format(tr(item.name)))
+                        
                     else:
                         set_hover_text(
-                        "La case est vide"
+                        tr("La case est vide")      
                     )
-                visible_text = dialogues.get_visible_text()
+                visible_text = dialogues.visible_text()
 
                 fonts.draw_body_text(
                 screen,

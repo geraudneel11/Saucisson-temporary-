@@ -53,9 +53,9 @@ merchant_1.load_merchant_ui()
 librarian.load_librarian_ui()
 divinity.load_divinity_ui()
 audio.init()
-options.charger()
-audio.set_musique(options.MUSIQUE_ACTIF)
-audio.set_sons(options.SONS_ACTIF)
+options.load()
+audio.set_music(options.MUSIC_ON)
+audio.set_sfx(options.SFX_ON)
 
 speed = PLAYER_SPEED
 transition = True
@@ -819,7 +819,11 @@ def enemy_obstacle(obj):
 
 # ---------- MENU PRINCIPAL ----------
 # fond : la scene shop pre-rendue une seule fois
-menu_fond = pygame.Surface(screen.get_size())
+menu_fond = pygame.Surface(screen.get_size()).convert()
+_overlay_sombre = pygame.Surface(screen.get_size()).convert()
+_overlay_sombre.fill((0, 0, 0))
+_voile_mort = pygame.Surface(screen.get_size()).convert()
+_voile_mort.fill((0, 0, 0))
 menu_fond.blit(chapel_path_layer, chapel_path_pos)
 menu_fond.blit(shop_decor_layer, shop_decor_pos)
 menu_fond.blit(house_base, (house_x, house_y + roof_height))
@@ -937,6 +941,13 @@ def appliquer_reglages_dev():
 		player.rect.center = (int(point[0]), int(point[1]))
 		player.update_hitbox()
 checkpoint_donnees = {}   # copie de l'etat du joueur a chaque nouveau niveau
+def creer_portail_rect():
+	# Rect du portail du shop : meme formule que a la fin d'une vague.
+	# Il doit TOUJOURS exister, car on peut arriver dans le shop en
+	# sortant de la maison ou de la chapelle, sans avoir fini de vague.
+	return pygame.Rect(MAP_WIDTH // 2 + PORTAL_OFFSET_X,
+					   MAP_HEIGHT // 2 + PORTAL_OFFSET_Y,
+					   PORTAL_SIZE, PORTAL_SIZE)
 def reinitialiser_partie():
 	# remet l'etat du jeu a zero avant une NOUVELLE partie (dev,
 	# sans sauvegarde, slot vide) : sans ca, quitter puis relancer
@@ -946,6 +957,7 @@ def reinitialiser_partie():
 	global level_trees, apple_trees, level_rocks
 	current_level = 1
 	current_wave = 1
+	portal_rect = creer_portail_rect()
 	enemies.clear()
 	coins.clear()
 	xp_orbs.clear()
@@ -1145,7 +1157,7 @@ def sauvegarder_partie(slot):
 
 def charger_partie(slot):
 	# ressssssstaure la progression d'un slot ; reprise dans le lieu sauvegarde
-	global current_level, current_wave, game_state
+	global current_level, current_wave, game_state, portal_rect
 	reinitialiser_partie()
 	with open(os.path.join("saves", f"slot_{slot}.json"),
 			  encoding="utf-8") as f:
@@ -1174,17 +1186,13 @@ def charger_partie(slot):
 		player.rect.center = (int(d["position"][0]), int(d["position"][1]))
 		player.update_hitbox()
 	game_state = d.get("lieu", "shop")
-	if game_state == "shop":
-		# reprise directe dans le shop : le portail n'existe pas encore
-		# (il nait de la vague precedante), on en pose un au plaza
-		global portal_rect
-		portal_rect = pygame.Rect(int(plaza_center[0]) - 32,
-								  int(plaza_center[1]) - 32, 64, 64)
-		if game_state == "wave":
+	# Le portail existe quel que soit le lieu de reprise
+	portal_rect = creer_portail_rect()
+	if game_state == "wave":
 		# la purge a retire les ennemis : on remet la vague
 		# du niveau sauvegarde avec les constantes actuelles
-			waves.start_wave(enemies, current_level, current_wave,
-						orc_data)
+		waves.start_wave(enemies, current_level, current_wave,
+						 orc_data)
 
 def cibles_hitbox(indice):
 	# liste (rect monde, nom) pour le type de hitbox demande
@@ -1272,6 +1280,12 @@ def points_pnj_hitbox():
 						+ (" ARRET" if arret else "")))
 	return out
 
+def traduire_etiquette(nom):
+	# "ENNEMI 5" -> "ENEMY 5" ; "HEAL #2 ARRET" -> "HEAL #2 STOP"
+	# On traduit chaque mot separement : les nombres et les '#2'
+	# ne correspondent a aucune cle et restent tels quels.
+	return " ".join(tr(mot) for mot in nom.split(" "))
+
 def dessiner_hitboxes(offset_x, offset_y):
 	# dessine les hitboxes configurees dans le menu dev, avec
 	# l'offset monde -> ecran (camera negative, ou position de
@@ -1284,15 +1298,15 @@ def dessiner_hitboxes(offset_x, offset_y):
 				cx = int(pos[0] + offset_x)
 				cy = int(pos[1] + offset_y)
 				pygame.draw.circle(screen, couleur, (cx, cy), 5)
-				ui._draw_hp_text(screen, nom, cx, cy - 16,
-								 echelle=1, centered=True)
+				ui._draw_hp_text(screen, traduire_etiquette(nom), cx, cy - 16,
+                 echelle=1, centered=True)
 			continue
 		for rect_monde, nom in cibles_hitbox(entree["type"]):
 			ecran_r = rect_monde.move(int(offset_x), int(offset_y))
 			pygame.draw.rect(screen, couleur, ecran_r, 2)
-			ui._draw_hp_text(screen, nom, ecran_r.centerx,
-							 ecran_r.top - 9, echelle=1,
-							 centered=True)
+			ui._draw_hp_text(screen, traduire_etiquette(nom), ecran_r.centerx,
+                 ecran_r.top - 9, echelle=1,
+                 centered=True)
 
 
 
@@ -1325,8 +1339,8 @@ while run == True :
 			elif event.type == pygame.KEYDOWN:
 				if game_state == "menu_touches" and capture_touche:
 					# la prochaine touche pressee devient celle de l'action
-					options.TOUCHES[capture_touche] = event.key
-					options.sauver()
+					options.KEYS[capture_touche] = event.key
+					options.save()
 					capture_touche = None
 				elif game_state in ("menu_reglages", "menu_langues",
 									"menu_touches"):
@@ -1404,8 +1418,8 @@ while run == True :
 			elif event.type == pygame.KEYDOWN:
 				if game_state == "menu_touches" and capture_touche:
 					# la prochaine touche pressee devient celle de l'action
-					options.TOUCHES[capture_touche] = event.key
-					options.sauver()
+					options.KEYS[capture_touche] = event.key
+					options.save()
 					capture_touche = None
 				elif game_state in ("menu_reglages", "menu_langues",
 									"menu_touches"):
@@ -1430,17 +1444,17 @@ while run == True :
 						lancer_chargement(("nouveau", None))
 					elif rect_quitter.collidepoint(event.pos):
 						game_state = "menu_jouer"
-				if game_state == "menu_reglages":
+				elif game_state == "menu_reglages":
 					rect_mus, rect_sons, rect_lng, rect_tch, rect_ret = \
 						ui.calculer_menu_reglages(screen)
 					if rect_mus.collidepoint(event.pos):
-						options.MUSIQUE_ACTIF = not options.MUSIQUE_ACTIF
-						audio.set_musique(options.MUSIQUE_ACTIF)
-						options.sauver()
+						options.MUSIC_ON = not options.MUSIC_ON
+						audio.set_music(options.MUSIC_ON)
+						options.save()
 					elif rect_sons.collidepoint(event.pos):
-						options.SONS_ACTIF = not options.SONS_ACTIF
-						audio.set_sons(options.SONS_ACTIF)
-						options.sauver()
+						options.SFX_ON = not options.SFX_ON
+						audio.set_sfx(options.SFX_ON)
+						options.save()
 					elif rect_lng.collidepoint(event.pos):
 						game_state = "menu_langues"
 					elif rect_tch.collidepoint(event.pos):
@@ -1453,18 +1467,18 @@ while run == True :
 					rect_fr, rect_en, rect_ret = \
 						ui.calculer_menu_langues(screen)
 					if rect_fr.collidepoint(event.pos):
-						options.set_langue("fr")
-						options.sauver()
+						options.set_language("fr")
+						options.save()
 					elif rect_en.collidepoint(event.pos):
-						options.set_langue("en")
-						options.sauver()
+						options.set_language("en")
+						options.save()
 					elif rect_ret.collidepoint(event.pos):
 						game_state = "menu_reglages"
 				elif game_state == "menu_touches":
 					lignes, rect_reset, rect_ret = \
 						ui.calculer_menu_touches(screen)
 					if rect_reset.collidepoint(event.pos):
-						options.reinitialiser_touches()
+						options.reset_keys()
 					elif rect_ret.collidepoint(event.pos):
 						game_state = "menu_reglages"
 					else:
@@ -1642,7 +1656,7 @@ while run == True :
 
 	old_pos = player.rect.copy()
 	if not attacking and player.state != "hurt" and current_npc is None and awaiting_npc_arrival is None:
-		moving = player_system.movement(player, speed, walk_up, walk_down, walk_left, walk_right)
+		moving = player_system.move_player(player, speed, walk_up, walk_down, walk_left, walk_right)
 
 		if game_state == "chapel":
 			interactable_npcs = [chapel_interior.monk_desk_npc]
@@ -1667,40 +1681,40 @@ while run == True :
 		if current_npc.type == "heal":
 			if not player.met_healer:
 				healer_text = random.choice(healer.healer_dialogues["first_meeting"])
-				dialogues.start_dialogue(healer_text)
+				dialogues.start(healer_text)
 				player.met_healer = True
 			else:
 				hp_ratio = player.hp / player.max_hp
 				if hp_ratio > 0.99:
 					healer_text = random.choice(healer.healer_dialogues["healthy"])
-					dialogues.start_dialogue(healer_text)
+					dialogues.start(healer_text)
 				elif hp_ratio < 0.25:
 					healer_text = random.choice(healer.healer_dialogues["critical"])
-					dialogues.start_dialogue(healer_text)
+					dialogues.start(healer_text)
 				else:
 					healer_text = random.choice(healer.healer_dialogues["normal"])
-					dialogues.start_dialogue(healer_text)
+					dialogues.start(healer_text)
 
 		elif current_npc.type == "merchant_1":
 			if not player.met_merchant:
 				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["first_meeting"])
-				dialogues.start_dialogue(merchant_1_text)
+				dialogues.start(merchant_1_text)
 				player.met_merchant = True
 			else:
 				merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["annonce" if merchant_1.annonce_absence else "normal"])
-				dialogues.start_dialogue(merchant_1_text)
+				dialogues.start(merchant_1_text)
 
 		elif current_npc.type == "monk_desk":
 			if player.coins < 1:
 				librarian_text = random.choice(librarian.librarian_dialogues["not_enough_gold"])
-				dialogues.start_dialogue(librarian_text)
+				dialogues.start(librarian_text)
 			elif not player.met_librarian:
 				librarian_text = random.choice(librarian.librarian_dialogues["first_meeting"])
-				dialogues.start_dialogue(librarian_text)
+				dialogues.start(librarian_text)
 				player.met_librarian = True
 			else:
 				librarian_text = random.choice(librarian.librarian_dialogues["normal"])
-				dialogues.start_dialogue(librarian_text)
+				dialogues.start(librarian_text)
 
 	if game_state == "house":
 		colliders.extend([
@@ -1781,10 +1795,10 @@ while run == True :
 
 	player.update_hitbox()
 
-	player_system.idle(player, moving, attacking, idle_up, idle_down, idle_left, idle_right)
+	player_system.apply_idle(player, moving, attacking, idle_up, idle_down, idle_left, idle_right)
 
 
-	attacking, next_attack = player_system.animate(player, moving, attacking, next_attack)
+	attacking, next_attack = player_system.advance_animation(player, moving, attacking, next_attack)
 
 	audio.set_listener(player.rect.center)
 	audio.footsteps(
@@ -1818,7 +1832,7 @@ while run == True :
 	dragon_waiting_timer
 )
 	was_attack_done = attack_done
-	attack_done, killed_this_attack = fight.resolve_player_attack(
+	attack_done, killed_this_attack = fight.resolve_attack(
 		player,
 		enemies,
 		attacking,
@@ -2148,15 +2162,15 @@ while run == True :
 					menu_echap_actif = True
 					echap_t_ouverture = pygame.time.get_ticks()
 					echap_t_fermeture = None
-			elif event.key == options.TOUCHES["mute"]:
+			elif event.key == options.KEYS["mute"]:
 				audio.toggle_mute()
 
-			_k_att = options.TOUCHES["attaque"]
+			_k_att = options.KEYS["attack"]
 			if (_k_att is not None and event.key == _k_att
 					and not attacking and player.state != "hurt"
 					and current_npc is None):
 				attacking, attack_done, attack_hitbox = \
-					fight.handle_attack_event(
+					fight.handle_attack(
 						player, attacking, enemies, attack_done,
 						attack_hitbox, attack_up, attack_down,
 						attack_left, attack_right, player_system)
@@ -2220,14 +2234,14 @@ while run == True :
 			"Tu sembles deja en parfaite sante. "
 			"Garde ton or, tu en auras certainement besoin..."
 		)
-								dialogues.start_dialogue(healer_text)
+								dialogues.start(healer_text)
 							elif player.coins >= heal_price:
 
 								healer_text = (
 			tr("Il te manque {} hp. Je peux te soigner completement "
 			"pour {} pieces d'or.").format(missing_hp, heal_price)
 		)
-								dialogues.start_dialogue(healer_text)
+								dialogues.start(healer_text)
 							else:
 
 								partial_hp = min((player.coins * 10) // 3, missing_hp)
@@ -2236,7 +2250,7 @@ while run == True :
 			tr("Il te manque {} hp. Je peux te rendre {} hp "
 			"pour tout ton or.").format(missing_hp, partial_hp)
 		)
-								dialogues.start_dialogue(healer_text)
+								dialogues.start(healer_text)
 							heal_offer = {
 	"missing_hp": missing_hp,
 	"price": heal_price,
@@ -2256,7 +2270,8 @@ while run == True :
 
 					# Boutons de confirmation
 						elif healer_state in ("confirm", "heal_confirm"):
-							if missing_hp>0:
+							if heal_offer and heal_offer["missing_hp"] > 0:
+								# Il manque des PV : Confirmer / Retour
 								if confirm_rect.collidepoint(event.pos):
 									heal_price = heal_offer["price"]
 									heal_final = heal_offer["heal_amount"]
@@ -2272,6 +2287,15 @@ while run == True :
 									healer.previous_healer_state = healer_state
 									dialogues.reset()
 									healer_state = "main"
+							elif back_rect and back_rect.collidepoint(event.pos):
+								# PV pleins ("garde ton or") : le bouton
+								# FERME directement le dialogue
+								current_npc.end_conversation()
+								current_npc = None
+								close_rect = None
+								dialogues.reset()
+								healer_state = "main"
+								heal_offer = None
 							if back_rect.collidepoint(event.pos):
 								healer.previous_healer_state = healer_state
 								dialogues.reset()
@@ -2307,7 +2331,7 @@ while run == True :
 								librarian_state = "goodbye"
 								goodbye_timer = pygame.time.get_ticks()
 								librarian_text = random.choice(librarian.librarian_dialogues["goodbye"])
-								dialogues.start_dialogue(librarian_text)
+								dialogues.start(librarian_text)
 
 						elif librarian_state == "reading":
 							if librarian_back_rect and librarian_back_rect.collidepoint(event.pos):
@@ -2329,7 +2353,7 @@ while run == True :
 								divinity_state = "goodbye"
 								goodbye_timer = pygame.time.get_ticks()
 								divinity_text = random.choice(divinity.divinity_dialogues["goodbye"])
-								dialogues.start_dialogue(divinity_text)
+								dialogues.start(divinity_text)
 							elif divinity_left_arrow_rect and divinity_left_arrow_rect.collidepoint(event.pos):
 								if divinity_page > 0:
 									divinity_page -= 1
@@ -2347,11 +2371,7 @@ while run == True :
 											divinity_page
 											* divinity.SKILLS_PER_PAGE + i]
 										# --- DEBUG (a retirer quand ça marche) ---
-										print(f"[DIVINITE] clic {skill['key']} | "
-											f"cout {skill['cost_kind']}:{skill['cost_value']} | "
-											f"xp_level={player.xp_level} xp_barre={player.xp} | "
-											f"moyens={divinity.can_afford(player, skill)} | "
-											f"etat={divinity_state}")
+										
 										# -----------------------------------------
 										if (divinity_purchase is None
 												and divinity.can_afford(player, skill)):
@@ -2373,7 +2393,7 @@ while run == True :
 											dialogues.reset()
 											divinity_text = "Pas assez de niveaux d'XP pour cette competence..."
 											audio.play("ui_error")
-											dialogues.start_dialogue(divinity_text)
+											dialogues.start(divinity_text)
 											break 
 					
 					elif current_npc and current_npc.type == "merchant_1":
@@ -2400,7 +2420,7 @@ while run == True :
 								merchant_state = "main"
 
 								merchant_1_text = random.choice(merchant_1.merchant_1_dialogues["annonce" if merchant_1.annonce_absence else "normal"])
-								dialogues.start_dialogue(merchant_1_text)
+								dialogues.start(merchant_1_text)
 							
 							if right_arrow_rect and merchant_1.merchant1_page < merchant_1.merchant1_max_page and right_arrow_rect.collidepoint(event.pos):
 								merchant_1.merchant1_page += 1
@@ -2459,7 +2479,7 @@ while run == True :
 												audio.play("ui_error")
 				else:
 					# Only allow attacking if not in NPC interaction
-					attacking, attack_done, attack_hitbox = fight.handle_attack_event(
+					attacking, attack_done, attack_hitbox = fight.handle_attack(
 						player,
 						attacking,
 						enemies,
@@ -2472,14 +2492,14 @@ while run == True :
 						player_system
 					)
 			elif event.button == 3:
-				print(f"Clic droit détecté ! game_state={game_state}, attacking={attacking}, player.state={player.state}, current_npc={current_npc}")
+				
 				if not attacking and player.state != "hurt" and current_npc is None:
 					slot = player.inventory[player.selected_slot]
 					item = slot["item"]
-					print(f"Slot sélectionné: {player.selected_slot}, item: {item}, quantity: {slot['quantity']}")
+					
 
 					if item is not None:
-						print(f"Item type: {type(item).__name__}, isinstance(Dynamite): {isinstance(item, Dynamite)}")
+						
 						if isinstance(item, Potion) and potion_heal_timer == 0:
 							potion_heal_animation_start_hp = player.hp
 							potion_heal_animation_target_hp = min(player.max_hp, player.hp + item.heal)
@@ -2519,11 +2539,11 @@ while run == True :
 
 		if event.type == pygame.KEYDOWN: 
 
-			if event.key == options.TOUCHES["interaction"]:
+			if event.key == options.KEYS["interact"]:
 				if current_npc and divinity_purchase is None:
 					
-					if not dialogues.dialogue_finished:
-						dialogues.skip_dialogue()
+					if not dialogues.finished:
+						dialogues.skip()
 					else:
 					# Close NPC interaction if already open
 						current_npc = None
@@ -2550,7 +2570,7 @@ while run == True :
 						divinity_page = 0
 						dialogues.reset()
 						divinity_text = random.choice(divinity.divinity_dialogues["greetings"])
-						dialogues.start_dialogue(divinity_text)
+						dialogues.start(divinity_text)
 					if game_state == "shop":
 
 						if player.hitbox.colliderect(house.door_hitbox):
@@ -2767,7 +2787,7 @@ while run == True :
 			healer_state = "goodbye"
 			goodbye_timer = pygame.time.get_ticks()
 			healer_text = random.choice(healer.healer_dialogues["goodbye"])
-			dialogues.start_dialogue(healer_text)
+			dialogues.start(healer_text)
 			heal_finished = True
 	if healer_state == "goodbye":
 		if pygame.time.get_ticks() - goodbye_timer > 1500:
@@ -2905,8 +2925,8 @@ while run == True :
 			max(1, UI_SCALE * 0.62)
 		)
 	if current_npc:
-		dialogues.dialogue_timer += 1
-		dialogues.update_dialogue()
+		dialogues.timer += 1
+		dialogues.update()
 		merchant_1.update_messages()
 
 	ui.draw_health(screen, player)
@@ -2923,11 +2943,10 @@ while run == True :
 	# If interacting with an NPC, dim the rest of the screen and draw the NPC UI on top
 	# Handle NPC interaction with dimmed overlay and close button
 	if current_npc:
-		overlay = pygame.Surface(screen.get_size())
-		overlay.set_alpha(150)
-		overlay.fill((0, 0, 0))
+		_overlay_sombre.set_alpha(150)
+		screen.blit(_overlay_sombre, (0, 0))
 		overlay_presence = True
-		screen.blit(overlay, (0, 0))
+		
 		if heal_timer > 0:
 			ui.draw_health(screen, player)
 			ui.draw_coins(screen, player)
@@ -2962,17 +2981,15 @@ while run == True :
 	if divinity_purchase and divinity_purchase["phase"] in ("banner_x", "banner_y"):
 		# Grande annonce, comme les changements de niveau :
 		# "{competence} : niveau x" (disparition) puis "niveau y".
-		overlay = pygame.Surface((screen.get_width(), screen.get_height()))
-		overlay.set_alpha(150)
-		overlay.fill((0, 0, 0))
-		screen.blit(overlay, (0, 0))
+		_overlay_sombre.set_alpha(150)
+		screen.blit(_overlay_sombre, (0, 0))
 		skill = divinity_purchase["skill"]
 		if divinity_purchase["phase"] == "banner_x":
 			shown_level = divinity_purchase["old_level"]
 		else:
 			shown_level = player.skill_levels[skill["key"]]
 		ui._draw_hp_text(screen,
-						 f"{skill['name']} : niveau {shown_level}".upper(),
+						 f"{tr(skill['name'])} : {tr('LEVEL')} {shown_level}".upper(),
 						 screen.get_width() // 2, 270,
 						 echelle=4, centered=True)
 		
@@ -3013,10 +3030,8 @@ while run == True :
 				player.rect.centerx - camera_x,
 				player.rect.bottom - camera_y + 10))
 			screen.blit(img_mort, pos_mort)
-		voile = pygame.Surface(screen.get_size())
-		voile.fill((0, 0, 0))
-		voile.set_alpha(int(255 * p))
-		screen.blit(voile, (0, 0))
+		_overlay_sombre.set_alpha(150)
+		screen.blit(_overlay_sombre, (0, 0))
 		if p >= 1.0:
 			game_state = "mort"
 	audio.update_music(game_state, menu_open=current_npc is not None)

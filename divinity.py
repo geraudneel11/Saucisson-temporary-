@@ -171,7 +171,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 	if divinity_state == "main":
 		# Phrase de greeting (affichage lettre par lettre, comme les
 		# autres PNJ interactables), au-dessus de la liste.
-		visible_text = dialogues.get_visible_text()
+		visible_text = dialogues.visible_text()
 		fonts.draw_wrapped_text(
 			screen, visible_text, window_x + 60, window_y + 70,
 			scaled_window.get_width() - 120, classic_font,
@@ -250,7 +250,7 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 		)
 
 	elif divinity_state == "goodbye":
-		visible_text = dialogues.get_visible_text()
+		visible_text = dialogues.visible_text()
 		fonts.draw_wrapped_text(
 			screen, visible_text, window_x + 60, window_y + 80,
 			scaled_window.get_width() - 120, classic_font, body_scale,
