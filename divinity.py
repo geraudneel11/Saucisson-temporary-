@@ -245,8 +245,8 @@ def draw_divinity_ui(screen, player, ui_scale, divinity_state, current_page):
 		quit_rect = pygame.Rect(window_x + 153, window_y + 550, 235, 17 * 4)
 		quit_font = fonts.lettersC6 if quit_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
-			screen, "Quitter", window_x + 217, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font, bouton="divinite"
+			screen, tr("Quitter"), window_x + 217, window_y + 567,
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font
 		)
 
 	elif divinity_state == "goodbye":

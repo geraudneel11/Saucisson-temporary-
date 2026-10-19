@@ -46,6 +46,7 @@ import ui
 import merchant_1
 import librarian
 import divinity
+import inventory
 
 load_font()
 healer.load_healer_ui()
@@ -56,6 +57,8 @@ audio.init()
 options.load()
 audio.set_music(options.MUSIC_ON)
 audio.set_sfx(options.SFX_ON)
+inventory_ui = inventory.InventoryUI()
+inventory_background = None
 
 speed = PLAYER_SPEED
 transition = True
@@ -422,6 +425,11 @@ healer_npc = NPC(
 	stop_duration_min_seconds=2,
 	stop_duration_max_seconds=10
 )
+player.inventory = [
+	{"item": None, "quantity": 0}
+	for _ in range(inventory.INVENTORY_CAPACITY)
+]
+inventory_ui.ensure_player(player)
 if DEV_START_GAME_STATE == "chapel":
 	player.rect.center = chapel_interior.entrance_point
 	player.hitbox.center = player.rect.center
@@ -505,6 +513,20 @@ def icone_armure(tier):
 	pygame.draw.circle(icone, (130, 130, 135), (20, 20), 17)
 	pygame.draw.circle(icone, (90, 90, 95), (20, 20), 17, 2)
 	return icone
+
+def equiper_armure(tier):
+	# Apply the equipped armor tier to stats and player sprites.
+	charger_animations_joueur(tier)
+	player.equipment_level = int(tier)
+	player.equipped_armor_item = (
+		ArmorOffer(tier, icone_armure(tier)) if tier > 0 else None
+	)
+	ancien_max = player.max_hp
+	player.recompute_max_hp()
+	player.hp = min(
+		player.max_hp,
+		player.hp + (player.max_hp - ancien_max)
+	)
 
 def update_merchant_presence():
 	# Appele a chaque arrivee en phase de shop : applique l'absence,
@@ -966,12 +988,26 @@ def reinitialiser_partie():
 	explosions.clear()
 	attack_hitbox = None
 	player.hp = player.max_hp
-	player.coins = int(dev_reglages.get("or_depart", 150)) 
+		# 150 or (ou la valeur reglee) seulement en mode dev, sinon 0
+	player.coins = int(dev_reglages.get("or_depart", 150)) if mode_dev_actif else 0
 	player.xp = 0
 	player.xp_level = 0
 	player.selected_slot = 0
 	player.inventory = [{"item": None, "quantity": 0}
 						for _ in range(3)]
+	player.inventory = [
+	{"item": None, "quantity": 0}
+	for _ in range(inventory.INVENTORY_CAPACITY)
+	]
+	inventory_ui.ensure_player(player)
+	player.skill_levels = {key: 0 for key in player.skill_levels}
+	player.inventory_slots = 3
+	player.level = 0
+	player.equipment_level = 0
+	player.equipped_armor_item = None
+	player.recompute_max_hp()
+	player.hp = player.max_hp
+
 	if mode_dev_actif and DEV_GIVE_DYNAMITE:
 		for _ in range(5):
 			player.add_item_to_inventory(Dynamite(scaled_dynamite))
@@ -1064,11 +1100,13 @@ def capturer_checkpoint():
 		"skills": dict(player.skill_levels),
 		"equipement": player.equipment_level,
 		"inventaire": [
-			{"item": (it["item"].__class__.__name__
-					  if it["item"] else None),
-			 "quantite": it["quantity"]}
-			for it in player.inventory
-		],
+	{
+		"item": it["item"].__class__.__name__ if it["item"] else None,
+		"tier": getattr(it["item"], "tier", None) if it["item"] else None,
+		"quantite": it["quantity"],
+	}
+	for it in player.inventory
+],
 		"lieu": "wave",
 	})
 
@@ -1099,6 +1137,7 @@ def restaurer_checkpoint():
 	player.recompute_max_hp()
 	player.hp = max(1, min(int(d.get("hp", player.max_hp)),
 						   player.max_hp))
+	
 
 def reapparaitre():
 	# bouton REAPPARAITRE de l'ecran de mort
@@ -1115,13 +1154,20 @@ def reapparaitre():
 	transition = True
 	TRANSITION_TIMER = 120
 
-def fabriquer_item(nom):
-	# reconstruit un item d'inventaire d'apres son nom de classe
-	# (les classes d'items exigent leur sprite en argument)
+def fabriquer_item(nom, tier=None):
+	# Rebuild saved inventory items from their class names.
 	import classes as _classes
+
 	if nom == "Potion":
 		img = pygame.image.load("Fiole_de_soin.png").convert_alpha()
 		return _classes.Potion(pygame.transform.scale(img, (48, 51)))
+	if nom == "ArmorOffer":
+		tier = max(1, int(tier or 1))
+		return _classes.ArmorOffer(tier, icone_armure(tier))
+	if nom == "Apple":
+		return _classes.Apple(apple_sprite)
+	if nom == "GoldenApple":
+		return _classes.GoldenApple(golden_apple_sprite)
 	if nom == "Dynamite":
 		img = pygame.image.load("Dynamite.png").convert_alpha()
 		return _classes.Dynamite(pygame.transform.scale(img, (48, 48)))
@@ -1141,10 +1187,13 @@ def sauvegarder_partie(slot):
 		"skills": dict(player.skill_levels),
 		"equipement": player.equipment_level,
 		"inventaire": [
-			{"item": (it["item"].__class__.__name__ if it["item"] else None),
-			 "quantite": it["quantity"]}
-			for it in player.inventory
-		],
+	{
+		"item": it["item"].__class__.__name__ if it["item"] else None,
+		"tier": getattr(it["item"], "tier", None) if it["item"] else None,
+		"quantite": it["quantity"],
+	}
+	for it in player.inventory
+],
 		"position": [player.rect.centerx, player.rect.centery],
 		"lieu": game_state if game_state in ("wave", "shop", "house",
 											 "chapel") else "shop",
@@ -1164,7 +1213,7 @@ def charger_partie(slot):
 		d = json.load(f)
 	current_level = int(d.get("niveau", 1))
 	current_wave = int(d.get("vague", 1))
-	player.coins = int(d.get("or", 150))
+	player.coins = r["or_depart"] if mode_dev_actif else 0
 	player.xp = int(d.get("xp", 0))
 	player.xp_level = int(d.get("xp_level", 0))
 	player.level = int(d.get("niveau_competences", 0))
@@ -1172,14 +1221,22 @@ def charger_partie(slot):
 		if cle in player.skill_levels:
 			player.skill_levels[cle] = int(val)
 	player.equipment_level = int(d.get("equipement", 0))
+	player.inventory_slots = min(
+	24,
+	3 + int(player.skill_levels.get("slot_count", 0))
+)
+	player.equipped_armor_item = (
+	ArmorOffer(player.equipment_level, icone_armure(player.equipment_level))
+	if player.equipment_level > 0 else None
+)
+
 	for i, sac in enumerate(d.get("inventaire", [])):
 		if i >= len(player.inventory):
 			break
-		nom = sac.get("item")
 		player.inventory[i] = {
-			"item": fabriquer_item(nom),
-			"quantity": int(sac.get("quantite", 0)),
-		}
+		"item": fabriquer_item(sac.get("item"), sac.get("tier")),
+		"quantity": int(sac.get("quantite", 0)),
+	}
 	player.recompute_max_hp()
 	player.hp = max(1, min(int(d.get("hp", player.max_hp)), player.max_hp))
 	if d.get("position"):
@@ -1299,19 +1356,39 @@ def dessiner_hitboxes(offset_x, offset_y):
 				cy = int(pos[1] + offset_y)
 				pygame.draw.circle(screen, couleur, (cx, cy), 5)
 				ui._draw_hp_text(screen, traduire_etiquette(nom), cx, cy - 16,
-                 echelle=1, centered=True)
+				scale=1, centered=True)
 			continue
 		for rect_monde, nom in cibles_hitbox(entree["type"]):
 			ecran_r = rect_monde.move(int(offset_x), int(offset_y))
 			pygame.draw.rect(screen, couleur, ecran_r, 2)
 			ui._draw_hp_text(screen, traduire_etiquette(nom), ecran_r.centerx,
-                 ecran_r.top - 9, echelle=1,
-                 centered=True)
+				 ecran_r.top - 9, scale=1,
+				 centered=True)
 
 
 
 run = True
 while run == True :
+	if inventory_ui.is_open:
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+			else:
+				inventory_ui.handle_event(
+				event,
+				player,
+				equip_armor=equiper_armure,
+				interact_key=options.KEYS["interact"]
+			)
+
+		if not run:
+			break
+
+	if inventory_ui.is_open:
+		inventory_ui.draw(screen, player)
+		pygame.display.update()
+		clock.tick(FPS_MAX)
+		continue
 	if game_state == "intro":
 		# intro studio : fondu SAUCISSON STUDIOS puis reveal du menu
 		# (un clic passe directement au menu)
@@ -1347,7 +1424,7 @@ while run == True :
 					# ECHAP : retour en arriere (le jeu reprend)
 					if game_state == "menu_reglages":
 						game_state = ("wave" if reglages_depuis_jeu
-						              else "menu")
+									  else "menu")
 						reglages_depuis_jeu = False
 					else:
 						game_state = "menu_reglages"
@@ -1431,7 +1508,7 @@ while run == True :
 					# ECHAP : retour en arriere (le jeu reprend)
 					if game_state == "menu_reglages":
 						game_state = ("wave" if reglages_depuis_jeu
-						              else "menu")
+									  else "menu")
 						reglages_depuis_jeu = False
 					else:
 						game_state = "menu_reglages"
@@ -1470,7 +1547,7 @@ while run == True :
 						game_state = "menu_touches"
 					elif rect_ret.collidepoint(event.pos):
 						game_state = ("wave" if reglages_depuis_jeu
-						              else "menu")
+									  else "menu")
 						reglages_depuis_jeu = False
 				elif game_state == "menu_langues":
 					rect_fr, rect_en, rect_ret = \
@@ -1617,16 +1694,16 @@ while run == True :
 			ui.draw_menu_dev_settings(screen, menu_fond, dev_reglages) 
 		elif game_state == "menu_reglages":
 			ui.draw_menu_settings(screen, fond_reglages_jeu
-			                      if reglages_depuis_jeu else menu_fond)
+								  if reglages_depuis_jeu else menu_fond)
 		elif game_state == "menu_credits":
 			ui.draw_menu_credits(screen, menu_fond)
 		elif game_state == "menu_langues":
 			ui.draw_menu_languages(screen, fond_reglages_jeu
-			                     if reglages_depuis_jeu else menu_fond)
+								 if reglages_depuis_jeu else menu_fond)
 		elif game_state == "menu_touches":
 			ui.draw_menu_keys(screen, fond_reglages_jeu
-			                     if reglages_depuis_jeu else menu_fond,
-			                     capture_touche)
+								 if reglages_depuis_jeu else menu_fond,
+								 capture_touche)
 		pygame.display.update()
 		clock.tick(FPS_MAX)
 		continue
@@ -2447,20 +2524,31 @@ while run == True :
 								if merchant_coin_timer == 0:
 									if item.rect and item.rect.collidepoint(event.pos):
 										if isinstance(item, ArmorOffer):
-											# Achat d'armure : equipement automatique,
-											# dans l'ordre (tier 2 refuse sans le tier 1)
-											if item.tier != player.equipment_level + 1:
-												merchant_1.set_click_text("Achetez d'abord l'armure precedente.")
-											elif player.coins >= item.price:
+											owned_tiers = [player.equipment_level]
+											owned_tiers.extend(
+												slot["item"].tier
+												for slot in player.inventory
+												if isinstance(slot.get("item"), ArmorOffer)
+														)
+
+											if item.tier != max(owned_tiers, default=0) + 1:
+												merchant_1.set_click_text(
+												"Achetez d'abord l'armure precedente."
+											)
+											elif player.coins < item.price:
+												merchant_1.set_click_text("Vous n'avez pas assez d'or.")
+											elif not player.add_item_to_inventory(item):
+												merchant_1.set_click_text("Votre inventaire est plein.")
+												audio.play("ui_error")
+											else:
 												buy_animation_start_coins = player.coins
 												buy_animation_target_coins = player.coins - item.price
 												merchant_coin_timer = BUY_COIN_ANIMATION_DURATION
-												equiper_armure(item.tier)
 												audio.play("buy")
 												merchant_1.merchant_inventory.remove(item)
-												merchant_1.set_click_text(tr("Tu équipes {} !").format(tr(item.name)))
-											else:
-												merchant_1.set_click_text("Vous n'avez pas assez d'or.")
+												merchant_1.set_click_text(
+												tr("Vous achetez {}.").format(tr(item.name))
+														)
 										elif item.stock <= 0:
 											merchant_1.set_click_text(
 											"Rupture de stock."
@@ -2569,6 +2657,35 @@ while run == True :
 					near_npc.begin_conversation(player)
 					awaiting_npc_arrival = near_npc
 				else: 
+					inventory_world_target = (
+					(
+					game_state == "chapel"
+					and (
+						player.hitbox.colliderect(
+						chapel_interior.altar_interaction_rect
+					)
+					or player.hitbox.colliderect(chapel_interior.exit_rect)
+					)
+					)
+					or (
+						game_state == "shop"
+					and (
+						player.hitbox.colliderect(house.door_hitbox)
+					or player.hitbox.colliderect(chapel.door_hitbox)
+					)
+			)
+					or (
+					game_state == "house"
+					and player.hitbox.colliderect(house.door_rect)
+	)
+)
+
+					if (
+					not inventory_world_target
+					and current_npc is None
+					and awaiting_npc_arrival is None
+):
+						inventory_ui.open(screen, player)
 					if (game_state == "chapel"
 							and divinity_purchase is None
 							and player.hitbox.colliderect(chapel_interior.altar_interaction_rect)):
@@ -3002,7 +3119,7 @@ while run == True :
 		ui._draw_hp_text(screen,
 						 f"{tr(skill['name'])} : {tr('LEVEL')} {shown_level}".upper(),
 						 screen.get_width() // 2, 270,
-						 echelle=4, centered=True)
+						 scale=4, centered=True)
 		
 	if transition == False and current_npc == None:
 		overlay_presence = False

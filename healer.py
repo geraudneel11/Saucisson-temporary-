@@ -2,6 +2,7 @@ import pygame
 import math
 import dialogues
 import fonts
+from options import tr
 
 def load_healer_ui():
 	global shop_window, close_button_sheet, button_on, button_on2, shop_window, shop_window_1, shop_window_2, exit_button
@@ -146,24 +147,24 @@ def draw_healer_ui(screen, player, ui_scale, shop_window_sprite, close_rect, exi
 
 		fonts.draw_body_text(
 			screen,
-			"Se soigner.",
+			tr("Se soigner."),
 			window_x + 188,
 			window_y + 267,
 			scaled_window.get_width() - 40,
 			font_dict=shop_font,
-			scale=body_scale,
-			bouton="soigneur"
+			scale=body_scale
+			
 
 		)
 		fonts.draw_body_text(
 			screen,
-			"Quitter",
+			tr("Quitter"),
 			window_x + 217,
 			window_y + 367,
 			scaled_window.get_width() - 40,
 			scale=body_scale,
-			font_dict=quit_font,
-			bouton="soigneur"
+			font_dict=quit_font
+			
 
 		)
 
@@ -246,36 +247,34 @@ def draw_healer_ui(screen, player, ui_scale, shop_window_sprite, close_rect, exi
 		if missing_hp>0:
 			fonts.draw_body_text(
 			screen,
-			"Confirmer",
+			tr("Confirmer"),
 			window_x + 185,
 			window_y + 267,
 			scaled_window.get_width() - 40,
 			font_dict=confirm_font,
-			scale=body_scale,
-			bouton="soigneur"
+			scale=body_scale
 
 )
 
 			fonts.draw_body_text(
 			screen,
-			"Retour",
+			tr("Retour"),
 			window_x + 205,
 			window_y + 367,
 			scaled_window.get_width() - 40,
 			font_dict=back_font,
-			scale=body_scale,
-			bouton="soigneur"
+			scale=body_scale
+			
 )
 		else:
 			fonts.draw_body_text(
 			screen,
-			"Quitter",
+			tr("Quitter"),
 			window_x + 217,
 			window_y + 267,
 			scaled_window.get_width() - 40,
 			font_dict=back_font,
-			scale=body_scale,
-			bouton="soigneur")
+			scale=body_scale)
 
 	elif healer_state == "goodbye":
 

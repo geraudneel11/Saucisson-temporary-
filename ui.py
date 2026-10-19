@@ -473,8 +473,6 @@ _PILL_LINK_VISIBLE = 23.0    # visible part of a link piece (source px)
 # px. Example: "or_depart": (6, -2) moves that name 6 px right and
 # 2 px up. Missing keys = (0, 0).
 SETTING_LABEL_OFFSETS = {
-    "pommes_pct": (110, 0),
-    "pommes_dorees_pct": (110, 0),
 
 }
 
@@ -574,7 +572,8 @@ LABEL_OFFSET_X = {
     "settings_buttons2": 10,  # text ON the SETTINGS buttons
     "hardcore": +12,
     "hardsel": +15,
-    "credits": 7
+    "credits": 7,
+    "settings_dev": -10,
 }
 
 
@@ -739,13 +738,12 @@ def draw_menu_dev(screen, buttons, background):
 
 
 def build_menu_hitboxes(screen, config):
-    # On the left: ADD / REMOVE / BACK (large buttons); on the
-    # right: the hitboxes in 2 columns (8 max per column) appearing
-    # progressively. Common width per group, text inside.
+    # Buttons on the left; hitbox entries on the right.
     scale = UI_SCALE * 0.85
     w, h = npc_bar_size(scale)
-    w = max(w, button_width_for(("AJOUTER", "ENLEVER", "RETOUR"),
-                                scale))
+    w = max(w, button_width_for(
+        ("AJOUTER", "ENLEVER", "RETOUR", "ADD", "REMOVE", "BACK"),
+        scale))
     width, height = screen.get_width(), screen.get_height()
     left_x = int(width * 0.26) - w // 2
     y0 = int(height * 0.16)
@@ -753,27 +751,43 @@ def build_menu_hitboxes(screen, config):
     rect_add = pygame.Rect(left_x, y0, w, h)
     rect_remove = pygame.Rect(left_x, y0 + step, w, h)
     rect_back = pygame.Rect(left_x, y0 + 2 * step, w, h)
-    # rows: large bars, text fitted to the available space
+
     scale_row = UI_SCALE * 0.70
     row_w, row_h = npc_bar_size(scale_row)
     body_row = (0.85 if width >= 1200 else
                 (0.6 if width >= 1000 else 0.5))
-    raw = int(max(fonts.get_text_width(t, max(1, scale_row * body_row),
-                                       fonts.lettersC1)
-                  for t in HITBOX_TYPES) + 14 * scale_row)
-    row_w = max(row_w, pill_width(pill_pieces_count(raw, scale_row),
-                                  scale_row)) + int(12 * scale_row)
+    raw = int(max(
+        fonts.get_text_width(
+            text, max(1, scale_row * body_row), fonts.lettersC1)
+        for text in HITBOX_TYPES
+    ) + 14 * scale_row)
+    row_w = max(
+        row_w,
+        pill_width(pill_pieces_count(raw, scale_row), scale_row)
+    ) + int(12 * scale_row)
+
     row_step = row_h + max(3, int(height * 0.005))
     row_y0 = int(height * 0.15)
-    col1_x = min(int(width * 0.48),
-                 width - 14 - 2 * row_w - int(4 * UI_SCALE))
+    col1_x = min(
+        int(width * 0.48),
+        width - 14 - 2 * row_w - int(4 * UI_SCALE)
+    )
+
     rows = []
     for i in range(len(config)):
         col, row = i // 8, i % 8
-        rows.append((pygame.Rect(
-            col1_x + col * (row_w + int(4 * UI_SCALE)),
-            row_y0 + row * row_step, row_w, row_h), i))
+        rows.append((
+            pygame.Rect(
+                col1_x + col * (row_w + int(4 * UI_SCALE)),
+                row_y0 + row * row_step,
+                row_w,
+                row_h
+            ),
+            i
+        ))
+
     return rows, rect_add, rect_remove, rect_back
+
 
 
 def hitbox_dot_rect(rect):
@@ -784,52 +798,82 @@ def hitbox_dot_rect(rect):
 
 
 def draw_menu_hitboxes(screen, background, config):
-    _submenu_base(screen, background, "HITBOXES")
-    _draw_hp_text(screen, "F1 POUR AFFICHER EN JEU - MAX 15",
-                  screen.get_width() // 2,
-                  max(int(screen.get_height() * 0.135),
-                      int(screen.get_height() * 0.10) + 40),
-                  scale=2, centered=True, font_dict=fonts.lettersT4)
+    _submenu_base(screen, background, tr("HITBOXES"))
+    _draw_hp_text(
+        screen,
+        tr("F1 TO SHOW IN GAME - MAX 15"),
+        screen.get_width() // 2,
+        max(
+            int(screen.get_height() * 0.135),
+            int(screen.get_height() * 0.10) + 40
+        ),
+        scale=2,
+        centered=True,
+        font_dict=fonts.lettersT4
+    )
+
     rows, rect_add, rect_remove, rect_back = \
         build_menu_hitboxes(screen, config)
+
     mouse = pygame.mouse.get_pos()
     scale = UI_SCALE * 0.85
     scale_row = UI_SCALE * 0.70
     body_row = (0.85 if screen.get_width() >= 1200 else
                 (0.6 if screen.get_width() >= 1000 else 0.5))
-    # base buttons on the left
-    for rect, label in ((rect_add, "AJOUTER"),
-                        (rect_remove, "ENLEVER"),
-                        (rect_back, "RETOUR")):
+
+    for rect, label in (
+        (rect_add, tr("ADD")),
+        (rect_remove, tr("REMOVE")),
+        (rect_back, tr("BACK"))
+    ):
         draw_npc_bar(screen, rect.x, rect.y, scale, rect.width)
-        _npc_label(screen, label, rect, scale,
-                   rect.collidepoint(mouse),
-                   offset_y=LABEL_OFFSET_Y["hitboxes"],
-                   offset_x=LABEL_OFFSET_X["hitboxes"])
-    # rows on the right (readable names, dot on the right)
+        _npc_label(
+            screen,
+            label,
+            rect,
+            scale,
+            rect.collidepoint(mouse),
+            offset_y=LABEL_OFFSET_Y["hitboxes"],
+            offset_x=LABEL_OFFSET_X["hitboxes"]
+        )
+
     for rect, i in rows:
         entry = config[i]
         draw_npc_bar(screen, rect.x, rect.y, scale_row, rect.width)
+
         dot = hitbox_dot_rect(rect)
-        pygame.draw.rect(screen, HITBOX_COLORS[entry["couleur"]], dot)
+        pygame.draw.rect(
+            screen, HITBOX_COLORS[entry["couleur"]], dot)
         pygame.draw.rect(screen, (18, 20, 28), dot, 2)
-        zone = pygame.Rect(rect.x, rect.y,
-                           rect.width - dot.width - int(6 * UI_SCALE),
-                           rect.h)
-        _npc_label(screen, tr(HITBOX_TYPES[entry["type"]]), zone,
-                   scale_row, zone.collidepoint(mouse),
-                   body=body_row,
-                   offset_y=LABEL_OFFSET_Y["entries"],
-                   offset_x=LABEL_OFFSET_X["entries"])
+
+        zone = pygame.Rect(
+            rect.x,
+            rect.y,
+            rect.width - dot.width - int(6 * UI_SCALE),
+            rect.h
+        )
+        _npc_label(
+            screen,
+            tr(HITBOX_TYPES[entry["type"]]),
+            zone,
+            scale_row,
+            zone.collidepoint(mouse),
+            body=body_row,
+            offset_y=LABEL_OFFSET_Y["entries"],
+            offset_x=LABEL_OFFSET_X["entries"]
+        )
 
 
 def _value_text(key, value):
     if isinstance(value, bool):
-        return "ON" if value else "OFF"
+        return tr("ON") if value else tr("OFF")
+
     if key == "lieu":
-        return PLACE_NAMES.get(value, value)
+        return tr(PLACE_NAMES.get(value, value))
+
     if "pct" in key:
         return f"{value} %"
+
     return str(value)
 
 
@@ -935,10 +979,10 @@ def draw_menu_dev_settings(screen, background, settings):
             rp.y + oy_v, rect.width, font_dict=font_v, scale=body)
     draw_npc_bar(screen, rect_back.x, rect_back.y, scale,
                  rect_back.width)
-    _npc_label(screen, "RETOUR", rect_back, scale,
+    _npc_label(screen, tr("RETOUR"), rect_back, scale,
                rect_back.collidepoint(mouse),
                offset_y=LABEL_OFFSET_Y["settings"],
-               offset_x=LABEL_OFFSET_X["settings"])
+               offset_x=LABEL_OFFSET_X["settings_dev"])
 
 # ---------- IN-GAME PAUSE MENU ----------
 # Panel sliding in from the left; the game keeps running behind it

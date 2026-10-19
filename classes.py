@@ -1834,8 +1834,8 @@ class XpOrb:
         surface.blit(self.sprite, self.rect)
 
 class ArmorOffer:
-    # Offre d'armure du marchand : objet special de boutique qui
-    # equipe le joueur au lieu d'aller dans l'inventaire.
+    # Purchasable armor that can be stored in the bag and equipped
+    # through the inventory UI.
     def __init__(self, tier, icon=None):
         self.tier = tier
         self.name = f"Armure niv {tier}"
@@ -1843,11 +1843,10 @@ class ArmorOffer:
         self.stock = 1
         self.sprite = icon
         self.rect = None
-        # Icone : celle du marchand, sinon un cercle gris par defaut
-        # (jamais None : le dessin de la boutique doit pouvoir blitter)
-        if icon is not None:
-            self.sprite = icon
-        else:
+        if icon is None:
             self.sprite = pygame.Surface((40, 40), pygame.SRCALPHA)
             pygame.draw.circle(self.sprite, (130, 130, 135), (20, 20), 17)
             pygame.draw.circle(self.sprite, (90, 90, 95), (20, 20), 17, 2)
+
+    def copy(self):
+        return ArmorOffer(self.tier, self.sprite)

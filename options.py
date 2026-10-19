@@ -347,6 +347,7 @@ TRAD = {
     "DEVS": ("DEVS, HELPED BY AI", "DEVS, AIDE PAR IA"),
     "GRAPHICS": ("GRAPHICS, USED CRAFTPIX", "GRAPHIQUES, CRAFTPIX UTILISE"),
     "MUSICS": ("MUSICS AND SFX", "MUSIQUES ET SONS"),
+    "Armor tier": ("Armor tier", "Armure niveau"),
     
 }
 # Bilingual index: both languages point to the same pair, so tr()

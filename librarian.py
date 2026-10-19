@@ -127,12 +127,12 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		retour_font = fonts.lettersC6 if retour_rect.collidepoint(mouse_pos) else fonts.lettersC1
 
 		fonts.draw_body_text(
-			screen, "Payer (1 or)", window_x + 178, window_y + 267,
-			scaled_window.get_width() - 40, font_dict=pay_font, scale=body_scale,bouton="moine"
+			screen, tr("Payer (1 or)"), window_x + 178, window_y + 267,
+			scaled_window.get_width() - 40, font_dict=pay_font, scale=body_scale
 		)
 		fonts.draw_body_text(
-			screen, "Retour", window_x + 217, window_y + 367,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=retour_font,bouton="moine"
+			screen, tr("Retour"), window_x + 217, window_y + 367,
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=retour_font
 		)
 
 	elif librarian_state == "books":
@@ -152,8 +152,8 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		quit_rect = pygame.Rect(window_x + 153, window_y + 550, 235, 17 * 4)
 		quit_font = fonts.lettersC6 if quit_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
-			screen, "Quitter", window_x + 217, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font,bouton="moine"
+			screen, tr("Quitter"), window_x + 217, window_y + 567,
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=quit_font
 		)
 
 	elif librarian_state == "reading":
@@ -197,8 +197,8 @@ def draw_librarian_ui(screen, player, ui_scale, librarian_state, current_book_in
 		back_rect = pygame.Rect(window_x + 153, window_y + 550, 235, 17 * 4)
 		back_font = fonts.lettersC6 if back_rect.collidepoint(mouse_pos) else fonts.lettersC1
 		fonts.draw_body_text(
-			screen, "Retour", window_x + 227, window_y + 567,
-			scaled_window.get_width() - 40, scale=body_scale, font_dict=back_font,bouton="moine"
+			screen, tr("Retour"), window_x + 227, window_y + 567,
+			scaled_window.get_width() - 40, scale=body_scale, font_dict=back_font
 		)
 
 	elif librarian_state == "goodbye":

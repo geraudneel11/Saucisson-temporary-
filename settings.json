@@ -1,14 +1,14 @@
 {
-  "langue": "en",
-  "musique": true,
-  "sons": true,
-  "touches": {
-    "gauche": 113,
-    "droite": 100,
-    "haut": 122,
-    "bas": 115,
-    "interaction": 101,
-    "attaque": null,
+  "language": "en",
+  "music": true,
+  "sfx": true,
+  "keys": {
+    "left": 113,
+    "right": 100,
+    "up": 122,
+    "down": 115,
+    "interact": 101,
+    "attack": null,
     "mute": 109
   }
 }
