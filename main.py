@@ -2265,9 +2265,14 @@ while run == True :
 
 		if event.type == pygame.MOUSEWHEEL:
 
+			# Seules les cases de la hotbar (les carres jaunes) sont
+			# selectionnables : un objet range plus loin dans le sac
+			# ne peut pas etre utilise sans apparaitre sur la barre.
+			hotbar_slots = max(1, min(
+				int(player.inventory_slots), len(player.inventory)))
 			player.selected_slot = (
 			player.selected_slot - event.y
-			) % len(player.inventory)
+			) % hotbar_slots
 
 		if event.type == pygame.MOUSEBUTTONDOWN:
 			if event.button == 1:
@@ -3020,10 +3025,17 @@ while run == True :
 			dessiner_hitboxes(-camera_x, -camera_y)
 
 		# Slots dynamiques : un rect de plus a chaque competence "Slots" achetee
+		# Slots dynamiques : un rect de plus a chaque competence "Slots" achetee.
+	# Seules les cases de la hotbar (les carres jaunes de l'inventaire)
+	# sont dessinees : un objet range plus loin dans le sac reste dans
+	# l'inventaire mais n'apparait jamais sur la barre du joueur.
+	hotbar_slots = max(1, min(
+		int(player.inventory_slots), len(player.inventory)))
 	inventory_slot_rects = [
 	pygame.Rect(15 + i * 72, screen.get_height()-86, 64, 64)
-	for i in range(len(player.inventory))
+	for i in range(hotbar_slots)
 	]
+	
 	for i, rect in enumerate(inventory_slot_rects):
 	
 		slot = player.inventory[i]
