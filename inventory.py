@@ -18,7 +18,7 @@ INVENTORY_SCALE_FACTOR = 1.25
 
 # Vertical title adjustment in panel source pixels; edit this value as needed.
 INVENTORY_TITLE_OFFSET_Y = -4
-INVENTORY_TITLE_OFFSET_X = 0
+INVENTORY_TITLE_OFFSET_X = -1
 
 # ---------------------------------------------------------------
 # PANEL GEOMETRY
@@ -68,18 +68,21 @@ LABEL_SCALE = 0.60
 # is automatically multiplied by the screen scale.
 # ---------------------------------------------------------------
 # Item icons inside the bag slots.
-ITEM_OFFSET_X = 0
-ITEM_OFFSET_Y = 0
+ITEM_OFFSET_X = 0.1
+ITEM_OFFSET_Y = -1
 # Armor icon inside its equipment slot.
 GEAR_OFFSET_X = 0
 GEAR_OFFSET_Y = 0
 # Yellow hotbar frames (offset + thickness grows INWARD, never outside
 # the slot).
-HOTBAR_FRAME_OFFSET_X = 1
-HOTBAR_FRAME_OFFSET_Y = -3
-HOTBAR_FRAME_INSET = 1              
+HOTBAR_FRAME_OFFSET_X = 0
+HOTBAR_FRAME_OFFSET_Y = -1
+HOTBAR_FRAME_SIZE_OFFSET = -1           
 
 _EMPTY_SLOT = {"item": None, "quantity": 0}
+
+CLOSE_OFFSET_X = 1
+CLOSE_OFFSET_Y = 0.25
 
 
 class InventoryUI:
@@ -121,6 +124,10 @@ class InventoryUI:
         self.arrow_right = arrow
         self.arrow_left = pygame.transform.flip(arrow, True, False)
         self.close_button_sheet = pygame.image.load("Shop_exit_button.png").convert_alpha()
+        
+        self.exit_button = self.close_button_sheet.subsurface(
+    (109, 2, 9, 9)
+        ).copy()
         self.is_open = False
         self.page = 0
         self.background = None
@@ -288,7 +295,12 @@ class InventoryUI:
         )
         # Close button: the beige plate of the atlas spans 157..163 x
         # and 2..8 y, the click zone is a bit larger around it.
-        self.close_rect = rect(panel_width - 12, 1, 9, 9)
+        self.close_rect = rect(
+    panel_width - 12 + CLOSE_OFFSET_X,
+    1 + CLOSE_OFFSET_Y,
+    9,
+    9
+)
         self.label_rect = rect(
             PANEL_CREAM_LEFT + LABEL_MARGIN, LABEL_TOP,
             PANEL_CREAM_WIDTH - 2 * LABEL_MARGIN, LABEL_HEIGHT
@@ -314,11 +326,16 @@ class InventoryUI:
             return f"{options.tr('Armor tier')} {item.tier}"
         return options.tr(str(getattr(item, "name", "ITEM")))
 
-    def _draw_icon(self, screen, icon, rect, inset=3):
+    def _draw_icon(self, screen, icon, rect, inset=3, offset=(0, 0)):
         if not isinstance(icon, pygame.Surface):
             return
+
         scaled = self._scaled_icon(icon, rect, inset)
-        screen.blit(scaled, scaled.get_rect(center=rect.center))
+        center = (
+            rect.centerx + int(offset[0]),
+            rect.centery + int(offset[1])
+        )
+        screen.blit(scaled, scaled.get_rect(center=center))
 
     @staticmethod
     def _draw_number(screen, value, rect, scale):
@@ -659,7 +676,11 @@ class InventoryUI:
                     screen,
                     self._item_icon(item, self.armor_icon),
                     slot_rect,
-                    item_inset
+                    item_inset,
+                    (
+                        int(round(ITEM_OFFSET_X * scale)),
+                        int(round(ITEM_OFFSET_Y * scale))
+                    )
                 )
                 self._draw_number(
                     screen,
@@ -674,18 +695,22 @@ class InventoryUI:
             # covers the inner square (exactly the slot size) and never
             # spills over the neighbouring cell.
             if index < player.inventory_slots:
-                inset = max(1, int(round(scale)))
-                frame_rect = slot_rect.inflate(-2 * inset, -2 * inset)
+                size_offset = int(round(HOTBAR_FRAME_SIZE_OFFSET * scale))
+                frame_rect = slot_rect.inflate(
+                    size_offset, size_offset
+                ).move(
+                int(round(HOTBAR_FRAME_OFFSET_X * scale)),
+                int(round(HOTBAR_FRAME_OFFSET_Y * scale))
+                )
                 accent = max(2, int(round(scale * 0.55)))
                 pygame.draw.rect(
-                    screen, (241, 205, 77), frame_rect, accent
+                screen, (241, 205, 77), frame_rect, accent
                 )
-
         if hovered_index is not None:
             hovered_item = self._bag_slot(player, hovered_index).get("item")
             label = self._item_name(hovered_item)
         elif self.weapon_rect.collidepoint(mouse_position):
-            label = options.tr("SWORD")
+            label = ""
         elif self.armor_rect.collidepoint(mouse_position):
             label = (
                 self._item_name(equipped_armor)
@@ -747,5 +772,18 @@ class InventoryUI:
                 )
                 drag_inset = max(3, int(round(scale * 0.7)))
                 self._draw_icon(screen, icon, drag_rect, drag_inset)
+
+        scaled_exit = pygame.transform.scale(
+    self.exit_button,
+    (
+        int(self.exit_button.get_width() * scale),
+        int(self.exit_button.get_height() * scale)
+    )
+)
+        if self.close_rect.collidepoint(mouse_position):
+            screen.blit(
+        scaled_exit,
+        scaled_exit.get_rect(center=self.close_rect.center)
+    )
 
         return self.panel_rect.copy()
